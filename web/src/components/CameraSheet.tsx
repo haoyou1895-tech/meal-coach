@@ -70,6 +70,7 @@ export default function CameraSheet({
   const [demo, setDemo] = useState(false);
   const [errMsg, setErrMsg] = useState("");
   const [note, setNote] = useState("");
+  const [zoom, setZoom] = useState(false);
 
   const reset = () => {
     setPhase("idle");
@@ -80,6 +81,7 @@ export default function CameraSheet({
     setErrMsg("");
     setDemo(false);
     setNote("");
+    setZoom(false);
   };
 
   const handleFile = async (file?: File | null) => {
@@ -170,7 +172,8 @@ export default function CameraSheet({
   };
 
   return (
-    <Sheet
+    <>
+      <Sheet
       open={open}
       onClose={() => {
         reset();
@@ -309,12 +312,25 @@ export default function CameraSheet({
         <div className="pb-2">
           <div className="flex items-start gap-3">
             {preview && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={preview}
-                alt="刚拍的照片"
-                className="h-20 w-20 shrink-0 rounded-2xl object-cover"
-              />
+              <button
+                type="button"
+                onClick={() => setZoom(true)}
+                aria-label="看大图"
+                className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl active:scale-95"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={preview}
+                  alt="刚拍的照片"
+                  className="h-full w-full object-cover"
+                />
+                <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/45 text-white">
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                    <circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.8" />
+                    <path d="M10.6 10.6L14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                </span>
+              </button>
             )}
             <div className="min-w-0 flex-1">
               <p className="text-[15px] text-ink-500">
@@ -436,7 +452,49 @@ export default function CameraSheet({
           </div>
         </div>
       )}
-    </Sheet>
+      </Sheet>
+
+      {zoom && preview && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90"
+          onClick={() => setZoom(false)}
+          role="button"
+          tabIndex={0}
+          aria-label="关闭大图"
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              setZoom(false);
+            }
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview}
+            alt="这顿饭的照片"
+            className="max-h-full max-w-full object-contain"
+          />
+          <button
+            type="button"
+            onClick={() => setZoom(false)}
+            aria-label="关闭大图"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/22 text-white backdrop-blur active:scale-95"
+            style={{ marginTop: "env(safe-area-inset-top, 0px)" }}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path
+                d="M4 4l10 10M14 4L4 14"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+          <p className="absolute bottom-6 left-0 right-0 text-center text-[13px] text-white/55">
+            点一下关掉
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { mockRecognize } from "@/lib/mock";
+import { checkRate } from "@/lib/ratelimit";
 import type { Nutrition } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -54,7 +55,14 @@ async function callModel(
   signal: AbortSignal,
 ) {
   const userText = note.trim()
-    ? `用户自己说这顿吃了：${note}。这些必须算进去（他清楚自己吃了什么，以他的话为准）；照片里如果还有他没提到的食物，也一并补上。按约定格式返回 JSON。`
+    ? `用户补充了一句：${note}。按下面的规则处理，不要简单照抄他的话：
+
+1. 先按照片，把画面里能看到的食物全部列出，一个都不能少。
+2. 用户提到的食物，如果照片里看不到，补进列表，分量按他说的算；他没说分量的，按一个成年人正常一份估（一碗白粥约 130 大卡、一根香蕉约 90 大卡），不要按最小份压低。
+3. 用户提到的食物，如果照片里已经有了，只采用他的名字，分量仍按照片判断 —— 不要因为他说"三碗"就写成三碗。
+4. 绝对不能因为用户没提到，就删掉照片里明显存在的食物（比如他说"白粥"，桌上有米饭也要列出来）。
+
+按约定格式返回 JSON。`
     : "这是什么饭菜？按约定格式返回 JSON。";
 
   const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
@@ -129,6 +137,19 @@ export async function POST(req: Request) {
       nutrition: sanitize(m.nutrition),
       demo: true,
     });
+  }
+
+  // 限流放在真实调用之前：演示模式不花钱，不需要限制
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "local";
+  const gate = checkRate(ip);
+  if (!gate.ok) {
+    return NextResponse.json(
+      { items: [], nutrition: sanitize({}), confidence: 0, demo: false, error: gate.message },
+      { status: gate.status },
+    );
   }
 
   for (let attempt = 0; attempt < 2; attempt++) {

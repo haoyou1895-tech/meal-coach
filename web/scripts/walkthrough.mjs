@@ -123,6 +123,17 @@ await page.waitForFunction(
 );
 await shot("05-result");
 
+// 4.1 点缩略图看大图
+await page.click('button[aria-label="看大图"]');
+await new Promise((r) => setTimeout(r, 400));
+await shot("05b-zoom");
+await page.click('button[aria-label="关闭大图"]');
+await new Promise((r) => setTimeout(r, 300));
+const zoomClosed = await page.evaluate(
+  () => !document.querySelector('button[aria-label="关闭大图"]'),
+);
+if (!zoomClosed) throw new Error("大图没关掉");
+
 await clickText("记上了");
 await page.waitForFunction(() => document.body.innerText.includes("今天吃了"));
 await shot("06-home-with-meal");
