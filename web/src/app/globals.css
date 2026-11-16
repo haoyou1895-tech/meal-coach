@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #eef8f2;
+  --color-brand-100: #d6eddf;
+  --color-brand-200: #aedcc2;
+  --color-brand-400: #4aa87a;
+  --color-brand-500: #1f8a5b;
+  --color-brand-600: #176f49;
+  --color-brand-700: #115639;
+
+  --color-warn-100: #fff1d6;
+  --color-warn-500: #e8871e;
+  --color-warn-600: #c56f10;
+
+  --color-danger-100: #ffe4e0;
+  --color-danger-500: #d94f3d;
+
+  --color-ink-900: #1b2320;
+  --color-ink-700: #3b4642;
+  --color-ink-500: #6b7671;
+  --color-ink-300: #b6bdb9;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "HarmonyOS Sans SC",
+    "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body {
+  background: #f4f6f4;
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  /* 长辈友好：基础字号放大 */
+  font-size: 17px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* 禁止输入框聚焦时 iOS 自动放大 */
+input,
+select,
+textarea,
+button {
+  font-size: 17px;
+  font-family: inherit;
+}
+
+@layer components {
+  .card {
+    @apply rounded-3xl bg-white p-5 shadow-[0_2px_16px_rgba(27,35,32,0.06)];
+  }
+
+  .btn-primary {
+    @apply flex h-16 w-full items-center justify-center gap-2 rounded-2xl bg-brand-500 text-[19px] font-semibold text-white transition active:scale-[0.98] active:bg-brand-600 disabled:opacity-40;
+  }
+
+  .btn-ghost {
+    @apply flex h-14 w-full items-center justify-center rounded-2xl border border-ink-300/60 bg-white text-[18px] font-medium text-ink-700 transition active:scale-[0.98] active:bg-black/[0.03];
+  }
+
+  .opt {
+    @apply flex min-h-[60px] w-full items-center justify-between rounded-2xl border-2 border-transparent bg-white px-5 text-left text-[18px] font-medium text-ink-900 shadow-[0_2px_10px_rgba(27,35,32,0.05)] transition active:scale-[0.99];
+  }
+
+  .opt-active {
+    @apply border-brand-500 bg-brand-50;
+  }
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* 只做位移、不改透明度：即使动画被系统禁用，内容依然可见 */
+@keyframes pop {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-pop {
+  animation: pop 0.25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop,
+  .animate-sheet {
+    animation: none !important;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-sheet {
+  animation: sheet-up 0.24s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
