@@ -48,7 +48,15 @@ function extractJson(text: string): unknown {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function callModel(image: string, signal: AbortSignal) {
+async function callModel(
+  image: string,
+  note: string,
+  signal: AbortSignal,
+) {
+  const userText = note.trim()
+    ? `用户自己说这顿吃了：${note}。这些必须算进去（他清楚自己吃了什么，以他的话为准）；照片里如果还有他没提到的食物，也一并补上。按约定格式返回 JSON。`
+    : "这是什么饭菜？按约定格式返回 JSON。";
+
   const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
     method: "POST",
     signal,
@@ -65,7 +73,7 @@ async function callModel(image: string, signal: AbortSignal) {
           role: "user",
           content: [
             { type: "image_url", image_url: { url: image } },
-            { type: "text", text: "这是什么饭菜？按约定格式返回 JSON。" },
+            { type: "text", text: userText },
           ],
         },
       ],
@@ -74,7 +82,9 @@ async function callModel(image: string, signal: AbortSignal) {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`模型接口 ${res.status}: ${body.slice(0, 200)}`);
+    // 详情只写服务端日志，不回传前端（避免泄露接口信息）
+    console.error(`[recognize] 模型接口 ${res.status}: ${body.slice(0, 500)}`);
+    throw new Error(`模型接口返回 ${res.status}`);
   }
 
   const data = await res.json();
@@ -88,9 +98,14 @@ async function callModel(image: string, signal: AbortSignal) {
 
 export async function POST(req: Request) {
   let image = "";
+  let note = "";
   try {
     const body = await req.json();
     image = String(body?.image ?? "");
+    // 用户补充的文字描述，限长避免超长 prompt
+    note = String(body?.note ?? "")
+      .slice(0, 60)
+      .trim();
   } catch {
     return NextResponse.json({ error: "请求格式不对" }, { status: 400 });
   }
@@ -120,7 +135,7 @@ export async function POST(req: Request) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25_000);
     try {
-      const parsed = await callModel(image, controller.signal);
+      const parsed = await callModel(image, note, controller.signal);
       clearTimeout(timer);
 
       const items = (parsed.items ?? [])
@@ -157,14 +172,19 @@ export async function POST(req: Request) {
       clearTimeout(timer);
       if (attempt === 1) {
         const msg = e instanceof Error ? e.message : "识别失败";
-        // 兜底：不让用户卡在错误页，给演示数据并说明原因
-        const m = mockRecognize();
-        return NextResponse.json({
-          ...m,
-          nutrition: sanitize(m.nutrition),
-          demo: true,
-          error: `识别服务暂时不可用（${msg.slice(0, 60)}），已填入估算值`,
-        });
+        console.error(`[recognize] 识别失败: ${msg}`);
+        // 刻意不降级到演示数据：假数据一旦被当成真结果存进记录，
+        // 会直接污染热量账本，比失败严重得多。失败就让用户重拍。
+        return NextResponse.json(
+          {
+            items: [],
+            nutrition: sanitize({}),
+            confidence: 0,
+            demo: false,
+            error: "这会儿没连上识别服务，稍等一下再拍一次",
+          },
+          { status: 502 },
+        );
       }
     }
   }

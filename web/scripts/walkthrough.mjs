@@ -99,6 +99,19 @@ console.log("✓ 测试图片");
 // 4. 拍照 → 上传 → 识别
 await clickText("拍一张，记一餐");
 await page.waitForFunction(() => document.body.innerText.includes("拍一张照片"));
+
+// 先填一句文字描述，验证「先说明再拍照」是否被采纳
+await page.evaluate(() => {
+  const ta = document.querySelector("textarea");
+  if (!ta) return;
+  const setter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    "value",
+  ).set;
+  setter.call(ta, "一碗米饭、红烧肉、番茄蛋汤");
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+});
+await sleep(300);
 await shot("04-camera-sheet");
 
 const input = await page.$('input[type="file"]');

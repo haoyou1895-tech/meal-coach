@@ -32,7 +32,7 @@ export function Sheet({
         onClick={onClose}
         className="absolute inset-0 bg-black/40"
       />
-      <div className="animate-sheet relative max-h-[92vh] overflow-y-auto rounded-t-[28px] bg-[#f4f6f4] pb-[calc(env(safe-area-inset-bottom,0px)+28px)]">
+      <div className="animate-sheet relative mx-auto max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-[#f4f6f4] pb-[calc(env(safe-area-inset-bottom,0px)+28px)]">
         <div className="sticky top-0 z-10 flex items-center justify-between bg-[#f4f6f4] px-5 pb-2 pt-4">
           <span className="text-[19px] font-bold">{title}</span>
           <button

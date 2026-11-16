@@ -69,6 +69,7 @@ export default function CameraSheet({
   const [confidence, setConfidence] = useState(0);
   const [demo, setDemo] = useState(false);
   const [errMsg, setErrMsg] = useState("");
+  const [note, setNote] = useState("");
 
   const reset = () => {
     setPhase("idle");
@@ -78,6 +79,7 @@ export default function CameraSheet({
     setFactors([]);
     setErrMsg("");
     setDemo(false);
+    setNote("");
   };
 
   const handleFile = async (file?: File | null) => {
@@ -90,7 +92,7 @@ export default function CameraSheet({
       const res = await fetch("/api/recognize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl }),
+        body: JSON.stringify({ image: dataUrl, note }),
       });
       const data = (await res.json()) as RecognizeResult;
       if (!res.ok || data.error === "没有收到图片") {
@@ -215,9 +217,31 @@ export default function CameraSheet({
             ))}
           </div>
 
+          <div className="mb-4">
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <span className="text-[15px] font-medium text-ink-700">
+                这顿吃了啥？
+              </span>
+              <span className="text-[13px] tabular-nums text-ink-300">
+                {note.length > 0 ? `${note.length}/60` : "可以不填"}
+              </span>
+            </div>
+            <textarea
+              value={note}
+              maxLength={60}
+              rows={2}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="比如：一碗米饭、红烧肉、炒青菜"
+              className="w-full resize-none rounded-xl bg-white px-4 py-3 text-[17px] leading-relaxed text-ink-700 placeholder:text-ink-300 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+            />
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
+              说出来它就不用猜，有汤、有凉菜的时候更准
+            </p>
+          </div>
+
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex w-full flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-brand-200 bg-brand-50 px-6 py-12 transition active:scale-[0.99]"
+            className="flex w-full flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-brand-200 bg-brand-50 px-6 py-8 transition active:scale-[0.99]"
           >
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-500 text-white">
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
@@ -237,8 +261,8 @@ export default function CameraSheet({
             </span>
           </button>
 
-          <p className="mt-5 text-center text-[14px] leading-relaxed text-ink-300">
-            拍的时候把菜都拍进去，盘子和碗一起拍更准
+          <p className="mt-4 text-center text-[13px] leading-relaxed text-ink-300">
+            盘子和碗一起拍进去更准
           </p>
         </div>
       )}
@@ -296,12 +320,18 @@ export default function CameraSheet({
               <p className="text-[15px] text-ink-500">
                 {mealTypeLabel(mealType)} · 大约
               </p>
-              <p className="text-[38px] font-bold leading-tight tabular-nums">
-                {computed.kcal}
-                <span className="ml-1 text-[16px] font-medium text-ink-500">
-                  大卡
-                </span>
-              </p>
+              {demo ? (
+                <p className="text-[34px] font-bold leading-tight text-warn-500">
+                  示例数据
+                </p>
+              ) : (
+                <p className="text-[38px] font-bold leading-tight tabular-nums">
+                  {computed.kcal}
+                  <span className="ml-1 text-[16px] font-medium text-ink-500">
+                    大卡
+                  </span>
+                </p>
+              )}
             </div>
             <button
               onClick={() => fileRef.current?.click()}
@@ -312,8 +342,36 @@ export default function CameraSheet({
           </div>
 
           {demo && (
-            <p className="mt-3 rounded-xl bg-warn-100 px-3 py-2 text-[13px] leading-relaxed text-warn-600">
-              {errMsg || "演示模式：还没接识别服务，这里填的是示例数据"}
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-warn-100 px-3 py-3">
+              <svg
+                className="mt-0.5 shrink-0 text-warn-600"
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+              >
+                <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.6" />
+                <path
+                  d="M8 4.6v4.2"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+                <circle cx="8" cy="11.4" r="0.9" fill="currentColor" />
+              </svg>
+              <p className="text-[13px] leading-relaxed text-warn-600">
+                <span className="font-semibold">未接识别服务。</span>
+                下面这些菜名和热量是固定示例，不是从这张照片认出来的。
+                {errMsg && (
+                  <span className="mt-1 block opacity-70">{errMsg}</span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {note && (
+            <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[13px] leading-relaxed text-ink-500">
+              您说的「{note}」已经算进去了
             </p>
           )}
 
@@ -373,7 +431,7 @@ export default function CameraSheet({
 
           <div className="mt-6">
             <button className="btn-primary" onClick={save}>
-              记上了
+              {demo ? "仍然记下（示例）" : "记上了"}
             </button>
           </div>
         </div>

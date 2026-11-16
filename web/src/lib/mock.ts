@@ -44,11 +44,14 @@ const PRESETS: { items: FoodItem[]; nutrition: Nutrition }[] = [
 ];
 
 export function mockRecognize() {
-  const pick = PRESETS[Math.floor(Math.random() * PRESETS.length)];
+  // 刻意固定返回第一组，不做随机抽取。
+  // 随机抽取会制造「碰巧认对了」的假象，让人误以为识别已验证，
+  // 这比直接失败更危险。固定一组，任何人一眼就知道是示例数据。
+  const pick = PRESETS[0];
   return {
     items: pick.items,
     nutrition: pick.nutrition,
-    confidence: 0.78,
+    confidence: 0,
     demo: true,
   };
 }
