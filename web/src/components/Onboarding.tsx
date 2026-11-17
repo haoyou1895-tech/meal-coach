@@ -264,22 +264,25 @@ export default function Onboarding({
         )}
 
         {step === 7 && (
-          <Question title="三餐规律吗" hint="决定什么时候提醒您">
+          <Question title="三餐规律吗" hint="决定提前多久提醒您">
             <div className="space-y-3">
               <OptionCard
                 active={mealRegular === "regular"}
                 onClick={() => setMealRegular("regular")}
                 title="很规律"
+                desc="提前 45 分钟提醒，过了点马上追问"
               />
               <OptionCard
                 active={mealRegular === "sometimes"}
                 onClick={() => setMealRegular("sometimes")}
                 title="偶尔漏一顿"
+                desc="提前 30 分钟提醒，过半小时再问"
               />
               <OptionCard
                 active={mealRegular === "irregular"}
                 onClick={() => setMealRegular("irregular")}
                 title="经常不规律"
+                desc="不提前催，过点一小时才问吃没吃"
               />
             </div>
           </Question>

@@ -65,7 +65,9 @@ export default function HomeView({
     ? nextMealAdvice(left, plan.dailyBudgetKcal, profile, now)
     : null;
   const warnings = now ? macroWarnings(totals, plan, profile, now) : [];
-  const reminder = now ? mealReminder(todayMeals, now) : null;
+  const reminder = now
+    ? mealReminder(todayMeals, profile.mealRegular, now)
+    : null;
   const tip = diseaseTip(profile);
   const hasHypertension = profile.diseases.includes("hypertension");
   const weekdayLabel = WEEKDAYS[new Date().getDay()];

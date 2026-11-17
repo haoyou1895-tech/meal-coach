@@ -1,4 +1,11 @@
-import type { Meal, MealType, Nutrition, NutritionPlan, Profile } from "./types";
+import type {
+  Meal,
+  MealRegular,
+  MealType,
+  Nutrition,
+  NutritionPlan,
+  Profile,
+} from "./types";
 
 /* ---------- 1. 下一顿该吃什么 ---------- */
 
@@ -171,28 +178,48 @@ const SLOT_WINDOW: { type: MealType; label: string; start: number; end: number }
 ];
 
 /**
+ * 设置里「三餐规律吗」这一题的答案，决定三件事：
+ * - lead：提前多久开口提醒。越规律越能提前说，因为他说到就到；
+ *   越不规律越不能提前，提前催等于白催，还招人烦。
+ * - atTime：正点上要不要再说一句。不规律的人这个点多半在忙，
+ *   说「午饭时间到了」只会被无视。
+ * - chase：过了饭点多久才问「吃了吗」。越不规律越该多给点时间，
+ *   他可能正开着会，一点钟才下楼吃饭。
+ */
+const REGULAR_CFG: Record<
+  MealRegular,
+  { lead: number; atTime: boolean; chase: number }
+> = {
+  regular: { lead: 45, atTime: true, chase: 0 },
+  sometimes: { lead: 30, atTime: true, chase: 30 },
+  irregular: { lead: 0, atTime: false, chase: 60 },
+};
+
+/**
  * 只在"该吃了""过了点还没记"这两种情况下说话，其余时间闭嘴。
  * 长辈最烦被 App 催，所以一天最多提三次。
  */
 export function mealReminder(
   todayMeals: Meal[],
+  mealRegular: MealRegular = "sometimes",
   now = new Date(),
 ): MealReminder | null {
   const mins = now.getHours() * 60 + now.getMinutes();
   const done = new Set(todayMeals.map((m) => m.mealType));
+  const cfg = REGULAR_CFG[mealRegular] ?? REGULAR_CFG.sometimes;
 
   for (const s of SLOT_WINDOW) {
     if (done.has(s.type)) continue;
-    // 快到点：提前半小时
-    if (mins >= s.start - 30 && mins < s.start) {
+    // 快到点
+    if (cfg.lead > 0 && mins >= s.start - cfg.lead && mins < s.start) {
       return { text: `快到${s.label}的点了，吃的时候顺手拍一张`, urgent: false };
     }
     // 正在点上
-    if (mins >= s.start && mins <= s.end) {
+    if (cfg.atTime && mins >= s.start && mins <= s.end) {
       return { text: `${s.label}时间到了，吃完拍一张就行`, urgent: false };
     }
     // 过了点还没记，最多追三小时
-    if (mins > s.end && mins < s.end + 180) {
+    if (mins >= s.end + cfg.chase && mins < s.end + 180) {
       return { text: `${s.label}还没记，是没吃还是忘了拍？`, urgent: true };
     }
   }
