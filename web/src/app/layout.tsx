@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "减重参谋",
+  title: "餐谋",
   description: "拍张照，就知道这顿吃对了没",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "减重参谋",
+    title: "餐谋",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },

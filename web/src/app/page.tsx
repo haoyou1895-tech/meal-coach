@@ -5,18 +5,22 @@ import CameraSheet from "@/components/CameraSheet";
 import HomeView from "@/components/HomeView";
 import Onboarding from "@/components/Onboarding";
 import RecordView from "@/components/RecordView";
+import Splash from "@/components/Splash";
 import { Sheet } from "@/components/ui";
 import { DISEASE_LABEL, buildPlan, sumMeals, todayStr } from "@/lib/nutrition";
 import {
   activityOfDate,
   loadState,
+  migratePhotos,
   resetState,
   saveState,
-  withMeal,
+  updateMeal,
+  upsertMeal,
   withWeight,
   withoutMeal,
   type AppState,
 } from "@/lib/store";
+import { clearPhotos, deletePhoto } from "@/lib/photos";
 import type { Meal, Profile } from "@/lib/types";
 
 type Tab = "home" | "record";
@@ -27,9 +31,18 @@ export default function Page() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [redoSetup, setRedoSetup] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
-    setState(loadState());
+    const loaded = loadState();
+    setState(loaded);
+    // 老版本把照片塞在 localStorage 里，搬到 IndexedDB 后再清掉
+    migratePhotos(loaded).then((next) => {
+      if (next !== loaded) {
+        setState(next);
+        saveState(next);
+      }
+    });
   }, []);
 
   const update = (next: AppState) => {
@@ -45,10 +58,12 @@ export default function Page() {
     return buildPlan(profile, activityOfDate(state, today));
   }, [profile, state, today]);
 
-  const dayKcal = useMemo(() => {
-    if (!state) return 0;
-    return sumMeals(state.meals.filter((m) => m.date === today)).kcal;
-  }, [state, today]);
+  const todayMeals = useMemo(
+    () => (state ? state.meals.filter((m) => m.date === today) : []),
+    [state, today],
+  );
+
+  const dayKcal = useMemo(() => sumMeals(todayMeals).kcal, [todayMeals]);
 
   // 首屏：等待读取本地数据
   if (!state) {
@@ -57,6 +72,11 @@ export default function Page() {
         <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-brand-200 border-t-brand-500" />
       </div>
     );
+  }
+
+  // 开屏：一次 1.4 秒，带一句当天固定的话
+  if (!splashDone) {
+    return <Splash onDone={() => setSplashDone(true)} />;
   }
 
   // 首次使用：引导
@@ -97,7 +117,13 @@ export default function Page() {
           onWeight={(kg) =>
             update(withWeight(state, { date: today, weightKg: kg }))
           }
-          onDeleteMeal={(id) => update(withoutMeal(state, id))}
+          onDeleteMeal={(id) => {
+            // 照片在 IndexedDB 里，删记录时一起清掉，别留垃圾
+            const target = state.meals.find((m) => m.id === id);
+            if (target?.photoId) void deletePhoto(target.photoId);
+            update(withoutMeal(state, id));
+          }}
+          onUpdateMeal={(m) => update(updateMeal(state, m))}
         />
       )}
 
@@ -166,7 +192,8 @@ export default function Page() {
         profile={profile}
         plan={plan!}
         dayKcalBefore={dayKcal}
-        onSave={(m: Meal) => update(withMeal(state, m))}
+        todayMeals={todayMeals}
+        onSave={(m: Meal) => update(upsertMeal(state, m))}
       />
 
       <Sheet
@@ -208,6 +235,7 @@ export default function Page() {
             onClick={() => {
               if (confirm("清空所有记录？这个操作不能撤销。")) {
                 resetState();
+                void clearPhotos();
                 setState(loadState());
                 setSettingsOpen(false);
                 setTab("home");
@@ -218,7 +246,7 @@ export default function Page() {
           </button>
 
           <p className="pt-2 text-center text-[12px] leading-relaxed text-ink-300">
-            减重参谋 v0.1 · 数据只存在这台手机上
+            餐谋 v0.1 · 数据只存在这台手机上
             <br />
             本产品不构成医疗建议，如有疾病请遵医嘱
           </p>

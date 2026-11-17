@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 /** 底部弹出层 */
 export function Sheet({
@@ -56,7 +56,7 @@ export function Sheet({
   );
 }
 
-/** 数字步进器：避免长辈调起键盘 */
+/** 数字步进器：既能点加减，也能直接点数字输入 */
 export function Stepper({
   value,
   onChange,
@@ -65,6 +65,7 @@ export function Stepper({
   step = 1,
   unit,
   big,
+  decimals,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -73,36 +74,90 @@ export function Stepper({
   step?: number;
   unit: string;
   big?: boolean;
+  /** 保留几位小数，默认由 step 推导 */
+  decimals?: number;
 }) {
-  const set = (v: number) => onChange(Math.min(max, Math.max(min, v)));
+  // step < 1 时保留一位小数，否则取整。
+  // 浮点累加必须收口，否则 73.1 + 0.1 会显示成 73.100000000000
+  const digits = decimals ?? (step < 1 ? 1 : 0);
+  const fix = (v: number) => {
+    const f = 10 ** digits;
+    return Math.round(v * f) / f;
+  };
+  const set = (v: number) => {
+    const next = fix(Math.min(max, Math.max(min, v)));
+    if (next !== value) onChange(next);
+  };
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const startEdit = () => {
+    setDraft(fix(value).toFixed(digits));
+    setEditing(true);
+  };
+  const commit = () => {
+    const parsed = Number(draft);
+    if (draft.trim() !== "" && Number.isFinite(parsed)) set(parsed);
+    setEditing(false);
+  };
+
   return (
-    <div className="flex items-center justify-between gap-2">
-      <button
-        type="button"
-        onClick={() => set(value - step)}
-        disabled={value <= min}
-        className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-[28px] font-bold text-ink-700 shadow-sm transition active:scale-95 disabled:opacity-30"
-      >
-        −
-      </button>
-      <div className="flex flex-1 items-baseline justify-center gap-1.5">
-        <span
-          className={`font-bold tabular-nums tracking-tight ${
-            big ? "text-[56px] leading-none" : "text-[44px] leading-none"
-          }`}
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => set(fix(value) - step)}
+          disabled={fix(value) <= min}
+          aria-label="减"
+          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-[28px] font-bold text-ink-700 shadow-sm transition active:scale-95 disabled:opacity-30"
         >
-          {value}
-        </span>
-        <span className="text-[17px] font-medium text-ink-500">{unit}</span>
+          −
+        </button>
+        <div className="flex flex-1 items-baseline justify-center gap-1.5">
+          {editing ? (
+            <input
+              autoFocus
+              value={draft}
+              inputMode={digits > 0 ? "decimal" : "numeric"}
+              onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ""))}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commit();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              aria-label="直接输入数字"
+              className={`w-[4.4em] border-b-2 border-brand-500 bg-transparent text-center font-bold tabular-nums tracking-tight focus:outline-none ${
+                big ? "text-[56px] leading-none" : "text-[44px] leading-none"
+              }`}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={startEdit}
+              aria-label="点这里可以直接输入"
+              className={`font-bold tabular-nums tracking-tight active:opacity-60 ${
+                big ? "text-[56px] leading-none" : "text-[44px] leading-none"
+              }`}
+            >
+              {fix(value).toFixed(digits)}
+            </button>
+          )}
+          <span className="text-[17px] font-medium text-ink-500">{unit}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => set(fix(value) + step)}
+          disabled={fix(value) >= max}
+          aria-label="加"
+          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-[28px] font-bold text-ink-700 shadow-sm transition active:scale-95 disabled:opacity-30"
+        >
+          +
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={() => set(value + step)}
-        disabled={value >= max}
-        className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-[28px] font-bold text-ink-700 shadow-sm transition active:scale-95 disabled:opacity-30"
-      >
-        +
-      </button>
+      <p className="mt-2 text-center text-[12px] text-ink-300">
+        点数字可以直接输入
+      </p>
     </div>
   );
 }
@@ -253,11 +308,19 @@ export function MacroBar({
   color: string;
 }) {
   const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
+  const over = target > 0 && value > target * 1.05;
   return (
     <div className="flex-1">
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-[13px] font-medium text-ink-500">{label}</span>
-        <span className="text-[13px] font-semibold tabular-nums text-ink-700">
+        <span className="text-[13px] font-medium text-ink-500">
+          {label}
+          {over && <span className="ml-0.5 text-[11px] text-[#b23c2c]">超</span>}
+        </span>
+        <span
+          className={`text-[13px] font-semibold tabular-nums ${
+            over ? "text-[#b23c2c]" : "text-ink-700"
+          }`}
+        >
           {Math.round(value)}
           <span className="ml-1 text-[11px] font-normal text-ink-300">
             / {target}
@@ -268,7 +331,7 @@ export function MacroBar({
       <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">
         <div
           className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: color }}
+          style={{ width: `${pct}%`, background: over ? "#d94f3d" : color }}
         />
       </div>
     </div>

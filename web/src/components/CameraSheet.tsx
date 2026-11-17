@@ -12,6 +12,7 @@ import type {
 } from "@/lib/types";
 import { guessMealType, mealTypeLabel, todayStr } from "@/lib/nutrition";
 import { ruleComment } from "@/lib/comment";
+import { putPhoto } from "@/lib/photos";
 import { Sheet } from "./ui";
 
 type Phase = "idle" | "working" | "result" | "error";
@@ -44,12 +45,34 @@ function compress(file: File, maxSide = 900): Promise<string> {
   });
 }
 
+/** 从已经压好的大图再生成一张小缩略图。仅在 IndexedDB 不可用时降级使用 */
+function makeThumb(dataUrl: string, maxSide = 480, quality = 0.7): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve("");
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve("");
+    img.src = dataUrl;
+  });
+}
+
 export default function CameraSheet({
   open,
   onClose,
   profile,
   plan,
   dayKcalBefore,
+  todayMeals,
   onSave,
 }: {
   open: boolean;
@@ -57,6 +80,8 @@ export default function CameraSheet({
   profile: Profile;
   plan: NutritionPlan;
   dayKcalBefore: number;
+  /** 今天的记录，用于判断这个餐次是不是已经记过 */
+  todayMeals: Meal[];
   onSave: (m: Meal) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -71,6 +96,11 @@ export default function CameraSheet({
   const [errMsg, setErrMsg] = useState("");
   const [note, setNote] = useState("");
   const [zoom, setZoom] = useState(false);
+  /** 写照片到本地仓库是异步的，加个锁防止连点记两遍 */
+  const [saving, setSaving] = useState(false);
+
+  /** 这个餐次今天是否已经记过；记过就只能往这顿里加，不再新增一条 */
+  const existing = todayMeals.find((m) => m.mealType === mealType);
 
   const reset = () => {
     setPhase("idle");
@@ -138,7 +168,7 @@ export default function CameraSheet({
     };
   })();
 
-  const comment = ruleComment(computed, profile, plan, dayKcalBefore);
+  const comment = ruleComment(computed, profile, plan, dayKcalBefore, mealType);
 
   const adjust = (i: number, delta: number) => {
     setFactors((prev) =>
@@ -148,27 +178,50 @@ export default function CameraSheet({
     );
   };
 
-  const save = () => {
-    const meal: Meal = {
-      id:
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const id =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
-          : String(Date.now()),
-      date: todayStr(),
-      mealType,
-      items: items.map((it, i) => ({
-        ...it,
-        kcal: Math.round(it.kcal * (factors[i] ?? 1)),
-      })),
-      nutrition: computed,
-      comment,
-      adjusted: factors.some((f) => f !== 1),
-      confidence,
-      createdAt: new Date().toISOString(),
-    };
-    onSave(meal);
-    reset();
-    onClose();
+          : String(Date.now());
+
+      // 照片进 IndexedDB（容量大、可以存清晰的），文字记录进 localStorage。
+      // 万一浏览器禁用了 IndexedDB，退回到 480px 小图，照片不至于丢。
+      let photoIds: string[] = [];
+      let image: string | undefined;
+      if (preview) {
+        const stored = await putPhoto(id, preview);
+        if (stored) {
+          photoIds = [id];
+        } else {
+          image = (await makeThumb(preview)) || undefined;
+        }
+      }
+
+      const meal: Meal = {
+        id,
+        date: todayStr(),
+        mealType,
+        items: items.map((it, i) => ({
+          ...it,
+          kcal: Math.round(it.kcal * (factors[i] ?? 1)),
+        })),
+        nutrition: computed,
+        comment,
+        adjusted: factors.some((f) => f !== 1),
+        confidence,
+        createdAt: new Date().toISOString(),
+        photoIds: photoIds.length ? photoIds : undefined,
+        image,
+      };
+      onSave(meal);
+      reset();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -205,19 +258,31 @@ export default function CameraSheet({
       {phase === "idle" && (
         <div className="pb-4">
           <div className="mb-5 flex gap-2">
-            {MEAL_TYPES.map((t) => (
-              <button
-                key={t}
-                onClick={() => setMealType(t)}
-                className={`h-12 flex-1 rounded-xl text-[16px] font-medium transition ${
-                  mealType === t
-                    ? "bg-brand-500 text-white"
-                    : "bg-white text-ink-700 shadow-sm"
-                }`}
-              >
-                {mealTypeLabel(t)}
-              </button>
-            ))}
+            {MEAL_TYPES.map((t) => {
+              const recorded = todayMeals.some((m) => m.mealType === t);
+              return (
+                <button
+                  key={t}
+                  onClick={() => setMealType(t)}
+                  className={`relative h-12 flex-1 rounded-xl text-[16px] font-medium transition ${
+                    mealType === t
+                      ? "bg-brand-500 text-white"
+                      : "bg-white text-ink-700 shadow-sm"
+                  }`}
+                >
+                  {mealTypeLabel(t)}
+                  {recorded && (
+                    <span
+                      className={`absolute bottom-0.5 right-1.5 text-[10px] ${
+                        mealType === t ? "text-white/75" : "text-brand-600/70"
+                      }`}
+                    >
+                      已记
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="mb-4">
@@ -391,6 +456,17 @@ export default function CameraSheet({
             </p>
           )}
 
+          {existing && (
+            <div className="mt-4 rounded-xl bg-warn-100 px-3.5 py-3">
+              <p className="text-[13px] leading-relaxed text-warn-600">
+                {mealTypeLabel(mealType)}今天已经记过（{existing.nutrition.kcal} 大卡）。
+                点下面会把这次拍的
+                <span className="font-semibold">加进那一顿</span>
+                ，不会多出一条。
+              </p>
+            </div>
+          )}
+
           <p className="mb-2 mt-5 text-[13px] text-ink-300">
             分量不对？点右边的加减调一下
           </p>
@@ -433,7 +509,10 @@ export default function CameraSheet({
             </p>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <p className="mb-1.5 mt-3 text-[12px] leading-relaxed text-ink-300">
+            下面三个克数也是按这张照片估的，不是称出来的
+          </p>
+          <div className="grid grid-cols-3 gap-2 text-center">
             <Macro label="蛋白" value={computed.protein} unit="g" />
             <Macro label="碳水" value={computed.carb} unit="g" />
             <Macro label="脂肪" value={computed.fat} unit="g" />
@@ -446,9 +525,23 @@ export default function CameraSheet({
           )}
 
           <div className="mt-6">
-            <button className="btn-primary" onClick={save}>
-              {demo ? "仍然记下（示例）" : "记上了"}
+            <button
+              className="btn-primary"
+              onClick={() => void save()}
+              disabled={saving}
+            >
+              {existing
+                ? `加进${mealTypeLabel(mealType)}`
+                : demo
+                  ? "仍然记下（示例）"
+                  : "记上了"}
             </button>
+            {existing && (
+              <p className="mt-2 text-center text-[12px] tabular-nums text-ink-300">
+                这顿现有 {existing.nutrition.kcal} 大卡，加完是{" "}
+                {existing.nutrition.kcal + computed.kcal} 大卡
+              </p>
+            )}
           </div>
         </div>
       )}

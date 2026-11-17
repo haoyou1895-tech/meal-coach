@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Meal, NutritionPlan, Profile } from "@/lib/types";
 import {
   mealTypeLabel,
@@ -8,7 +8,8 @@ import {
   sumMeals,
   todayStr,
 } from "@/lib/nutrition";
-import { dayStatusText } from "@/lib/comment";
+import { dayStatusText, ruleComment } from "@/lib/comment";
+import { macroWarnings, mealReminder, nextMealAdvice } from "@/lib/advice";
 import { CalorieRing, MacroBar } from "./ui";
 
 function greeting() {
@@ -48,12 +49,47 @@ export default function HomeView({
   const todayMeals = meals.filter((m) => m.date === today);
   const totals = sumMeals(todayMeals);
   const status = dayStatusText(totals.kcal, plan.dailyBudgetKcal);
+
+  // 时间相关的提示只在客户端算，否则服务端渲染和浏览器会对不上
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const left = plan.dailyBudgetKcal - totals.kcal;
+  const sodiumPct = Math.min(100, (totals.sodium / plan.sodiumLimitMg) * 100);
+  const sodiumOver = totals.sodium > plan.sodiumLimitMg;
+  const advice = now
+    ? nextMealAdvice(left, plan.dailyBudgetKcal, profile, now)
+    : null;
+  const warnings = now ? macroWarnings(totals, plan, profile, now) : [];
+  const reminder = now ? mealReminder(todayMeals, now) : null;
   const tip = diseaseTip(profile);
   const hasHypertension = profile.diseases.includes("hypertension");
   const weekdayLabel = WEEKDAYS[new Date().getDay()];
   const sorted = [...todayMeals].sort((a, b) =>
     a.createdAt < b.createdAt ? 1 : -1,
   );
+
+  /**
+   * 点评按当前规则重算，不读存下来的旧字符串。
+   * 否则规则一改，老记录还在说旧话术，看起来像没改。
+   * 累计顺序按吃得先后算，因为"这顿之前已经吃了多少"会影响判断。
+   */
+  const liveComments = useMemo(() => {
+    const map = new Map<string, string>();
+    const asc = [...todayMeals].sort((a, b) =>
+      a.createdAt < b.createdAt ? -1 : 1,
+    );
+    let before = 0;
+    for (const m of asc) {
+      map.set(m.id, ruleComment(m.nutrition, profile, plan, before, m.mealType));
+      before += m.nutrition.kcal;
+    }
+    return map;
+  }, [todayMeals, profile, plan]);
 
   return (
     <div className="pb-52">
@@ -90,6 +126,14 @@ export default function HomeView({
         </button>
       </header>
 
+      {reminder && (
+        <div className="mx-5 mb-1 mt-3 rounded-2xl bg-[#fff4e5] px-4 py-3">
+          <p className="text-[14px] font-medium leading-relaxed text-[#a9631a]">
+            {reminder.text}
+          </p>
+        </div>
+      )}
+
       <InstallHint />
 
       <div className="flex justify-center pt-2">
@@ -99,6 +143,34 @@ export default function HomeView({
           tone={status.tone}
         />
       </div>
+
+      {advice && (
+        <section className="mt-4 px-5">
+          <div
+            className="rounded-2xl px-4 py-4"
+            style={{
+              background:
+                advice.tone === "over"
+                  ? "#fdecea"
+                  : advice.tone === "warn"
+                    ? "#fff4e5"
+                    : "#eaf5ef",
+            }}
+          >
+            <p className="text-[13px] font-semibold text-ink-500">
+              {advice.headline}
+            </p>
+            <p className="mt-1 text-[19px] font-bold leading-snug text-ink-700">
+              {advice.detail}
+            </p>
+            {advice.caution && (
+              <p className="mt-2 text-[13px] leading-relaxed text-ink-500">
+                {advice.caution}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="mt-6 flex gap-4 px-6">
         <MacroBar
@@ -123,6 +195,25 @@ export default function HomeView({
           color="#c4694a"
         />
       </div>
+
+      {warnings.length > 0 && (
+        <section className="mt-4 space-y-2 px-5">
+          {warnings.map((w) => (
+            <div
+              key={w.key}
+              className="rounded-xl px-3.5 py-3"
+              style={{ background: w.severe ? "#fdecea" : "#ffffff" }}
+            >
+              <p
+                className="text-[14px] font-medium leading-relaxed"
+                style={{ color: w.severe ? "#b23c2c" : "#33413b" }}
+              >
+                {w.text}
+              </p>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="mt-6 px-5">
         <div className="mb-3 flex items-baseline justify-between">
@@ -164,7 +255,7 @@ export default function HomeView({
                   </div>
                 </div>
                 <p className="mt-2.5 border-t border-black/[0.05] pt-2.5 text-[15px] leading-relaxed text-ink-700">
-                  {m.comment}
+                  {liveComments.get(m.id) ?? m.comment}
                 </p>
               </article>
             ))}
@@ -172,44 +263,54 @@ export default function HomeView({
         )}
       </section>
 
-      {tip && todayMeals.length > 0 && (
-        <div className="mt-5 px-5">
-          <div className="rounded-2xl bg-white px-4 py-3.5">
-            {hasHypertension ? (
-              <>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[14px] font-medium text-ink-500">
-                    钠（盐）· 每天别超过 {plan.sodiumLimitMg} mg
-                  </span>
-                  <span className="text-[14px] font-semibold tabular-nums text-ink-700">
-                    {Math.round(totals.sodium)}
-                  </span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/[0.07]">
-                  <div
-                    className="h-full rounded-full bg-warn-500 transition-all duration-500"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (totals.sodium / plan.sodiumLimitMg) * 100,
-                      )}%`,
-                    }}
-                  />
-                </div>
+      {todayMeals.length > 0 && (
+        <>
+          {/*
+            钠以前只在"有高血压"时显示，结果别的人收到了"盐超了 750 mg"的提示，
+            页面上却找不到盐的数字。现在不管什么病都显示。
+          */}
+          <section className="mt-4 px-5">
+            <div className="rounded-2xl bg-white px-4 py-3.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[14px] font-medium text-ink-500">
+                  钠（盐）· 每天别超过 {plan.sodiumLimitMg} mg
+                </span>
+                <span
+                  className="shrink-0 text-[14px] font-semibold tabular-nums"
+                  style={{ color: sodiumOver ? "#d94f3d" : undefined }}
+                >
+                  {Math.round(totals.sodium)}
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/[0.07]">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${sodiumPct}%`,
+                    background: sodiumOver ? "#d94f3d" : "#e8a531",
+                  }}
+                />
+              </div>
+              {/* 高血压的提醒就是讲盐的，正好跟这条配套；其他病放下面单独一张卡 */}
+              {tip && hasHypertension && (
                 <p className="mt-2.5 text-[13px] leading-relaxed text-ink-500">
                   {tip}
                 </p>
-              </>
-            ) : (
-              <>
+              )}
+            </div>
+          </section>
+
+          {tip && !hasHypertension && (
+            <section className="mt-2 px-5">
+              <div className="rounded-2xl bg-white px-4 py-3.5">
                 <p className="text-[13px] font-medium text-ink-500">今天注意</p>
                 <p className="mt-1 text-[16px] font-medium leading-snug text-warn-600">
                   {tip}
                 </p>
-              </>
-            )}
-          </div>
-        </div>
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-# 减重参谋 · 代码说明与上线手册
+# 餐谋 · 代码说明与上线手册
 
 给舅舅用的减重助手。核心就一句话：**拍张照，就知道这顿吃对了没。**
 
@@ -44,7 +44,7 @@ AI_MODEL=qwen-vl-max
 ```bash
 git init
 git add .
-git commit -m "feat: 减重参谋 v0.1"
+git commit -m "feat: 餐谋 v0.1"
 # 在 GitHub 新建一个空仓库，然后：
 git remote add origin https://github.com/你的用户名/meal-coach.git
 git push -u origin main

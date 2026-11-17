@@ -70,6 +70,21 @@ export interface Meal {
   /** 识别置信度 0-1 */
   confidence: number;
   createdAt: string;
+  /**
+   * 这条记录的所有照片（存在 IndexedDB 里的键）。
+   * 同一天同一餐次拍了两次（比如先拍盖饭、再补拍馄饨汤）会有两张，
+   * 不能再像以前那样后一张把前一张顶掉。
+   */
+  photoIds?: string[];
+  /** 单张照片的旧字段，读到老数据时会被规范成 photoIds */
+  photoId?: string;
+  /**
+   * 更早的版本把 320px 小图直接塞在这里。
+   * 读到老数据时会被迁移进 IndexedDB 并清空。
+   */
+  image?: string;
+  /** 最后修改时间；有值说明这条被改过 */
+  updatedAt?: string;
 }
 
 export interface WeightLog {
