@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Meal, NutritionPlan, Profile } from "@/lib/types";
+import type { ActivityLevel, Meal, NutritionPlan, Profile } from "@/lib/types";
 import {
   mealTypeLabel,
   round,
@@ -22,6 +22,16 @@ function greeting() {
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
+/**
+ * 活动量不做精确记录，只让用户点一下三选一。
+ * 长辈记不清"走了多少步"，但一定知道"今天出没出汗"。
+ */
+const ACTIVITY_OPTIONS: { level: ActivityLevel; label: string }[] = [
+  { level: "low", label: "基本没动" },
+  { level: "normal", label: "正常走动" },
+  { level: "high", label: "干活或锻炼" },
+];
+
 /** 按疾病给一条当日提醒，比"注意控制"有用 */
 function diseaseTip(profile: Profile): string | null {
   const d = profile.diseases;
@@ -38,11 +48,15 @@ export default function HomeView({
   profile,
   plan,
   meals,
+  activity,
+  onActivity,
   onOpenSettings,
 }: {
   profile: Profile;
   plan: NutritionPlan;
   meals: Meal[];
+  activity: ActivityLevel;
+  onActivity: (level: ActivityLevel) => void;
   onOpenSettings: () => void;
 }) {
   const today = todayStr();
@@ -197,6 +211,38 @@ export default function HomeView({
           color="#c4694a"
         />
       </div>
+
+      <section className="mt-5 px-5">
+        <div className="rounded-2xl bg-white px-4 py-3.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[14px] font-medium text-ink-500">
+              今天动了多少
+            </span>
+            <span className="text-[13px] tabular-nums text-ink-300">
+              额度 {plan.dailyBudgetKcal} 大卡
+            </span>
+          </div>
+          <div className="mt-2.5 flex gap-2">
+            {ACTIVITY_OPTIONS.map((o) => (
+              <button
+                key={o.level}
+                type="button"
+                onClick={() => onActivity(o.level)}
+                className={`h-11 flex-1 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
+                  activity === o.level
+                    ? "bg-brand-500 text-white"
+                    : "bg-black/[0.04] text-ink-700"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-300">
+            变了会跟着改今天的额度和下一顿的建议
+          </p>
+        </div>
+      </section>
 
       {warnings.length > 0 && (
         <section className="mt-4 space-y-2 px-5">

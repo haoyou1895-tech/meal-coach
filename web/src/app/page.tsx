@@ -16,6 +16,7 @@ import {
   saveState,
   updateMeal,
   upsertMeal,
+  withActivity,
   withWeight,
   withoutMeal,
   type AppState,
@@ -106,6 +107,8 @@ export default function Page() {
           profile={profile}
           plan={plan!}
           meals={state.meals}
+          activity={activityOfDate(state, today)}
+          onActivity={(level) => update(withActivity(state, today, level))}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       ) : (
