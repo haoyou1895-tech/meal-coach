@@ -29,6 +29,24 @@ const VTONE = { good: "#1f8a5b", warn: "#a9631a", over: "#b23c2c" };
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
+/**
+ * 份量的三档，用词不用数。
+ *
+ * 上一版是「− 1 份 +」，步进 0.5。那个设计假设用户会在心里换算
+ * "我大概吃了 0.5 份" —— 而人在饭桌上想的是"还剩半盘"，或者
+ * "我就夹了两筷子"。数字是给机器看的，词才是给人用的。
+ *
+ * 为什么只有三档、没有"更多"：
+ * 误差的大头是"没吃完"，不是"吃了两份"。真吃了两碗饭的人极少，
+ * 而为了极少数情况多摆一个按钮，会让每道菜都变复杂。
+ * 舍掉"更多"，换来一眼就懂的三个词。
+ */
+const PORTION_STEPS = [
+  { v: 0.25, label: "几口" },
+  { v: 0.5, label: "一半" },
+  { v: 1, label: "全吃了" },
+] as const;
+
 /** 压缩图片，避免上传大图拖慢识别 */
 function compress(file: File, maxSide = 720): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -281,12 +299,8 @@ export default function CameraSheet({
     new Date(),
   );
 
-  const adjust = (i: number, delta: number) => {
-    setFactors((prev) =>
-      prev.map((f, idx) =>
-        idx === i ? Math.min(2, Math.max(0.5, Math.round((f + delta) * 10) / 10)) : f,
-      ),
-    );
+  const setFactor = (i: number, v: number) => {
+    setFactors((prev) => prev.map((f, idx) => (idx === i ? v : f)));
   };
 
   /** 用户说"不算"，就把这几项连同分数一起摘掉，账上不留痕 */
@@ -811,7 +825,9 @@ export default function CameraSheet({
                     <p className="text-[13px] text-ink-300">
                       {off
                         ? "照片里没看见"
-                        : `${it.portion} · 约 ${Math.round(it.kcal * (factors[i] ?? 1))} 大卡`}
+                        : (factors[i] ?? 1) === 1
+                          ? `${it.portion} · 约 ${Math.round(it.kcal)} 大卡`
+                          : `约 ${Math.round(it.kcal * (factors[i] ?? 1))} 大卡`}
                     </p>
                   </div>
                   {off ? (
@@ -827,22 +843,24 @@ export default function CameraSheet({
                       算上
                     </button>
                   ) : (
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        onClick={() => adjust(i, -0.5)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
-                      >
-                        −
-                      </button>
-                      <span className="w-11 text-center text-[14px] font-semibold tabular-nums">
-                        {factors[i] ?? 1} 份
-                      </span>
-                      <button
-                        onClick={() => adjust(i, 0.5)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
-                      >
-                        +
-                      </button>
+                    <div className="flex shrink-0 gap-1">
+                      {PORTION_STEPS.map((s) => {
+                        const active = (factors[i] ?? 1) === s.v;
+                        return (
+                          <button
+                            key={s.v}
+                            type="button"
+                            onClick={() => setFactor(i, s.v)}
+                            className={`h-8 rounded-lg px-2 text-[12px] font-medium transition active:scale-95 ${
+                              active
+                                ? "bg-brand-500 text-white"
+                                : "bg-black/[0.05] text-ink-500"
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
