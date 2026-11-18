@@ -240,6 +240,26 @@ export default function HomeView({
     return map;
   }, [todayMeals, profile, plan]);
 
+  /**
+   * 同一天里同一个结论只说一次。
+   *
+   * 他一天三顿都在外面吃，展开就会看到三张卡连着写"有点咸 · 下回少放半勺盐"。
+   * 那不是三次提醒，是一句话被复读了三遍 —— 而且第一次已经说到位了。
+   * 保留最近一顿的说法（默认展开的就是它），更早的重复去掉，
+   * 卡片不会因此变空，只是不再用同一句话说第二遍。
+   */
+  const verdictOnce = useMemo(() => {
+    const seen = new Set<string>();
+    const keep = new Set<string>();
+    for (const m of sorted) {
+      const v = liveVerdicts.get(m.id);
+      if (!v || seen.has(v.short)) continue;
+      seen.add(v.short);
+      keep.add(m.id);
+    }
+    return keep;
+  }, [sorted, liveVerdicts]);
+
   return (
     <div className="pb-52">
       <header className="safe-top flex items-start justify-between px-5 pb-2 pt-3">
@@ -604,7 +624,7 @@ export default function HomeView({
                     </div>
                   )}
 
-                  {v && (
+                  {v && verdictOnce.has(m.id) && (
                     <div className="mt-2.5 flex items-center gap-1.5 border-t border-black/[0.05] pt-2.5">
                       <Icon
                         name={v.icon as IconName}
