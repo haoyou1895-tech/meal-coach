@@ -316,27 +316,23 @@ export default function RecordView({
               </span>
             ))}
           </div>
-          <div className="mt-2.5 flex items-center justify-between border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
-            <div className="flex flex-wrap gap-x-2.5 gap-y-1">
-              {[
-                ["早", MEAL_SHADE.breakfast],
-                ["午", MEAL_SHADE.lunch],
-                ["晚", MEAL_SHADE.dinner],
-                ["加", MEAL_SHADE.snack],
-                ["酒", MEAL_SHADE.drink],
-              ].map(([label, color]) => (
-                <span key={label} className="flex items-center gap-1">
-                  <span
-                    className="h-2 w-2 rounded-[2px]"
-                    style={{ background: color }}
-                  />
-                  {label}
-                </span>
-              ))}
-            </div>
-            <span className="shrink-0 tabular-nums">
-              虚线 {plan.dailyBudgetKcal}
-            </span>
+          <div className="mt-2.5 flex items-center gap-2.5 border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
+            {/* 预算那根虚线图上已经标了「预算 1345」，这里再说一遍是重复 */}
+            {[
+              ["早", MEAL_SHADE.breakfast],
+              ["午", MEAL_SHADE.lunch],
+              ["晚", MEAL_SHADE.dinner],
+              ["加", MEAL_SHADE.snack],
+              ["酒", MEAL_SHADE.drink],
+            ].map(([label, color]) => (
+              <span key={label} className="flex items-center gap-1">
+                <span
+                  className="h-2 w-2 rounded-[2px]"
+                  style={{ background: color }}
+                />
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       </section>

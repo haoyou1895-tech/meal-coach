@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import type { WeightLog } from "@/lib/types";
 import { round } from "@/lib/nutrition";
-import Icon from "./Icon";
 
 /**
  * 体重趋势。
@@ -95,32 +94,16 @@ export default function WeightTrend({
     };
   }, [data]);
 
-  if (data.length === 0) {
-    return (
-      <section className="mt-6 px-5">
-        <h2 className="mb-3 text-[17px] font-bold">体重变化</h2>
-        <div className="card flex items-center gap-2.5">
-          <Icon name="scale" size={20} className="shrink-0 text-ink-300" />
-          <p className="text-[15px] leading-relaxed text-ink-500">
-            一周称两次，早上空腹最准
-          </p>
-        </div>
-      </section>
-    );
-  }
+  // 一次都没记：上面那张「当前体重」卡已经写着重多少、按钮写着「记体重」，
+  // 这里再摆一张空卡只会让人以为图坏了，索性整节不出现
+  if (data.length === 0) return null;
 
+  // 只记了一次：画不出线，但也不值得占一张卡片，给一行小字就够
   if (!view) {
     return (
-      <section className="mt-6 px-5">
-        <h2 className="mb-3 text-[17px] font-bold">体重变化</h2>
-        <div className="card">
-          <p className="text-[15px] leading-relaxed text-ink-500">
-            目前只有 1 次记录（{data[0].weightKg} 公斤）。
-            <br />
-            再记一次就能看到趋势线。
-          </p>
-        </div>
-      </section>
+      <p className="mt-4 px-5 text-[13px] leading-relaxed text-ink-300">
+        再称一次，这里会画出体重变化
+      </p>
     );
   }
 

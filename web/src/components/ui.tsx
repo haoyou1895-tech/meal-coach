@@ -333,19 +333,24 @@ export function CalorieRing({
  * 长辈看到红色会以为已经超标了。颜色该说状态，不该说类别。
  * 所以现在统一：没超是灰绿，快到了是黄，超了才是红。
  */
+/**
+ * 一个营养素一列：图标定位、名称说清楚、数字最大。
+ *
+ * 这里试过只留图标加一个字（蛋/饭/油），失败了 —— 蛋白质不是鸡蛋，
+ * 碳水也不是饭。图标的作用是让人一眼扫到，不是替人说出名字。
+ */
 export function MacroBar({
   icon,
-  short,
+  color,
   label,
   value,
   target,
   unit,
 }: {
-  /** 图标替掉中文标签：蛋=蛋白，碗=碳水，油滴=脂肪 */
   icon: IconName;
-  /** 一个字。光有图标仍会被看成数字，加一个字才定得住 */
-  short: string;
-  /** 无障碍和读屏用的名字，界面上不显示 */
+  /** 图标自身的颜色，只用来区分三类，不用来表示状态 */
+  color: string;
+  /** 中文名，界面上完整显示：蛋白质 / 碳水 / 脂肪 */
   label: string;
   value: number;
   target: number;
@@ -358,16 +363,18 @@ export function MacroBar({
   const barColor = over ? "#d94f3d" : near ? "#e0a83a" : "#8fae9c";
 
   return (
-    <div className="flex-1" title={label}>
-      <div className="mb-1.5 flex items-center gap-1">
+    <div className="flex-1">
+      <div className="flex items-center gap-1">
         <Icon
           name={icon}
-          size={15}
-          className={over ? "text-[#b23c2c]" : "text-ink-400"}
+          size={14}
+          style={{ color: over ? "#b23c2c" : color }}
         />
-        <span className="text-[13px] leading-none text-ink-400">{short}</span>
+        <span className="text-[13px] leading-none text-ink-500">{label}</span>
+      </div>
+      <div className="mt-1.5 flex items-baseline gap-0.5">
         <span
-          className={`ml-0.5 text-[16px] font-semibold leading-none tabular-nums ${
+          className={`text-[18px] font-semibold leading-none tabular-nums ${
             over ? "text-[#b23c2c]" : "text-ink-700"
           }`}
         >
@@ -375,9 +382,10 @@ export function MacroBar({
         </span>
         <span className="text-[11px] font-normal leading-none text-ink-300">
           /{target}
+          {unit}
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">
+      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-black/[0.07]">
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, background: barColor }}

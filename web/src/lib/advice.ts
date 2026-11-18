@@ -141,7 +141,7 @@ export function nextMealAdvice(
     detail = "今天已经超了，这顿先别吃主食，喝点水或者清汤就行";
     parts = [
       { kind: "carb", label: "先不吃" },
-      { kind: "veg", label: "清汤青菜" },
+      { kind: "veg", label: "清汤" },
     ];
   } else if (left < 150) {
     tone = "over";

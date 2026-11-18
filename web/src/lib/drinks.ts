@@ -86,7 +86,7 @@ export function dayDrinks(meals: Meal[]): Drink[] {
  */
 export function alcoholVerdict(g: number): string | null {
   if (g <= 0) return null;
-  if (g <= 25) return "没超 25 克，算克制";
-  if (g <= 50) return "超过建议量了，今天就到这儿";
-  return "这个量不小，明天最好空一天";
+  if (g <= 25) return "没超 25 克";
+  if (g <= 50) return "超了建议量，今天到此";
+  return "明天最好空一天";
 }

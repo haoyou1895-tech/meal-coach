@@ -55,6 +55,29 @@ const SLOT_ICON: Record<MealType, IconName> = {
 };
 
 /**
+ * 建议卡三格必须写出"是什么"。
+ * 上一版只写"一碗""一份""一样"，配上碗、蛋、菜的图标 ——
+ * 每一格都缺主语，看的人根本不知道一碗的是饭还是汤。
+ * 图标只负责让人扫到，名字必须写全。
+ */
+type PartKind = "carb" | "meat" | "veg";
+const KIND_LABEL: Record<PartKind, string> = {
+  carb: "主食",
+  meat: "荤菜",
+  veg: "蔬菜",
+};
+const KIND_COLOR: Record<PartKind, string> = {
+  carb: "#b0842c",
+  meat: "#a3563f",
+  veg: "#3f7d5a",
+};
+const KIND_ICON: Record<PartKind, IconName> = {
+  carb: "carb",
+  meat: "protein",
+  veg: "veg",
+};
+
+/**
  * 按疾病给一条当日提醒。
  * 这条以前是二十来个字的一句话，现在压到十个字以内 ——
  * 病人不需要被告知"为什么"，医生早就说过了；他需要被提醒"今天注意哪一件"。
@@ -179,11 +202,9 @@ export default function HomeView({
               <Icon name="fire" size={15} />
               连记 {streak} 天
             </p>
-          ) : (
-            <p className="mt-1 text-[14px] text-ink-300">
-              {todayMeals.length === 0 ? "今天还没记" : `已记 ${todayMeals.length} 顿`}
-            </p>
-          )}
+          ) : todayMeals.length === 0 ? (
+            <p className="mt-1 text-[14px] text-ink-300">今天还没记</p>
+          ) : null}
         </div>
         <button
           onClick={onOpenSettings}
@@ -254,16 +275,17 @@ export default function HomeView({
               {advice.parts.map((p) => (
                 <div
                   key={p.kind}
-                  className="flex flex-1 flex-col items-center gap-1 rounded-xl bg-white/70 py-2.5"
+                  className="flex flex-1 flex-col items-center gap-1 rounded-xl bg-white/75 py-2.5"
                 >
                   <Icon
-                    name={
-                      p.kind === "carb" ? "carb" : p.kind === "meat" ? "protein" : "veg"
-                    }
-                    size={23}
-                    className="text-ink-600"
+                    name={KIND_ICON[p.kind]}
+                    size={21}
+                    style={{ color: KIND_COLOR[p.kind] }}
                   />
-                  <span className="text-[15px] font-semibold leading-tight text-ink-700">
+                  <span className="text-[12px] leading-none text-ink-400">
+                    {KIND_LABEL[p.kind]}
+                  </span>
+                  <span className="text-[16px] font-semibold leading-tight text-ink-700">
                     {p.label}
                   </span>
                 </div>
@@ -294,19 +316,19 @@ export default function HomeView({
         />
       </div>
 
-      {/* 三个营养成分用图标代替中文：蛋、碗、油滴，比"蛋白/碳水/脂肪"快 */}
-      <div className="mt-1 flex gap-4 px-5">
+      {/* 三个营养素：图标负责扫，名称负责懂 */}
+      <div className="mt-2 flex gap-3.5 px-5">
         <MacroBar
           icon="protein"
-          short="蛋"
-          label="蛋白"
+          color="#a3563f"
+          label="蛋白质"
           value={totals.protein}
           target={plan.proteinTargetG}
           unit="g"
         />
         <MacroBar
           icon="carb"
-          short="饭"
+          color="#b0842c"
           label="碳水"
           value={totals.carb}
           target={plan.carbTargetG}
@@ -314,7 +336,7 @@ export default function HomeView({
         />
         <MacroBar
           icon="fat"
-          short="油"
+          color="#7d8b5e"
           label="脂肪"
           value={totals.fat}
           target={plan.fatTargetG}
@@ -322,28 +344,60 @@ export default function HomeView({
         />
       </div>
 
-      {warnings.length > 0 && (
-        <section className="mt-3 space-y-2 px-5">
-          {warnings.map((w) => (
-            <div
-              key={w.key}
-              className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5"
-              style={{ background: w.severe ? "#fdecea" : "#ffffff" }}
-            >
-              <Icon
-                name={w.icon}
-                size={18}
-                className={w.severe ? "shrink-0 text-[#b23c2c]" : "shrink-0 text-ink-400"}
-              />
-              <span
-                className="text-[16px] font-semibold"
-                style={{ color: w.severe ? "#b23c2c" : "#33413b" }}
-              >
-                {w.short}
-              </span>
-              <span className="text-[13px] text-ink-300">{w.tip}</span>
-            </div>
-          ))}
+      {/*
+        所有"今天要注意的事"收进一张卡，最多四行。
+        以前是超标警告一张、盐一张、疾病一张，三四个白块上下摞着，
+        每块都要单独看一遍标题。合成一张之后，读起来是一份清单。
+      */}
+      {(warnings.length > 0 || saltLevel || tip) && (
+        <section className="mt-3 px-5">
+          <div className="divide-y divide-black/[0.05] rounded-2xl bg-white px-3.5">
+            {warnings.map((w) => (
+              <div key={w.key} className="flex items-center gap-2.5 py-2.5">
+                <Icon
+                  name={w.icon}
+                  size={17}
+                  className="shrink-0"
+                  style={{ color: w.severe ? "#b23c2c" : "#8a9a93" }}
+                />
+                <span
+                  className="shrink-0 text-[15px] font-semibold"
+                  style={{ color: w.severe ? "#b23c2c" : "#33413b" }}
+                >
+                  {w.short}
+                </span>
+                <span className="truncate text-[13px] text-ink-300">{w.tip}</span>
+              </div>
+            ))}
+            {saltLevel && (
+              <div className="flex items-center gap-2.5 py-2.5">
+                <Icon
+                  name="salt"
+                  size={17}
+                  style={{ color: SALT_COLOR[saltLevel] }}
+                />
+                <span className="flex-1 text-[15px] text-ink-600">今天盐量</span>
+                <span
+                  className="text-[16px] font-semibold"
+                  style={{ color: SALT_COLOR[saltLevel] }}
+                >
+                  {SALT_LABEL[saltLevel]}
+                </span>
+              </div>
+            )}
+            {tip && (
+              <div className="flex items-center gap-2.5 py-2.5">
+                <Icon
+                  name={tip.icon}
+                  size={17}
+                  className="shrink-0 text-warn-600"
+                />
+                <span className="flex-1 text-[15px] leading-snug text-ink-700">
+                  {tip.text}
+                </span>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
@@ -458,60 +512,12 @@ export default function HomeView({
         )}
       </section>
 
-      {/*
-        盐不报毫克，报档位。
-        数字精度是假的：照片看不出放了几克盐，报"1240 mg"只会骗人。
-        "偏咸"这个词不会错，而且他听得懂。
-        两段解释性文字压成了一句 —— 不解释原理，只告诉他今天重不重。
-      */}
-      {todayMeals.length > 0 && (
-        <section className="mt-3 px-5">
-          <div className="flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-3">
-            <Icon
-              name="salt"
-              size={20}
-              className="shrink-0"
-              // 档位颜色直接染到图标上，比旁边的字更先被看见
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-medium text-ink-700">盐</p>
-              <p className="text-[13px] leading-tight text-ink-400">
-                {saltLevel
-                  ? "按有汤、腌菜、外食估的"
-                  : "勾一下来源就能算"}
-              </p>
-            </div>
-            <span
-              className="shrink-0 text-[17px] font-semibold"
-              style={{ color: saltLevel ? SALT_COLOR[saltLevel] : "#a8b3ae" }}
-            >
-              {saltLevel ? SALT_LABEL[saltLevel] : "不知道"}
-            </span>
-          </div>
-        </section>
-      )}
-
-      {tip && (
-        <section className="mt-2 px-5">
-          <div className="flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-3">
-            <Icon name={tip.icon} size={19} className="shrink-0 text-warn-600" />
-            <p className="text-[15px] font-medium leading-snug text-warn-600">
-              {tip.text}
-            </p>
-          </div>
-        </section>
-      )}
-
       <section className="mt-2 px-5">
-        <div className="rounded-2xl bg-white px-3.5 py-3">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-[14px] font-medium text-ink-400">
-              <Icon name="walk" size={15} />
-              今天动了多少
-            </span>
-            <span className="text-[13px] tabular-nums text-ink-300">
-              额度 {plan.dailyBudgetKcal}
-            </span>
+        <div className="rounded-2xl bg-white px-3.5 py-2.5">
+          {/* 额度已经在环形图里写着了，这里再写一遍只是多一处要读的字 */}
+          <div className="flex items-center gap-1.5 text-[14px] font-medium text-ink-400">
+            <Icon name="walk" size={15} />
+            今天动了多少
           </div>
           <div className="mt-2 flex gap-2">
             {ACTIVITY_OPTIONS.map((o) => (
@@ -519,13 +525,13 @@ export default function HomeView({
                 key={o.level}
                 type="button"
                 onClick={() => onActivity(o.level)}
-                className={`flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
+                className={`flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
                   activity === o.level
                     ? "bg-brand-500 text-white"
                     : "bg-black/[0.04] text-ink-700"
                 }`}
               >
-                <Icon name={o.icon} size={18} />
+                <Icon name={o.icon} size={17} />
                 {o.label}
               </button>
             ))}
