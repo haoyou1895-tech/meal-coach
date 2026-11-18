@@ -727,26 +727,28 @@ export default function HomeView({
         )}
       </section>
 
-      <section className="mt-2 px-5">
-        <div className="rounded-2xl bg-white px-3.5 py-2.5">
-          {/* 额度已经在环形图里写着了，这里再写一遍只是多一处要读的字 */}
-          <div className="flex items-center gap-1.5 text-[14px] font-medium text-ink-400">
-            <Icon name="walk" size={15} />
-            今天动了多少
-          </div>
-          <div className="mt-2 flex gap-2">
+      {/*
+        运动量降权，但不删。
+        它只改"预算"这一个数字，却原来占着一张白卡 + 三个 44px 大按钮，
+        视觉上跟"今天吃了"平起平坐 —— 那是一天里最重的事吗？不是。
+        现在压成一行 13px 小字，位置还在原地：想改的人扫一眼就找到，
+        不想改的人直接滑过去，不占视线。
+      */}
+      <section className="mt-3 px-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[13px] text-ink-300">今天动了多少</span>
+          <div className="flex gap-1">
             {ACTIVITY_OPTIONS.map((o) => (
               <button
                 key={o.level}
                 type="button"
                 onClick={() => onActivity(o.level)}
-                className={`flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
+                className={`h-8 rounded-lg px-3 text-[13px] font-medium transition ${
                   activity === o.level
-                    ? "bg-brand-500 text-white"
-                    : "bg-black/[0.04] text-ink-700"
+                    ? "bg-brand-50 text-brand-700"
+                    : "text-ink-300 active:bg-black/[0.03]"
                 }`}
               >
-                <Icon name={o.icon} size={17} />
                 {o.label}
               </button>
             ))}
