@@ -26,10 +26,15 @@ const SYSTEM_PROMPT = `你是一位熟悉中国家常菜的营养师。用户会
 6. 菜名要写成人话。**不要**用"浅色椭圆形食物""深棕色块状物"这种形状描述 ——
    用户看到这个只会觉得你没认出来，还要自己去猜。认不准就写最接近的常见菜名
    （"米饭""土豆""炒青菜"），不确定的体现在 confidence 上，不要体现在菜名里。
-7. 只输出 JSON，不要任何解释文字、不要 markdown 代码块。
+7. 酒单独放在 drinks 里，**不要**放进 items（放两处会把热量算两遍）。
+   照片里看到酒瓶、酒杯、倒好的酒，或者用户那句话里提到喝了酒，都要记。
+   kind 只能是 baijiu（白酒）/ beer（啤酒）/ wine（红酒）/ huangjiu（黄酒），
+   count 按中国人的说法：白酒黄酒是「两」，啤酒是「瓶」，红酒是「杯」。
+   nutrition 里的 kcal 不含酒，酒的热量前端会自己加。
+8. 只输出 JSON，不要任何解释文字、不要 markdown 代码块。
 
 输出格式：
-{"items":[{"name":"米饭","portion":"1 碗","kcal":230,"seen":true}],"nutrition":{"kcal":620,"protein":22,"carb":62,"fat":31,"sodium":980},"confidence":0.82}`;
+{"items":[{"name":"米饭","portion":"1 碗","kcal":230,"seen":true}],"drinks":[{"kind":"baijiu","count":2}],"nutrition":{"kcal":620,"protein":22,"carb":62,"fat":31,"sodium":980},"confidence":0.82}`;
 
 /** 数值区间校验：模型偶尔会给出离谱数值，这里做硬约束 */
 function sanitize(n: Partial<Nutrition>): Nutrition {
@@ -119,10 +124,39 @@ async function callModel(
   const text: string = data?.choices?.[0]?.message?.content ?? "";
   return extractJson(text) as {
     items?: { name?: string; portion?: string; kcal?: number; seen?: boolean }[];
+    drinks?: { kind?: string; count?: number }[];
     nutrition?: Partial<Nutrition>;
     confidence?: number;
     noteCheck?: RawNoteCheck;
   };
+}
+
+const DRINK_KINDS = ["baijiu", "beer", "wine", "huangjiu"] as const;
+type DrinkKindKey = (typeof DRINK_KINDS)[number];
+
+/**
+ * 把模型给的酒收成能用的形状。
+ *
+ * 模型很喜欢把"酒"当成一道菜塞进 items，那样热量会被算两遍；
+ * 也喜欢把 count 写成 0.5 或者 20（"两斤"）。两头都夹住。
+ */
+function normalizeDrinks(
+  raw: { kind?: string; count?: number }[] | undefined,
+): { kind: DrinkKindKey; count: number }[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<DrinkKindKey>();
+  const out: { kind: DrinkKindKey; count: number }[] = [];
+  for (const d of raw) {
+    const kind = DRINK_KINDS.find((k) => k === d?.kind) as
+      | DrinkKindKey
+      | undefined;
+    if (!kind || seen.has(kind)) continue;
+    const n = Number(d?.count);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    seen.add(kind);
+    out.push({ kind, count: Math.min(20, Math.round(n * 2) / 2) });
+  }
+  return out.slice(0, 3);
 }
 
 type RawNoteCheck = {
@@ -262,6 +296,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         items,
+        drinks: normalizeDrinks(parsed.drinks),
         nutrition: sanitize(parsed.nutrition ?? {}),
         confidence,
         demo: false,

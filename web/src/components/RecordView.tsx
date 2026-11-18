@@ -11,7 +11,7 @@ import type {
 } from "@/lib/types";
 import { mealTypeLabel, round, sumMeals, todayStr } from "@/lib/nutrition";
 import { dateList, latestWeightKg } from "@/lib/store";
-import { drinkKcal } from "@/lib/drinks";
+import { drinkKcal, drinksLabel } from "@/lib/drinks";
 import { ruleComment } from "@/lib/comment";
 import MealPhoto from "./MealPhoto";
 import WeightTrend from "./WeightTrend";
@@ -79,6 +79,16 @@ export default function RecordView({
   const [editItems, setEditItems] = useState<FoodItem[]>([]);
   const [factors, setFactors] = useState<number[]>([]);
   const [gallery, setGallery] = useState<Gallery | null>(null);
+  /** 点柱状图跳到那天的记录后，让那天闪一下，否则滚过去也不知道看哪儿 */
+  const [flashDate, setFlashDate] = useState<string | null>(null);
+
+  const jumpToDay = (date: string) => {
+    const el = document.getElementById(`day-${date}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    setFlashDate(date);
+    window.setTimeout(() => setFlashDate(null), 1800);
+  };
 
   const openEditor = (m: Meal) => {
     setEditing(m);
@@ -167,8 +177,11 @@ export default function RecordView({
 
   const last7 = useMemo(() => dateList(7).reverse(), []);
   /**
-   * 一天一根柱子看不出"哪顿吃爆了"，也看不出酒占了多少。
-   * 改成按餐次叠起来，一眼能看到是晚饭高还是那顿酒高。
+   * 一天一根柱子看不出"哪顿吃爆了"。改成按餐次叠起来，
+   * 一眼能看到是午饭高还是晚饭高。
+   *
+   * 酒不单独一档 —— 它就是那一顿的一部分，跟半碗米饭一样。
+   * 以前给它一个独立颜色，等于在"早/午/晚"之外又立了第四类。
    */
   const dailyKcal = useMemo(
     () =>
@@ -179,12 +192,14 @@ export default function RecordView({
         )
           .map((t) => ({
             key: t as string,
-            kcal: sumMeals(list.filter((m) => m.mealType === t)).kcal,
+            kcal: list
+              .filter((m) => m.mealType === t)
+              .reduce((s, m) => s + m.nutrition.kcal + drinkKcal(m.drinks), 0),
           }))
           .filter((p) => p.kcal > 0);
-        const dk = list.reduce((s, m) => s + drinkKcal(m.drinks), 0);
-        if (dk > 0) parts.push({ key: "drink", kcal: dk });
-        return { date: d, kcal: sumMeals(list).kcal, parts };
+        // 柱子高度和色块总和必须是同一个数，否则色块会从柱子里冒出来
+        const kcal = parts.reduce((s, p) => s + p.kcal, 0);
+        return { date: d, kcal, parts };
       }),
     [last7, meals],
   );
@@ -269,7 +284,11 @@ export default function RecordView({
         </div>
       </section>
 
-      <WeightTrend weights={weights} targetWeightKg={profile.targetWeightKg} />
+      <WeightTrend
+        weights={weights}
+        targetWeightKg={profile.targetWeightKg}
+        onPickDate={jumpToDay}
+      />
 
       {/* 近 7 天热量 */}
       <section className="mt-6 px-5">
@@ -294,15 +313,19 @@ export default function RecordView({
                   ? 4
                   : Math.max(8, Math.round((d.kcal / maxKcal) * 104));
               return (
-                <div
+                <button
                   key={d.date}
-                  className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                  type="button"
+                  onClick={() => jumpToDay(d.date)}
+                  disabled={d.kcal === 0}
+                  aria-label={`看 ${d.date.slice(5).replace("-", "月")}日 吃了什么`}
+                  className="flex h-full flex-1 flex-col items-center justify-end gap-1.5 disabled:cursor-default"
                 >
                   <span className="text-[12px] leading-none tabular-nums text-ink-300">
                     {d.kcal > 0 ? d.kcal : ""}
                   </span>
                   <div
-                    className="flex w-full flex-col-reverse overflow-hidden rounded-md transition-all duration-500"
+                    className="flex w-full flex-col-reverse overflow-hidden rounded-md transition-all duration-500 active:opacity-60"
                     style={{
                       height: barH,
                       background: d.kcal === 0 ? "#e7eae8" : undefined,
@@ -318,7 +341,7 @@ export default function RecordView({
                       />
                     ))}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -332,23 +355,25 @@ export default function RecordView({
               </span>
             ))}
           </div>
-          <div className="mt-2.5 flex items-center gap-2.5 border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
+          <div className="mt-2.5 flex items-center justify-between border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
             {/* 预算那根虚线图上已经标了「预算 1345」，这里再说一遍是重复 */}
-            {[
-              ["早", MEAL_SHADE.breakfast],
-              ["午", MEAL_SHADE.lunch],
-              ["晚", MEAL_SHADE.dinner],
-              ["加", MEAL_SHADE.snack],
-              ["酒", MEAL_SHADE.drink],
-            ].map(([label, color]) => (
-              <span key={label} className="flex items-center gap-1">
-                <span
-                  className="h-2 w-2 rounded-[2px]"
-                  style={{ background: color }}
-                />
-                {label}
-              </span>
-            ))}
+            <div className="flex items-center gap-2.5">
+              {[
+                ["早", MEAL_SHADE.breakfast],
+                ["午", MEAL_SHADE.lunch],
+                ["晚", MEAL_SHADE.dinner],
+                ["加", MEAL_SHADE.snack],
+              ].map(([label, color]) => (
+                <span key={label} className="flex items-center gap-1">
+                  <span
+                    className="h-2 w-2 rounded-[2px]"
+                    style={{ background: color }}
+                  />
+                  {label}
+                </span>
+              ))}
+            </div>
+            <span>点柱子看那天</span>
           </div>
         </div>
       </section>
@@ -363,9 +388,20 @@ export default function RecordView({
         ) : (
           <div className="space-y-5">
             {grouped.map(([date, list]) => {
-              const total = sumMeals(list).kcal;
+              const total = list.reduce(
+                (s, m) => s + m.nutrition.kcal + drinkKcal(m.drinks),
+                0,
+              );
               return (
-                <div key={date}>
+                <div
+                  key={date}
+                  id={`day-${date}`}
+                  className={`scroll-mt-3 rounded-2xl outline-offset-4 transition-[outline-color] duration-500 ${
+                    flashDate === date
+                      ? "outline outline-2 outline-brand-400/70"
+                      : "outline outline-0 outline-transparent"
+                  }`}
+                >
                   <div className="mb-2 flex items-baseline justify-between px-1">
                     <span className="text-[15px] font-semibold text-ink-700">
                       {date === todayStr() ? "今天" : date.slice(5).replace("-", "月") + "日"}
@@ -402,7 +438,10 @@ export default function RecordView({
                             {m.items.map((i) => i.name).join("、")}
                           </p>
                           <p className="mt-0.5 text-[13px] tabular-nums text-ink-500">
-                            {m.nutrition.kcal} 大卡
+                            {m.nutrition.kcal + drinkKcal(m.drinks)} 大卡
+                            {m.drinks?.length
+                              ? ` · ${drinksLabel(m.drinks)}`
+                              : ""}
                           </p>
                         </div>
 

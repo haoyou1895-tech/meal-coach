@@ -59,6 +59,7 @@ export type VerdictIcon =
   | "fire"
   | "alert"
   | "check"
+  | "alcohol"
   | "sport";
 
 export interface Verdict {
@@ -148,19 +149,50 @@ export function ruleVerdict(
 
   // P2 —— 吃得太晚。时间本身是健康信号：
   // 同样的饭，七点吃和九点吃，对血糖和睡眠是两件事。
-  // 只在明显偏晚时开口，六点吃晚饭的人不该被说这句。
   if (eatenAt) {
     const d = typeof eatenAt === "string" ? new Date(eatenAt) : eatenAt;
     if (!Number.isNaN(d.getTime())) {
-      const h = d.getHours();
-      if (mealType === "dinner" && h >= 20) {
-        return { tone: "warn", icon: "clock", short: "吃太晚了", tip: "明天提前到 7 点前" };
+      const mins = d.getHours() * 60 + d.getMinutes();
+
+      /*
+        以前这里是一套模板："早饭太晚 → 明天提前半小时"。
+        可他下午两点才在记这顿，提前半小时就是 13:30 —— 还是下午。
+        模板错在拿"现在的钟点"当基准，而不是拿"这顿饭该在什么时候吃"当基准。
+        所以改成给范围：越界越多，说法越重，且每次都把合理区间说出来。
+      */
+      if (mealType === "breakfast") {
+        if (mins >= 11 * 60) {
+          return {
+            tone: "warn",
+            icon: "clock",
+            short: "这算午饭了",
+            tip: "早饭 7 点前后吃",
+          };
+        }
+        if (mins >= 9 * 60 + 30) {
+          return {
+            tone: "warn",
+            icon: "clock",
+            short: "早饭偏晚",
+            tip: "早饭 7–9 点吃更稳",
+          };
+        }
       }
-      if (mealType === "breakfast" && h >= 10) {
-        return { tone: "warn", icon: "clock", short: "早饭太晚", tip: "明天提前半小时" };
+      if (mealType === "lunch" && mins >= 14 * 60) {
+        return {
+          tone: "warn",
+          icon: "clock",
+          short: "午饭太晚",
+          tip: "午饭 12 点前后吃",
+        };
       }
-      if (mealType === "lunch" && h >= 15) {
-        return { tone: "warn", icon: "clock", short: "午饭太晚", tip: "明天 12 点前后吃" };
+      if (mealType === "dinner" && mins >= 20 * 60) {
+        return {
+          tone: "warn",
+          icon: "clock",
+          short: "吃太晚了",
+          tip: "晚饭 7 点前吃完",
+        };
       }
     }
   }

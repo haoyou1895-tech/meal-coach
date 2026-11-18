@@ -154,6 +154,8 @@ export interface DayTotals extends Nutrition {
 
 export interface RecognizeResult {
   items: FoodItem[];
+  /** 识别到的酒。跟 items 分开存，但界面上跟菜并列 */
+  drinks?: Drink[];
   nutrition: Nutrition;
   comment: string;
   confidence: number;

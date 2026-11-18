@@ -15,7 +15,7 @@ import type {
   RecognizeResult,
 } from "@/lib/types";
 import { guessMealType, mealTypeLabel, todayStr } from "@/lib/nutrition";
-import { DRINK_CFG, DRINK_KINDS, drinkKcal, drinksLabel } from "@/lib/drinks";
+import { DRINK_CFG, DRINK_KINDS, drinkKcal } from "@/lib/drinks";
 import { TAG_CFG, TAG_LIST, sodiumFromTags } from "@/lib/mealTags";
 import { ruleComment, ruleVerdict } from "@/lib/comment";
 import { putPhoto } from "@/lib/photos";
@@ -129,6 +129,10 @@ export default function CameraSheet({
 
   /** 这个餐次今天是否已经记过；记过就只能往这顿里加，不再新增一条 */
   const existing = todayMeals.find((m) => m.mealType === mealType);
+  /** 已记那顿的总热量，含酒。不含酒的话，"720 → 1010" 这种提示会对不上账 */
+  const existingKcal = existing
+    ? existing.nutrition.kcal + drinkKcal(existing.drinks)
+    : 0;
 
   const reset = () => {
     setPhase("idle");
@@ -172,6 +176,11 @@ export default function CameraSheet({
       setFactors(data.items.map(() => 1));
       // 照片里看不到的那几项先挂起，等用户点头再算热量
       setConfirmed(data.items.map((it) => it.seen !== false));
+      // 识别到的酒直接落在列表里，不用他再点一次"喝酒了？"
+      if (data.drinks?.length) {
+        setDrinks(data.drinks);
+        setDrinkOpen(false);
+      }
       setNoteCheck(data.noteCheck ?? null);
       setBase(data.nutrition);
       setConfidence(data.confidence ?? 0.6);
@@ -245,8 +254,17 @@ export default function CameraSheet({
       ),
   );
 
+  /**
+   * 酒也是这顿的一部分，判断时不能漏 ——
+   * 半斤白酒七百多大卡，漏了它，"这顿合适"就是一句假话。
+   */
+  const withDrinks: Nutrition = {
+    ...computed,
+    kcal: computed.kcal + drinkKcal(drinks),
+  };
+
   const comment = ruleComment(
-    computed,
+    withDrinks,
     profile,
     plan,
     dayKcalBefore,
@@ -255,7 +273,7 @@ export default function CameraSheet({
   );
   // 存的是整句，界面上显示的是图标 + 四个字。同一套规则，两种呈现
   const verdict = ruleVerdict(
-    computed,
+    withDrinks,
     profile,
     plan,
     dayKcalBefore,
@@ -451,7 +469,7 @@ export default function CameraSheet({
               <div className="flex items-center gap-2">
                 <Icon name="check" size={16} className="text-brand-600" />
                 <span className="flex-1 text-[15px] font-semibold text-brand-700">
-                  {mealTypeLabel(mealType)}已记 {existing.nutrition.kcal} 大卡
+                  {mealTypeLabel(mealType)}已记 {existingKcal} 大卡
                 </span>
                 {onEditMeal && (
                   <button
@@ -606,7 +624,7 @@ export default function CameraSheet({
                 </p>
               ) : (
                 <p className="text-[38px] font-bold leading-tight tabular-nums">
-                  {computed.kcal}
+                  {withDrinks.kcal}
                   <span className="ml-1 text-[16px] font-medium text-ink-500">
                     大卡
                   </span>
@@ -764,7 +782,7 @@ export default function CameraSheet({
             <div className="mt-4 rounded-xl bg-warn-100 px-3.5 py-3">
               <p className="text-[13px] leading-relaxed text-warn-600">
                 {mealTypeLabel(mealType)}已记{" "}
-                {existing.nutrition.kcal} 大卡，这次会
+                {existingKcal} 大卡，这次会
                 <span className="font-semibold">加进那一顿</span>
               </p>
             </div>
@@ -830,6 +848,91 @@ export default function CameraSheet({
                 </div>
               );
             })}
+
+            {/*
+              酒跟菜一样，就是列表里的一条。
+              以前它单独一块"喝酒了？"，等于在早午晚餐之外又开了第五个门类 ——
+              用户不该为了记一杯酒，先学会"这个 App 把酒分开放"。
+              现在它和"红烧肉"完全同构：有名字、有份量、有热量、能加减。
+            */}
+            {drinks.map((d) => {
+              const cfg = DRINK_CFG[d.kind];
+              return (
+                <div
+                  key={d.kind}
+                  className="flex items-center justify-between rounded-2xl bg-white px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[17px] font-medium">
+                      {cfg.label}
+                    </p>
+                    <p className="text-[13px] text-ink-300">
+                      {d.count} {cfg.unit} · 约 {cfg.kcalPerUnit * d.count} 大卡
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => changeDrink(d.kind, -1)}
+                      aria-label={`${cfg.label}减一${cfg.unit}`}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                    >
+                      −
+                    </button>
+                    <span className="w-12 text-center text-[14px] font-semibold tabular-nums">
+                      {d.count} {cfg.unit}
+                    </span>
+                    <button
+                      onClick={() => changeDrink(d.kind, 1)}
+                      aria-label={`${cfg.label}加一${cfg.unit}`}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* 没喝就不占地方，只留一个不催人的入口 */}
+            {drinkOpen ? (
+              <div className="rounded-2xl bg-white px-3 py-3">
+                <div className="flex gap-2">
+                  {DRINK_KINDS.map((k) => {
+                    const on = drinks.some((d) => d.kind === k);
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => addDrink(k)}
+                        className={`h-11 flex-1 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
+                          on
+                            ? "bg-[#fdecea] text-[#b23c2c]"
+                            : "bg-black/[0.04] text-ink-700"
+                        }`}
+                      >
+                        {DRINK_CFG[k].label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDrinkOpen(false)}
+                  className="mt-2 h-9 w-full rounded-lg text-[13px] font-medium text-ink-300 active:bg-black/[0.04]"
+                >
+                  收起
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setDrinkOpen(true)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-ink-300/40 py-3 text-[15px] text-ink-400 active:scale-[0.99]"
+              >
+                <Icon name="alcohol" size={16} />
+                {drinks.length > 0 ? "再加一种" : "加了酒"}
+              </button>
+            )}
           </div>
 
           <div className="mt-4 rounded-2xl bg-brand-50 px-4 py-3.5">
@@ -864,93 +967,6 @@ export default function CameraSheet({
               看不太清，数字是估的 — 点加减改一下
             </p>
           )}
-
-          {/*
-            酒和盐是照片的死角：一个在杯子里，一个化了看不见。
-            与其让模型编，不如在这儿问两句。
-          */}
-          {/*
-            酒是照片的死角 —— 在杯子里，模型永远看不见。
-            但也不能每记一顿就摆一整块出来问：一周才喝一两次的人，
-            顿顿被追问"喝酒了吗"，像被管教。收成一行，想记的时候点开。
-          */}
-          <div className="mt-3 rounded-2xl bg-white px-4">
-            <button
-              type="button"
-              onClick={() => setDrinkOpen((v) => !v)}
-              className="flex w-full items-center gap-2 py-3 text-left"
-            >
-              <Icon name="alcohol" size={17} className="shrink-0 text-ink-400" />
-              <span
-                className={`flex-1 text-[15px] ${
-                  drinks.length > 0 ? "text-ink-700" : "text-ink-400"
-                }`}
-              >
-                {drinks.length > 0
-                  ? `${drinksLabel(drinks)} · 共 ${drinkKcal(drinks)} 大卡`
-                  : "喝酒了？"}
-              </span>
-              <span className="shrink-0 text-[13px] text-ink-300">
-                {drinkOpen ? "收起" : "记一笔"}
-              </span>
-            </button>
-
-            {drinkOpen && (
-              <div className="pb-4">
-                <div className="flex gap-2">
-                  {DRINK_KINDS.map((k) => {
-                    const cur = drinks.find((d) => d.kind === k)?.count ?? 0;
-                    return (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => addDrink(k)}
-                        className={`h-11 flex-1 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
-                          cur > 0
-                            ? "bg-[#fdecea] text-[#b23c2c]"
-                            : "bg-black/[0.04] text-ink-700"
-                        }`}
-                      >
-                        {DRINK_CFG[k].label}
-                        {cur > 0 ? ` ${cur}` : ""}
-                      </button>
-                    );
-                  })}
-                </div>
-                {drinks.length > 0 && (
-                  <div className="mt-3 space-y-2 border-t border-black/[0.05] pt-2.5">
-                    {drinks.map((d) => (
-                      <div
-                        key={d.kind}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <span className="text-[15px] text-ink-700">
-                          {DRINK_CFG[d.kind].label} {d.count}
-                          {DRINK_CFG[d.kind].unit}
-                        </span>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => changeDrink(d.kind, -1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
-                          >
-                            −
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => changeDrink(d.kind, 1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
           <div className="mt-3 rounded-2xl bg-white px-4 py-4">
             <div className="flex items-center gap-1.5">
@@ -997,7 +1013,7 @@ export default function CameraSheet({
             </button>
             {existing && (
               <p className="mt-2 text-center text-[12px] tabular-nums text-ink-300">
-                {existing.nutrition.kcal} → {existing.nutrition.kcal + computed.kcal} 大卡
+                {existingKcal} → {existingKcal + withDrinks.kcal} 大卡
               </p>
             )}
           </div>

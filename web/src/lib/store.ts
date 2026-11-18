@@ -3,7 +3,10 @@
 import type {
   ActivityLevel,
   ActivityLog,
+  Drink,
+  DrinkKind,
   Meal,
+  MealTag,
   Profile,
   WeightLog,
 } from "./types";
@@ -106,6 +109,26 @@ export function withMeal(s: AppState, meal: Meal): AppState {
 }
 
 /**
+ * 同一顿补拍第二次时，酒和标签也要并进去。
+ *
+ * 以前只合并了 items 和营养，drinks 直接被旧的顶掉 ——
+ * 先拍了菜、又补拍一张带酒的，那杯酒就这么没了，而它是这顿最大的热量。
+ */
+function mergeDrinks(a?: Drink[], b?: Drink[]): Drink[] | undefined {
+  const bag = new Map<DrinkKind, number>();
+  for (const d of [...(a ?? []), ...(b ?? [])]) {
+    if (d.count > 0) bag.set(d.kind, (bag.get(d.kind) ?? 0) + d.count);
+  }
+  if (!bag.size) return undefined;
+  return [...bag.entries()].map(([kind, count]) => ({ kind, count }));
+}
+
+function mergeTags(a?: MealTag[], b?: MealTag[]): MealTag[] | undefined {
+  const set = [...new Set([...(a ?? []), ...(b ?? [])])];
+  return set.length ? set : undefined;
+}
+
+/**
  * 同一天同一餐次只允许一条记录。
  * 已有则该餐次合并（追加菜品、营养累加），没有则新增。
  * 这样"晚饭吃过又拍一张"不会变成两条晚餐。
@@ -136,6 +159,8 @@ export function upsertMeal(s: AppState, meal: Meal): AppState {
     // 同一顿补拍第二次，吃饭时间还是第一次那个。
     // 老记录没有 eatenAt，就借这次补拍补上。
     eatenAt: old.eatenAt ?? meal.eatenAt,
+    drinks: mergeDrinks(old.drinks, meal.drinks),
+    tags: mergeTags(old.tags, meal.tags),
     updatedAt: new Date().toISOString(),
   };
   const next = [...s.meals];

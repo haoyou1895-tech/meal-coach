@@ -285,53 +285,67 @@ export interface MealReminder {
   urgent: boolean;
 }
 
-const SLOT_ORDER: { type: MealType; label: string }[] = [
+type MainMeal = "breakfast" | "lunch" | "dinner";
+
+const SLOT_ORDER: { type: MainMeal; label: string }[] = [
   { type: "breakfast", label: "早饭" },
   { type: "lunch", label: "午饭" },
   { type: "dinner", label: "晚饭" },
 ];
 
-/** 还没有历史作息时用的默认窗口（大多数人的饭点） */
-const DEFAULT_WINDOW: Partial<Record<MealType, { start: number; end: number }>> = {
-  breakfast: { start: 7 * 60, end: 9 * 60 + 30 },
-  lunch: { start: 11 * 60 + 30, end: 13 * 60 + 30 },
+/**
+ * 每顿饭的合理时间区间。
+ *
+ * 这四个数字就是界面上要说的"标准"，也是提醒的触发范围。
+ * 以前这块是按"他现在几点"套模板：下午两点打开还问早饭，
+ * 说的是一句谁都不信的话。时间这件事只有拿"该在什么时候吃"当基准才成立。
+ */
+const MEAL_WINDOW: Record<
+  "breakfast" | "lunch" | "dinner",
+  { start: number; end: number }
+> = {
+  breakfast: { start: 7 * 60, end: 9 * 60 },
+  lunch: { start: 11 * 60 + 30, end: 13 * 60 },
   dinner: { start: 17 * 60 + 30, end: 19 * 60 + 30 },
 };
 
+/** 提前多久开口。只剩二十分钟的时候提，他才来得及动身 */
+const LEAD = 20;
+
+/**
+ * 过了区间多久还追一句。
+ * 以前追三个小时，于是 14:00 打开 App 还在问"早饭忘了拍？"。
+ * 一小时够了：真忘了拍的人，一小时之内想起来；
+ * 一小时之后他多半已经在吃下一顿了，再问就是添乱。
+ */
+const GRACE = 60;
+
 /**
  * 这一餐的提醒窗口。
- * 学会习惯时间后，以它为中心：提前 20 分钟开口，往后放 50 分钟。
- * 一个天天 8 点吃早饭的人，7:00 被提醒是打扰；
- * 一个天天 9 点吃的人，7:00 被提醒只会觉得这软件不懂他。
+ * 学会习惯时间后以它为中心，但最多挪 45 分钟 ——
+ * 一个天天十点吃早饭的人，不该让系统认定十点就是早饭时间。
  */
-function windowFor(type: MealType, habitMin?: number) {
-  if (habitMin == null) {
-    return DEFAULT_WINDOW[type] ?? { start: 12 * 60, end: 13 * 60 };
-  }
-  return { start: habitMin - 20, end: habitMin + 50 };
+function windowFor(type: "breakfast" | "lunch" | "dinner", habitMin?: number) {
+  const base = MEAL_WINDOW[type];
+  if (habitMin == null) return base;
+  const center = (base.start + base.end) / 2;
+  const shift = Math.max(-45, Math.min(45, habitMin - center));
+  return { start: base.start + shift, end: base.end + shift };
 }
 
 /**
- * 设置里「三餐规律吗」这一题的答案，决定三件事：
- * - lead：提前多久开口提醒。越规律越能提前说，因为他说到就到；
- *   越不规律越不能提前，提前催等于白催，还招人烦。
- * - atTime：正点上要不要再说一句。不规律的人这个点多半在忙，
- *   说「午饭时间到了」只会被无视。
- * - chase：过了饭点多久才问「吃了吗」。越不规律越该多给点时间，
- *   他可能正开着会，一点钟才下楼吃饭。
+ * 设置里「三餐规律吗」那一题只影响一件事：能不能提前开口。
+ * 越规律越能提前说；越不规律越别提前催，催了也白催。
  */
-const REGULAR_CFG: Record<
-  MealRegular,
-  { lead: number; atTime: boolean; chase: number }
-> = {
-  regular: { lead: 45, atTime: true, chase: 0 },
-  sometimes: { lead: 30, atTime: true, chase: 30 },
-  irregular: { lead: 0, atTime: false, chase: 60 },
+const REGULAR_CFG: Record<MealRegular, { lead: boolean }> = {
+  regular: { lead: true },
+  sometimes: { lead: true },
+  irregular: { lead: false },
 };
 
 /**
  * 只在"该吃了""过了点还没记"这两种情况下说话，其余时间闭嘴。
- * 长辈最烦被 App 催，所以一天最多提三次。
+ * 每次开口都带上合理区间，让他知道标准是什么，而不是被笼统地催一句。
  *
  * habit 是 habitTimes() 学出来的作息；没有就用默认窗口。
  */
@@ -347,23 +361,25 @@ export function mealReminder(
 
   for (const s of SLOT_ORDER) {
     if (done.has(s.type)) continue;
-    const usual = habit?.[s.type];
-    const win = windowFor(s.type, usual);
+    const win = windowFor(s.type, habit?.[s.type]);
+    const range = `${fmtMinute(win.start)}–${fmtMinute(win.end)}`;
 
     // 快到点
-    if (cfg.lead > 0 && mins >= win.start - cfg.lead && mins < win.start) {
-      return { text: `快到${s.label}的点了，吃的时候顺手拍一张`, urgent: false };
+    if (cfg.lead && mins >= win.start - LEAD && mins < win.start) {
+      return {
+        text: `${s.label}最好 ${range} 吃，还有 ${win.start - mins} 分钟`,
+        urgent: false,
+      };
     }
     // 正在点上
-    if (cfg.atTime && mins >= win.start && mins <= win.end) {
-      return { text: `${s.label}时间到了，吃完拍一张就行`, urgent: false };
+    if (mins >= win.start && mins <= win.end) {
+      return { text: `${s.label}的点（${range}），吃完拍一张`, urgent: false };
     }
-    // 过了点还没记，最多追三小时
-    if (mins >= win.end + cfg.chase && mins < win.end + 180) {
-      const usualNote =
-        usual != null ? `平时这个点（${fmtMinute(usual)}）已经吃了，` : "";
-      return { text: `${s.label}还没记，${usualNote}是没吃还是忘了拍？`, urgent: true };
+    // 过了点还没记，最多追一小时
+    if (mins > win.end && mins <= win.end + GRACE) {
+      return { text: `${s.label}还没记，是没吃还是忘了拍？`, urgent: true };
     }
+    // 过得太久就不提这一顿了 —— 下午两点还在催早饭，只会显得它不懂时间
   }
   return null;
 }

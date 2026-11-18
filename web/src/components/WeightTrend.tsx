@@ -31,9 +31,12 @@ function mmdd(date: string): string {
 export default function WeightTrend({
   weights,
   targetWeightKg,
+  onPickDate,
 }: {
   weights: WeightLog[];
   targetWeightKg: number;
+  /** 点某个点，跳到那天的饮食记录。没有那天的记录就什么都不发生 */
+  onPickDate?: (date: string) => void;
 }) {
   const data = useMemo(() => {
     // 按时间正序，只取最近 30 天的点
@@ -139,15 +142,22 @@ export default function WeightTrend({
           {view.pts.map((p, i) => {
             const isLast = i === view.pts.length - 1;
             return (
-              <circle
+              <g
                 key={p.date}
-                cx={p.x}
-                cy={p.y}
-                r={isLast ? 4 : 2.4}
-                fill={isLast ? "#3f8f6b" : "#ffffff"}
-                stroke="#3f8f6b"
-                strokeWidth={isLast ? 0 : 1.6}
-              />
+                onClick={() => onPickDate?.(p.date)}
+                style={{ cursor: onPickDate ? "pointer" : "default" }}
+              >
+                {/* 热区：2.4px 的圆点手指根本点不中 */}
+                <circle cx={p.x} cy={p.y} r={9} fill="transparent" />
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={isLast ? 4 : 2.4}
+                  fill={isLast ? "#3f8f6b" : "#ffffff"}
+                  stroke="#3f8f6b"
+                  strokeWidth={isLast ? 0 : 1.6}
+                />
+              </g>
             );
           })}
         </svg>

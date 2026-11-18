@@ -309,7 +309,7 @@ export function CalorieRing({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[14px] font-medium text-ink-400">
-          {tone === "over" ? "超了" : "还能吃"}
+          {tone === "over" ? "超出" : "还能吃"}
         </span>
         <span
           className="mt-0.5 text-[58px] font-bold leading-none tabular-nums tracking-tight"
@@ -317,8 +317,14 @@ export function CalorieRing({
         >
           {tone === "over" ? Math.round(used - budget) : Math.round(left)}
         </span>
+        {/*
+          原来这里写的是 "/ 1719"。
+          超支的时候中心是 936，底下跟一个 "/1719"，读起来像"今天吃了 936，
+          预算是 1719" —— 而真实情况是吃了 2655。一个斜杠能让人把账读反。
+          改成写明"预算"，超出多少、额度多少，两句话不打架。
+        */}
         <span className="mt-1 text-[13px] font-medium tabular-nums text-ink-300">
-          / {budget}
+          预算 {Math.round(budget)}
         </span>
       </div>
     </div>
@@ -367,7 +373,7 @@ export function MacroBar({
       <div className="flex items-center gap-1">
         <Icon
           name={icon}
-          size={14}
+          size={15}
           style={{ color: over ? "#b23c2c" : color }}
         />
         <span className="text-[13px] leading-none text-ink-500">{label}</span>

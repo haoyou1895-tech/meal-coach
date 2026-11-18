@@ -31,8 +31,13 @@ import {
   daySalt,
   saltLevelOf,
 } from "@/lib/mealTags";
+import {
+  foodRanking,
+  rankSummary,
+  type RankedFood,
+} from "@/lib/ranking";
 import Icon, { type IconName } from "./Icon";
-import { CalorieRing, MacroBar } from "./ui";
+import { CalorieRing } from "./ui";
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
@@ -73,8 +78,7 @@ const KIND_COLOR: Record<PartKind, string> = {
 };
 const KIND_ICON: Record<PartKind, IconName> = {
   carb: "carb",
-  // 用鱼形：肉块缩小到 21px 读不出来，鱼的轮廓最好认
-  meat: "fish",
+  meat: "meat",
   veg: "veg",
 };
 
@@ -99,6 +103,19 @@ function diseaseTip(profile: Profile): { icon: IconName; text: string } | null {
 }
 
 const TONE_COLOR = { good: "#1f8a5b", warn: "#a9631a", over: "#b23c2c" };
+
+/**
+ * 份量要显示，但"1 份"不算份量 —— 桌上每道菜都是 1 份。
+ * 有信息的是"2 两""1 碗""2 个"这种能被记住的单位。
+ * 榜单一行本来就短，三个字的位置该留给有用的字。
+ */
+function portionText(f: RankedFood): string {
+  const p = (f.portion ?? "").trim();
+  if (!p) return "";
+  if (/^(一|1)\s*份$/.test(p)) return "";
+  return p;
+}
+
 
 export default function HomeView({
   profile,
@@ -163,6 +180,35 @@ export default function HomeView({
     salt.taggedCount > 0 ? saltLevelOf(salt.mg, salt.taggedCount) : null;
 
   /**
+   * 榜单：今天每一样东西按热量排。
+   * 和"按顿"不是两种视图偏好，是两个问题 ——
+   * 按顿回答"我这顿吃了什么"，按样回答"谁把我顶上去的"。
+   */
+  const ranking = useMemo(() => foodRanking(todayMeals), [todayMeals]);
+  const rankTop = rankSummary(ranking.list);
+  /** 同一天两顿都有米饭时，两行长得一模一样，所以重名的才补个餐次 */
+  const nameCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of ranking.list) m.set(f.name, (m.get(f.name) ?? 0) + 1);
+    return m;
+  }, [ranking.list]);
+  const [view, setView] = useState<"meal" | "food">("meal");
+  /**
+   * 按顿看默认只留最近一顿。
+   * 一天三顿全摊开是六百多像素，而这三张卡里他此刻只想看一张 ——
+   * 刚记的、可能记错的那张。前面两顿他自己知道吃过什么。
+   * 需要翻的时候一个按钮，不需要时它不占地方。
+   */
+  const [logOpen, setLogOpen] = useState(false);
+  const mealShown = logOpen ? sorted : sorted.slice(0, 1);
+  const [rankOpen, setRankOpen] = useState(false);
+  const RANK_PREVIEW = 8;
+  const rankShown = rankOpen
+    ? ranking.list
+    : ranking.list.slice(0, RANK_PREVIEW);
+  const rankMax = ranking.list[0]?.kcal ?? 1;
+
+  /**
    * 点评按当前规则重算，不读存下来的旧字符串。
    * 否则规则一改，老记录还在说旧话术，看起来像没改。
    * 累计顺序按吃得先后算，因为"这顿之前已经吃了多少"会影响判断。
@@ -175,18 +221,21 @@ export default function HomeView({
     );
     let before = 0;
     for (const m of asc) {
-      map.set(
-        m.id,
-        ruleVerdict(
-          m.nutrition,
-          profile,
-          plan,
-          before,
-          m.mealType,
-          m.eatenAt ?? m.createdAt,
-        ),
+      // 酒算进这一顿。漏了它，一顿七百大卡的饭会被评成"这顿合适"，
+      // 而这七百里有三百是酒 —— 那不是合适，那是今天最该说的一件事。
+      const kcal = m.nutrition.kcal + drinkKcal(m.drinks);
+      const v = ruleVerdict(
+        { ...m.nutrition, kcal },
+        profile,
+        plan,
+        before,
+        m.mealType,
+        m.eatenAt ?? m.createdAt,
       );
-      before += m.nutrition.kcal + drinkKcal(m.drinks);
+      // 酒超量不在这条里再说一遍：上面那张清单已经写着"酒精 40 克"，
+      // 这里再来一句"酒喝超了"，同一件事说两遍，页面就长了。
+      map.set(m.id, v);
+      before += kcal;
     }
     return map;
   }, [todayMeals, profile, plan]);
@@ -317,40 +366,23 @@ export default function HomeView({
         />
       </div>
 
-      {/* 三个营养素：图标负责扫，名称负责懂 */}
-      <div className="mt-2 flex gap-3.5 px-5">
-        <MacroBar
-          icon="protein"
-          color="#a3563f"
-          label="蛋白质"
-          value={totals.protein}
-          target={plan.proteinTargetG}
-          unit="g"
-        />
-        <MacroBar
-          icon="carb"
-          color="#b0842c"
-          label="碳水"
-          value={totals.carb}
-          target={plan.carbTargetG}
-          unit="g"
-        />
-        <MacroBar
-          icon="fat"
-          color="#7d8b5e"
-          label="脂肪"
-          value={totals.fat}
-          target={plan.fatTargetG}
-          unit="g"
-        />
-      </div>
+      {/*
+        三个营养素条原来常驻在环形图下面，删了。
+        理由不是"不好看"，是它在这个用户身上没有行动含义：
+        他关心的是"今天还能吃多少""酒和油超没超"，
+        "蛋白质 60/80 克"这个数字他看一眼不会因此改变晚饭。
+        而且它重复 —— 脂肪超、碳水超、蛋白不够这三件事，
+        下面那张"今天要注意的事"清单已经会说，还带一句该怎么做。
+        常驻条只报数字，清单说的是行动。留下会说的那个。
+      */}
 
       {/*
         所有"今天要注意的事"收进一张卡，最多四行。
         以前是超标警告一张、盐一张、疾病一张，三四个白块上下摞着，
         每块都要单独看一遍标题。合成一张之后，读起来是一份清单。
+        酒也在这张清单里 —— 它是一顿饭里的一部分，不该单独占一块。
       */}
-      {(warnings.length > 0 || saltLevel || tip) && (
+      {(warnings.length > 0 || saltLevel || tip || alcoholG > 25) && (
         <section className="mt-3 px-5">
           <div className="divide-y divide-black/[0.05] rounded-2xl bg-white px-3.5">
             {warnings.map((w) => (
@@ -386,6 +418,18 @@ export default function HomeView({
                 </span>
               </div>
             )}
+            {/* 只在超量时提。喝了多少、喝的什么，已经在"今天吃了"那顿里写着 */}
+            {alcoholG > 25 && (
+              <div className="flex items-center gap-2.5 py-2.5">
+                <Icon name="alcohol" size={17} className="text-[#b23c2c]" />
+                <span className="shrink-0 text-[15px] font-semibold text-[#b23c2c]">
+                  酒精 {alcoholG} 克
+                </span>
+                <span className="truncate text-[13px] text-ink-300">
+                  {alcoholNote ?? "超了建议量"}
+                </span>
+              </div>
+            )}
             {tip && (
               <div className="flex items-center gap-2.5 py-2.5">
                 <Icon
@@ -402,26 +446,6 @@ export default function HomeView({
         </section>
       )}
 
-      {drinks.length > 0 && (
-        <section className="mt-3 px-5">
-          <div className="flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-3">
-            <Icon name="alcohol" size={20} className="shrink-0 text-[#b23c2c]" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[16px] font-medium text-ink-700">
-                {drinksLabel(drinks)}
-              </p>
-              <p className="text-[13px] text-ink-400">
-                纯酒精 {alcoholG} 克
-                {alcoholNote ? ` · ${alcoholNote}` : ""}
-              </p>
-            </div>
-            <span className="shrink-0 text-[17px] font-semibold tabular-nums text-[#b23c2c]">
-              {alcoholKcal}
-            </span>
-          </div>
-        </section>
-      )}
-
       <section className="mt-5 px-5">
         <div className="mb-2.5 flex items-baseline justify-between">
           <h2 className="text-[18px] font-bold">今天吃了</h2>
@@ -432,14 +456,108 @@ export default function HomeView({
           )}
         </div>
 
+        {/*
+          两个问题，两个视图。
+          "按顿"是记账的读法，"按样"是找凶手的读法。
+          默认留在按顿 —— 人一天里想知道"我吃了什么"的次数，
+          比想知道"哪一口最贵"的多。
+        */}
+        {sorted.length > 0 && (
+          <div className="mb-2.5 flex gap-1 rounded-xl bg-black/[0.05] p-1">
+            {(
+              [
+                ["meal", "按顿看"],
+                ["food", "按热量排"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setView(k)}
+                className={`h-8 flex-1 rounded-lg text-[14px] font-medium transition ${
+                  view === k
+                    ? "bg-white text-ink-700 shadow-sm"
+                    : "text-ink-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {sorted.length === 0 ? (
           <div className="flex flex-col items-center rounded-2xl border border-dashed border-ink-300/50 py-6">
             <Icon name="camera" size={26} className="text-ink-300" />
             <p className="mt-2 text-[15px] text-ink-300">拍一张就行</p>
           </div>
+        ) : view === "food" ? (
+          /*
+            榜单。一行一样东西，条长按最大的那样算 ——
+            不按总数算，否则十样东西每根条都只有一小截，看着都一样。
+          */
+          <div className="rounded-2xl bg-white px-3.5 pb-1">
+            {rankTop && (
+              <p className="pt-3 text-[14px] leading-snug text-ink-400">
+                {rankTop}
+              </p>
+            )}
+            <ul className="mt-1">
+              {rankShown.map((f, i) => (
+                <li
+                  key={f.key}
+                  className="flex items-center gap-3 border-b border-black/[0.04] py-2.5 last:border-0"
+                >
+                  <span
+                    className="w-5 shrink-0 text-center text-[13px] font-bold tabular-nums"
+                    style={{ color: i === 0 ? "#1f8a5b" : "#cfd8d3" }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="truncate text-[16px] font-medium text-ink-700">
+                        {f.name}
+                      </span>
+                      {portionText(f) && (
+                        <span className="shrink-0 text-[12px] text-ink-300">
+                          {(nameCount.get(f.name) ?? 0) > 1
+                            ? `${mealTypeLabel(f.meal)}·${portionText(f)}`
+                            : portionText(f)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-black/[0.05]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(3, (f.kcal / rankMax) * 100)}%`,
+                          background: i === 0 ? "#1f8a5b" : "#a9c7b6",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <span className="w-11 shrink-0 text-right text-[16px] font-semibold tabular-nums text-ink-700">
+                    {f.kcal}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {ranking.list.length > RANK_PREVIEW && (
+              <button
+                type="button"
+                onClick={() => setRankOpen((v) => !v)}
+                className="mb-2 mt-1 w-full rounded-lg py-1.5 text-[13px] font-medium text-brand-600 active:bg-brand-50"
+              >
+                {rankOpen
+                  ? "收起"
+                  : `还有 ${ranking.list.length - RANK_PREVIEW} 样`}
+              </button>
+            )}
+          </div>
         ) : (
           <div className="space-y-2.5">
-            {sorted.map((m) => {
+            {mealShown.map((m) => {
               const dk = drinkKcal(m.drinks);
               const v = liveVerdicts.get(m.id);
               const color = v ? TONE_COLOR[v.tone] : "#33413b";
@@ -473,17 +591,15 @@ export default function HomeView({
 
                   {(dk > 0 || (m.tags && m.tags.length > 0)) && (
                     <div className="mt-2 flex items-center gap-2 text-[13px] text-ink-400">
-                      {dk > 0 && (
-                        <span className="flex items-center gap-1 text-[#b23c2c]">
-                          <Icon name="alcohol" size={13} />
-                          {dk}
-                        </span>
-                      )}
+                      {dk > 0 && <span>{drinksLabel(m.drinks)}</span>}
+                      {/*
+                        标签不带图标了。
+                        13px 下那张"在外"的小票图标糊成一个方块，旁边的
+                        "油炸"也被读成"约 0 油炸" —— 图标在这个尺寸不但没帮上忙，
+                        还把一个本来读得懂的词变成了乱码。图标只在 17px 以上用。
+                      */}
                       {(m.tags ?? []).map((t) => (
-                        <span key={t} className="flex items-center gap-0.5">
-                          <Icon name={TAG_CFG[t].icon} size={13} />
-                          {TAG_CFG[t].short}
-                        </span>
+                        <span key={t}>{TAG_CFG[t].short}</span>
                       ))}
                     </div>
                   )}
@@ -509,6 +625,33 @@ export default function HomeView({
                 </article>
               );
             })}
+            {sorted.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setLogOpen((v) => !v)}
+                className="flex w-full items-center justify-center gap-1 rounded-xl bg-white py-2.5 text-[14px] font-medium text-ink-400 active:bg-black/[0.02]"
+              >
+                {logOpen ? "收起" : `今天还有 ${sorted.length - 1} 顿`}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{
+                    transform: logOpen ? "rotate(180deg)" : "none",
+                    transition: "transform .2s",
+                  }}
+                >
+                  <path
+                    d="M6 9.5l6 6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         )}
       </section>
