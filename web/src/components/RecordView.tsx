@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   FoodItem,
   Meal,
@@ -15,6 +15,7 @@ import { drinkKcal } from "@/lib/drinks";
 import { ruleComment } from "@/lib/comment";
 import MealPhoto from "./MealPhoto";
 import WeightTrend from "./WeightTrend";
+import Icon from "./Icon";
 import { Sheet, Stepper } from "./ui";
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
@@ -54,6 +55,8 @@ export default function RecordView({
   onWeight,
   onDeleteMeal,
   onUpdateMeal,
+  autoEditId,
+  onAutoEditDone,
 }: {
   profile: Profile;
   plan: NutritionPlan;
@@ -62,6 +65,9 @@ export default function RecordView({
   onWeight: (kg: number) => void;
   onDeleteMeal: (id: string) => void;
   onUpdateMeal: (m: Meal) => void;
+  /** 从「记一餐」里点「改」跳过来时要打开的那条 */
+  autoEditId?: string | null;
+  onAutoEditDone?: () => void;
 }) {
   const [weightOpen, setWeightOpen] = useState(false);
   const latest = latestWeightKg(weights, profile.weightKg);
@@ -80,6 +86,16 @@ export default function RecordView({
     setEditItems(m.items.map((it) => ({ ...it })));
     setFactors(m.items.map(() => 1));
   };
+
+  // 从「记一餐」弹层里点「改」过来：切到这一页时直接把编辑弹层打开
+  useEffect(() => {
+    if (!autoEditId) return;
+    const target = meals.find((m) => m.id === autoEditId);
+    if (target) openEditor(target);
+    onAutoEditDone?.();
+    // openEditor 每次渲染都是新函数，放进依赖会无限触发
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoEditId]);
 
   const edited = useMemo(() => {
     if (!editing) return null;
@@ -394,18 +410,18 @@ export default function RecordView({
                           <button
                             onClick={() => openEditor(m)}
                             aria-label="修改这条记录"
-                            className="flex h-8 w-10 items-center justify-center rounded-lg bg-brand-50 text-[13px] font-semibold text-brand-600 active:scale-95"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600 active:scale-95"
                           >
-                            改
+                            <Icon name="edit" size={17} />
                           </button>
                           <button
                             onClick={() => {
                               if (confirm("删掉这条记录？")) onDeleteMeal(m.id);
                             }}
                             aria-label="删除这条记录"
-                            className="flex h-8 w-10 items-center justify-center rounded-lg bg-black/[0.04] text-[13px] font-semibold text-ink-500 active:scale-95"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04] text-ink-500 active:scale-95"
                           >
-                            删
+                            <Icon name="trash" size={17} />
                           </button>
                         </div>
                       </div>

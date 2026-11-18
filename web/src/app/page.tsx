@@ -30,6 +30,8 @@ type Tab = "home" | "record";
 export default function Page() {
   const [state, setState] = useState<AppState | null>(null);
   const [tab, setTab] = useState<Tab>("home");
+  /** 「记一餐」里点「改」时，把要改的那条传过去 */
+  const [pendingEditId, setPendingEditId] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [redoSetup, setRedoSetup] = useState(false);
@@ -132,6 +134,8 @@ export default function Page() {
             update(withoutMeal(state, id));
           }}
           onUpdateMeal={(m) => update(updateMeal(state, m))}
+          autoEditId={pendingEditId}
+          onAutoEditDone={() => setPendingEditId(null)}
         />
       )}
 
@@ -202,6 +206,11 @@ export default function Page() {
         dayKcalBefore={dayKcal}
         todayMeals={todayMeals}
         onSave={(m: Meal) => update(upsertMeal(state, m))}
+        onEditMeal={(id) => {
+          setCameraOpen(false);
+          setPendingEditId(id);
+          setTab("record");
+        }}
       />
 
       <Sheet

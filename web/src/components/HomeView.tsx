@@ -73,7 +73,8 @@ const KIND_COLOR: Record<PartKind, string> = {
 };
 const KIND_ICON: Record<PartKind, IconName> = {
   carb: "carb",
-  meat: "protein",
+  // 用鱼形：肉块缩小到 21px 读不出来，鱼的轮廓最好认
+  meat: "fish",
   veg: "veg",
 };
 

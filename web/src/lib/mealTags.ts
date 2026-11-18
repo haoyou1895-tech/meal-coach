@@ -13,7 +13,7 @@ export const TAG_CFG: Record<
   MealTag,
   {
     label: string;
-    /** 卡片上只显示这一个字，配上图标就够认了 */
+    /** 记录卡上显示，比 label 短一点 */
     short: string;
     icon: "soup" | "pickled" | "out" | "fried" | "sweet";
     sodiumMg: number;
@@ -22,42 +22,50 @@ export const TAG_CFG: Record<
 > = {
   soup: {
     label: "有汤",
-    short: "汤",
+    short: "有汤",
     icon: "soup",
     sodiumMg: 600,
     why: "一碗汤常有 2–3 克盐",
   },
   pickled: {
-    label: "咸菜腊味",
-    short: "腌",
+    label: "腌菜",
+    short: "腌菜",
     icon: "pickled",
     sodiumMg: 800,
     why: "腌制品是隐形盐的大头",
   },
   out: {
-    label: "在外吃",
-    short: "外",
+    // 原来叫"在外吃"、按钮上只有一个"外"字，没人知道是什么
+    label: "下馆子",
+    short: "在外",
     icon: "out",
     sodiumMg: 500,
     why: "馆子的盐和油都比家里重",
   },
   fried: {
     label: "油炸",
-    short: "炸",
+    short: "油炸",
     icon: "fried",
     sodiumMg: 150,
     why: "挂糊本身就带盐",
   },
+  /**
+   * 甜口已经从勾选项里拿掉了。
+   * "糖醋菜也要放盐"这话在营养上没错，但对用户是荒谬的 ——
+   * 他在回答"盐从哪来"，你给他一个"甜"，只会让他怀疑整页都不靠谱。
+   * 配置留着只为读得懂老记录。
+   */
   sweet: {
-    label: "糖醋甜口",
-    short: "甜",
+    label: "甜口",
+    short: "甜口",
     icon: "sweet",
     sodiumMg: 120,
     why: "甜口菜也是要放盐的",
   },
 };
 
-export const TAG_LIST = Object.keys(TAG_CFG) as MealTag[];
+/** 用户能勾的只有这四样 */
+export const TAG_LIST: MealTag[] = ["soup", "pickled", "out", "fried"];
 
 /** 米饭青菜这种淡口打底，谁都得吃 */
 const BASE_MG = 250;

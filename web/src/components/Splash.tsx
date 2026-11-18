@@ -4,27 +4,41 @@ import { useEffect, useState } from "react";
 
 /**
  * 开屏的一句话。
- * 按日期取，保证一天之内每次打开看到的是同一句——
- * 天天换着花样反而像随机推送，同一句连着看几天才有分量。
+ *
+ * 之前按日期取，一天只换一句 —— 结果连着几天看到同一句，
+ * 像公告牌，不像有人在跟你说话。现在每次打开都随机，
+ * 反倒更接近"每次进来他都在"的感觉。
+ *
+ * 句子都往应酬、饭局、酒上靠 —— 这是这个用户真实的场景，
+ * 泛泛的"要健康"对他没用。
  */
 const LINES = [
+  "咸的少一口，血压降一点",
   "每顿少一口，三个月后看得见",
   "不用饿着，换个吃法就行",
   "先吃菜再吃饭，血糖稳，也扛饿",
   "今天这顿记下来，就够了",
   "慢一点没关系，别停下",
-  "咸的少一口，血压降一点",
+  "应酬躲不掉，回来记一笔就行",
+  "喝酒那顿，第二天清淡点",
+  "一荤两素，比什么都强",
+  "汤泡饭最省事，也最容易吃多",
+  "吃到七分饱，下午不犯困",
+  "能走两步就走两步，不算白走",
+  "今天的账今天记，明天就忘了",
+  "少喝一口汤，少吃半勺盐",
+  "不是要你忌口，是要你心里有数",
 ];
 
-function pickLine(now: Date) {
-  const seed =
-    now.getFullYear() * 372 + (now.getMonth() + 1) * 31 + now.getDate();
-  return LINES[seed % LINES.length];
-}
-
 export default function Splash({ onDone }: { onDone: () => void }) {
-  const [line] = useState(() => pickLine(new Date()));
+  // 先渲染第一句，挂载后再换成随机的 —— 直接在 useState 里取随机
+  // 会和服务端渲染出来的那一句对不上，React 会报 hydration 不一致
+  const [line, setLine] = useState(LINES[0]);
   const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => {
+    setLine(LINES[Math.floor(Math.random() * LINES.length)]);
+  }, []);
 
   useEffect(() => {
     // 少动效的人直接给内容，不做淡出

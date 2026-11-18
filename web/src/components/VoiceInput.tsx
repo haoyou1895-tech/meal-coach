@@ -256,9 +256,10 @@ export default function VoiceInput({
       {msg ? (
         <span className="text-[13px] leading-snug text-warn-600">{msg}</span>
       ) : (
-        <span className="text-[13px] text-ink-300">
-          {status === "recording" ? "说完点一下" : "不方便打字就用说的"}
-        </span>
+        // 空闲时不写说明：按钮上有话筒和"说一句"，再解释一遍是废话
+        status === "recording" ? (
+          <span className="text-[13px] text-ink-300">说完点一下</span>
+        ) : null
       )}
     </div>
   );

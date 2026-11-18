@@ -84,6 +84,7 @@ export default function CameraSheet({
   dayKcalBefore,
   todayMeals,
   onSave,
+  onEditMeal,
 }: {
   open: boolean;
   onClose: () => void;
@@ -93,6 +94,8 @@ export default function CameraSheet({
   /** 今天的记录，用于判断这个餐次是不是已经记过 */
   todayMeals: Meal[];
   onSave: (m: Meal) => void;
+  /** 这顿已经记过时，给一个直接去改的入口 */
+  onEditMeal?: (id: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   /** 相册入口：不能强制调摄像头，补记昨天的饭、别人发来的照片都得能选 */
@@ -117,6 +120,8 @@ export default function CameraSheet({
   const [noteCheck, setNoteCheck] = useState<NoteCheck | null>(null);
   /** 这顿喝了什么、盐从哪来 —— 照片拍不出来的两样，只能问 */
   const [drinks, setDrinks] = useState<Drink[]>([]);
+  /** 酒默认收起：不是每顿都喝，不该每顿都问 */
+  const [drinkOpen, setDrinkOpen] = useState(false);
   const [tags, setTags] = useState<MealTag[]>([]);
   const [zoom, setZoom] = useState(false);
   /** 写照片到本地仓库是异步的，加个锁防止连点记两遍 */
@@ -135,6 +140,7 @@ export default function CameraSheet({
     setDemo(false);
     setNote("");
     setDrinks([]);
+    setDrinkOpen(false);
     setTags([]);
     setZoom(false);
     setConfirmed([]);
@@ -434,13 +440,43 @@ export default function CameraSheet({
               );
             })}
           </div>
+
           {/*
-            餐次是按时间猜的（21 点后默认"加餐"），猜错整条记录都会错，
-            所以得把"这是猜的"说出来，而不是让它悄悄生效。
+            这顿如果已经记过，就把他之前填的东西直接摊出来。
+            以前是让他对着一个空表单重新拍 —— 明明十分钟前刚记过，
+            打开还是一张白纸，人会以为没存上，于是再记一遍。
           */}
-          <p className="mb-4 text-[13px] leading-relaxed text-ink-300">
-            餐次是按时间猜的，点一下能改
-          </p>
+          {existing ? (
+            <div className="mb-4 rounded-2xl bg-brand-50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Icon name="check" size={16} className="text-brand-600" />
+                <span className="flex-1 text-[15px] font-semibold text-brand-700">
+                  {mealTypeLabel(mealType)}已记 {existing.nutrition.kcal} 大卡
+                </span>
+                {onEditMeal && (
+                  <button
+                    type="button"
+                    onClick={() => onEditMeal(existing.id)}
+                    className="flex items-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-[13px] font-medium text-brand-600 active:scale-95"
+                  >
+                    <Icon name="edit" size={13} />
+                    改
+                  </button>
+                )}
+              </div>
+              <p className="mt-1.5 text-[15px] leading-snug text-ink-600">
+                {existing.items.map((i) => i.name).join("、")}
+              </p>
+              <p className="mt-1 text-[13px] text-ink-400">
+                下面拍的会加进这一顿
+              </p>
+            </div>
+          ) : (
+            /* 没记过才需要解释"这是猜的" */
+            <p className="mb-4 text-[13px] leading-relaxed text-ink-300">
+              餐次是按时间猜的，点一下能改
+            </p>
+          )}
 
           <div className="mb-4">
             <div className="mb-1.5 flex items-baseline justify-between">
@@ -448,7 +484,7 @@ export default function CameraSheet({
                 这顿吃了啥？
               </span>
               <span className="text-[13px] tabular-nums text-ink-300">
-                {note.length > 0 ? `${note.length}/60` : "可以不填"}
+                {note.length > 0 ? `${note.length}/60` : ""}
               </span>
             </div>
             <textarea
@@ -464,9 +500,6 @@ export default function CameraSheet({
                 setNote((prev) => (prev ? `${prev}、${t}` : t).slice(0, 60))
               }
             />
-            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
-              说出来它就不用猜，有汤、有凉菜的时候更准
-            </p>
           </div>
 
           <button
@@ -498,9 +531,6 @@ export default function CameraSheet({
             从相册选一张
           </button>
 
-          <p className="mt-4 text-center text-[13px] leading-relaxed text-ink-300">
-            盘子和碗一起拍进去更准
-          </p>
         </div>
       )}
 
@@ -824,9 +854,9 @@ export default function CameraSheet({
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <Macro icon="protein" name="蛋" value={computed.protein} unit="g" />
-            <Macro icon="carb" name="饭" value={computed.carb} unit="g" />
-            <Macro icon="fat" name="油" value={computed.fat} unit="g" />
+            <Macro icon="protein" name="蛋白质" value={computed.protein} unit="g" />
+            <Macro icon="carb" name="碳水" value={computed.carb} unit="g" />
+            <Macro icon="fat" name="脂肪" value={computed.fat} unit="g" />
           </div>
 
           {confidence > 0 && confidence < 0.5 && (
@@ -839,70 +869,85 @@ export default function CameraSheet({
             酒和盐是照片的死角：一个在杯子里，一个化了看不见。
             与其让模型编，不如在这儿问两句。
           */}
-          <div className="mt-3 rounded-2xl bg-white px-4 py-4">
-            <div className="flex items-center gap-1.5">
-              <Icon name="alcohol" size={17} className="text-ink-400" />
-              <p className="text-[16px] font-medium text-ink-700">喝酒了吗</p>
-            </div>
-            <div className="mt-2.5 flex gap-2">
-              {DRINK_KINDS.map((k) => {
-                const cur = drinks.find((d) => d.kind === k)?.count ?? 0;
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => addDrink(k)}
-                    className={`h-11 flex-1 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
-                      cur > 0
-                        ? "bg-[#fdecea] text-[#b23c2c]"
-                        : "bg-black/[0.04] text-ink-700"
-                    }`}
-                  >
-                    {DRINK_CFG[k].label}
-                    {cur > 0 ? ` ${cur}` : ""}
-                  </button>
-                );
-              })}
-            </div>
-            {drinks.length > 0 && (
-              <div className="mt-3 space-y-2 border-t border-black/[0.05] pt-2.5">
-                {drinks.map((d) => (
-                  <div
-                    key={d.kind}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span className="text-[15px] text-ink-700">
-                      {DRINK_CFG[d.kind].label} {d.count}
-                      {DRINK_CFG[d.kind].unit}
-                      <span className="ml-1.5 text-[13px] text-ink-300">
-                        {DRINK_CFG[d.kind].kcalPerUnit * d.count} 大卡
-                      </span>
-                    </span>
-                    <div className="flex shrink-0 items-center gap-1">
+          {/*
+            酒是照片的死角 —— 在杯子里，模型永远看不见。
+            但也不能每记一顿就摆一整块出来问：一周才喝一两次的人，
+            顿顿被追问"喝酒了吗"，像被管教。收成一行，想记的时候点开。
+          */}
+          <div className="mt-3 rounded-2xl bg-white px-4">
+            <button
+              type="button"
+              onClick={() => setDrinkOpen((v) => !v)}
+              className="flex w-full items-center gap-2 py-3 text-left"
+            >
+              <Icon name="alcohol" size={17} className="shrink-0 text-ink-400" />
+              <span
+                className={`flex-1 text-[15px] ${
+                  drinks.length > 0 ? "text-ink-700" : "text-ink-400"
+                }`}
+              >
+                {drinks.length > 0
+                  ? `${drinksLabel(drinks)} · 共 ${drinkKcal(drinks)} 大卡`
+                  : "喝酒了？"}
+              </span>
+              <span className="shrink-0 text-[13px] text-ink-300">
+                {drinkOpen ? "收起" : "记一笔"}
+              </span>
+            </button>
+
+            {drinkOpen && (
+              <div className="pb-4">
+                <div className="flex gap-2">
+                  {DRINK_KINDS.map((k) => {
+                    const cur = drinks.find((d) => d.kind === k)?.count ?? 0;
+                    return (
                       <button
+                        key={k}
                         type="button"
-                        onClick={() => changeDrink(d.kind, -1)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                        onClick={() => addDrink(k)}
+                        className={`h-11 flex-1 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
+                          cur > 0
+                            ? "bg-[#fdecea] text-[#b23c2c]"
+                            : "bg-black/[0.04] text-ink-700"
+                        }`}
                       >
-                        −
+                        {DRINK_CFG[k].label}
+                        {cur > 0 ? ` ${cur}` : ""}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => changeDrink(d.kind, 1)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                    );
+                  })}
+                </div>
+                {drinks.length > 0 && (
+                  <div className="mt-3 space-y-2 border-t border-black/[0.05] pt-2.5">
+                    {drinks.map((d) => (
+                      <div
+                        key={d.kind}
+                        className="flex items-center justify-between gap-2"
                       >
-                        +
-                      </button>
-                    </div>
+                        <span className="text-[15px] text-ink-700">
+                          {DRINK_CFG[d.kind].label} {d.count}
+                          {DRINK_CFG[d.kind].unit}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => changeDrink(d.kind, -1)}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                          >
+                            −
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => changeDrink(d.kind, 1)}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                <p className="text-[13px] text-ink-400">
-                  连酒带菜{" "}
-                  <span className="font-semibold tabular-nums text-ink-700">
-                    {computed.kcal + drinkKcal(drinks)}
-                  </span>{" "}
-                  大卡
-                </p>
+                )}
               </div>
             )}
           </div>
@@ -920,15 +965,13 @@ export default function CameraSheet({
                     key={t}
                     type="button"
                     onClick={() => toggleTag(t)}
-                    title={TAG_CFG[t].label}
-                    className={`flex h-11 items-center gap-1 rounded-xl px-3 text-[15px] font-medium transition active:scale-[0.97] ${
+                    className={`h-11 flex-1 rounded-xl text-[14px] font-medium transition active:scale-[0.97] ${
                       on
                         ? "bg-brand-500 text-white"
                         : "bg-black/[0.04] text-ink-700"
                     }`}
                   >
-                    <Icon name={TAG_CFG[t].icon} size={17} />
-                    {TAG_CFG[t].short}
+                    {TAG_CFG[t].label}
                   </button>
                 );
               })}
@@ -1006,6 +1049,11 @@ export default function CameraSheet({
   );
 }
 
+/**
+ * 三个营养素的小卡。
+ * 这里也试过只写「蛋 10g / 饭 58g / 油 6g」—— 和首页踩的是同一个坑：
+ * 一个字加一个数字，读的人得先猜这个字代表什么。名字写全。
+ */
 function Macro({
   icon,
   name,
@@ -1018,11 +1066,15 @@ function Macro({
   unit: string;
 }) {
   return (
-    <div className="flex items-center justify-center gap-1 rounded-xl bg-white py-2.5">
-      <Icon name={icon} size={14} className="text-ink-400" />
-      <span className="text-[12px] text-ink-400">{name}</span>
-      <span className="text-[16px] font-semibold tabular-nums">{value}</span>
-      <span className="text-[10px] text-ink-300">{unit}</span>
+    <div className="rounded-xl bg-white py-2.5">
+      <div className="flex items-center justify-center gap-1">
+        <Icon name={icon} size={12} className="text-ink-400" />
+        <span className="text-[12px] text-ink-400">{name}</span>
+      </div>
+      <p className="mt-1 text-center text-[17px] font-semibold leading-none tabular-nums">
+        {value}
+        <span className="ml-0.5 text-[10px] font-normal text-ink-300">{unit}</span>
+      </p>
     </div>
   );
 }
