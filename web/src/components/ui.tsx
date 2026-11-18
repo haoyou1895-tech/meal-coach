@@ -269,22 +269,31 @@ export function CalorieRing({
   used,
   budget,
   tone,
+  size = 232,
 }: {
   used: number;
   budget: number;
   tone: "good" | "warn" | "over";
+  /** 边长。默认 232 是独占一屏时的尺寸；和提醒并排时传小值 */
+  size?: number;
 }) {
-  const size = 232;
-  const stroke = 18;
+  const stroke = Math.max(8, Math.round(size * 0.078));
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const ratio = Math.min(1, budget > 0 ? used / budget : 0);
   const color =
     tone === "over" ? "#d94f3d" : tone === "warn" ? "#e8871e" : "#1f8a5b";
   const left = Math.max(0, budget - used);
+  // 字号跟着尺寸走：大图上 58px，小图上按比例缩，不写两套
+  // 字号跟着尺寸走，但要设下限 —— 等比例缩到 116 时标签只剩 6px，
+  // 那不是小字，那是噪点。缩到看得清就停。
+  const k = size / 232;
+  const fLabel = Math.max(11, Math.round(14 * k));
+  const fNum = Math.max(24, Math.round(58 * k));
+  const fBudget = Math.max(11, Math.round(13 * k));
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <circle
           cx={size / 2}
@@ -308,12 +317,15 @@ export function CalorieRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[14px] font-medium text-ink-400">
+        <span
+          className="font-medium text-ink-400"
+          style={{ fontSize: fLabel }}
+        >
           {tone === "over" ? "超出" : "还能吃"}
         </span>
         <span
-          className="mt-0.5 text-[58px] font-bold leading-none tabular-nums tracking-tight"
-          style={{ color }}
+          className="mt-0.5 font-bold leading-none tabular-nums tracking-tight"
+          style={{ color, fontSize: fNum }}
         >
           {tone === "over" ? Math.round(used - budget) : Math.round(left)}
         </span>
@@ -323,7 +335,10 @@ export function CalorieRing({
           预算是 1719" —— 而真实情况是吃了 2655。一个斜杠能让人把账读反。
           改成写明"预算"，超出多少、额度多少，两句话不打架。
         */}
-        <span className="mt-1 text-[13px] font-medium tabular-nums text-ink-300">
+        <span
+          className="mt-1 font-medium tabular-nums text-ink-300"
+          style={{ fontSize: fBudget }}
+        >
           预算 {Math.round(budget)}
         </span>
       </div>

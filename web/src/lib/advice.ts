@@ -198,7 +198,7 @@ export function nextMealAdvice(
     caution = "肥肉和内脏跳过";
     cautionIcon = "fat";
   } else if (diseases.includes("gout")) {
-    caution = "内脏和浓汤别碰，多喝水";
+    caution = "内脏浓汤别碰，多喝水";
     cautionIcon = "protein";
   }
 
@@ -238,7 +238,7 @@ export function macroWarnings(
       key: "fat",
       icon: "fat",
       short: `脂肪超 ${over} 克`,
-      tip: bad ? "这个对您最要紧，明天少油" : "明天炒菜少放点油",
+      tip: bad ? "最要紧，少油" : "明天少油",
       text: `脂肪超了 ${over} 克，明天炒菜少放点油。`,
       severe: bad,
     });
@@ -251,7 +251,7 @@ export function macroWarnings(
       key: "carb",
       icon: "carb",
       short: `碳水超 ${over} 克`,
-      tip: bad ? "血糖高，明天主食减半碗" : "米饭面食吃多了",
+      tip: bad ? "主食减半碗" : "主食多了",
       text: `碳水超了 ${over} 克，多半是米饭和面食吃多了。`,
       severe: bad,
     });
@@ -268,7 +268,7 @@ export function macroWarnings(
       key: "protein",
       icon: "protein",
       short: "蛋白差一半",
-      tip: "晚饭加个蛋或一块豆腐",
+      tip: "加个蛋或豆腐",
       text: `蛋白才吃了 ${Math.round(totals.protein)} 克，差一半，晚饭加个蛋或者一块豆腐。`,
       severe: false,
     });

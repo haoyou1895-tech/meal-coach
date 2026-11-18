@@ -100,14 +100,58 @@ function Dot({ color }: { color: string }) {
 }
 
 /**
+ * 一行提醒：结论加粗，怎么做跟在后面变细。
+ *
+ * 上一版用"·"把两段拼成一句，结果"蛋白差一半 · 加个蛋或豆腐"在
+ * 116 宽的圆旁边正好断在"豆"后面，第二行只剩一个"腐"。
+ * 现在结论 15px、补充 13px，同一行放得下，也分得出哪句是判断、哪句是动作。
+ */
+function NoteRow({
+  dot,
+  head,
+  headColor,
+  tail,
+  tailColor,
+  tailBold,
+}: {
+  dot: string;
+  head: string;
+  headColor: string;
+  tail?: string;
+  tailColor?: string;
+  tailBold?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="mt-[7px]">
+        <Dot color={dot} />
+      </span>
+      <p className="text-[15px] font-semibold leading-snug" style={{ color: headColor }}>
+        {head}
+        {tail && (
+          <span
+            className={
+              tailBold ? "ml-1 font-semibold" : "ml-1 font-normal text-ink-400"
+            }
+            style={{ fontSize: 13, color: tailColor }}
+          >
+            {tailBold ? "" : "· "}
+            {tail}
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/**
  * 按疾病给一条当日提醒。
  * 这条以前是二十来个字的一句话，现在压到十个字以内 ——
  * 病人不需要被告知"为什么"，医生早就说过了；他需要被提醒"今天注意哪一件"。
  */
 function diseaseTip(profile: Profile): { icon: IconName; text: string } | null {
   const d = profile.diseases;
-  if (d.includes("hypertension"))
-    return { icon: "salt", text: "少盐，腌菜酱油汤都算" };
+  if (d.includes("hypertension")) return { icon: "salt", text: "腌菜汤别碰" };
   if (d.includes("diabetes"))
     return { icon: "carb", text: "主食分三顿，先菜后饭" };
   if (d.includes("fattyLiver"))
@@ -195,6 +239,14 @@ export default function HomeView({
   const salt = daySalt(todayMeals);
   const saltLevel =
     salt.taggedCount > 0 ? saltLevelOf(salt.mg, salt.taggedCount) : null;
+  /**
+   * 盐已经单独占一行时，"少盐"就不必再说第二遍。
+   * 只有盐显示"清淡"时留着它 —— 那时候它说的是"保持住"，不是"注意"。
+   */
+  const showTip =
+    tip && !(tip.icon === "salt" && saltLevel && saltLevel !== "light")
+      ? tip
+      : null;
 
   /**
    * 榜单：今天每一样东西按热量排。
@@ -395,13 +447,65 @@ export default function HomeView({
         </section>
       )}
 
-      <div className="flex justify-center pt-2">
-        <CalorieRing
-          used={totals.kcal}
-          budget={plan.dailyBudgetKcal}
-          tone={status.tone}
-        />
-      </div>
+      {/*
+        圆和提醒并排。
+        圆独占整行的时候，一屏里最贵的那块位置给了一个"每天只变一次"的数字，
+        而真正要他动手的事（少喝汤、加个蛋）被挤在下面一行 13px 小字里。
+        现在圆缩到 116，右边那几句话放大到 15px、允许换行 ——
+        剩下的额度是背景信息，该干什么才是主线。
+      */}
+      <section className="mt-3 px-5">
+        <div className="flex items-center gap-3 rounded-3xl bg-white px-3.5 py-4">
+          <CalorieRing
+            used={totals.kcal}
+            budget={plan.dailyBudgetKcal}
+            tone={status.tone}
+            size={104}
+          />
+          <div className="min-w-0 flex-1 space-y-2">
+            {warnings.map((w) => (
+              <NoteRow
+                key={w.key}
+                dot={w.severe ? "#b23c2c" : "#a9631a"}
+                head={w.short}
+                headColor={w.severe ? "#b23c2c" : "#33413b"}
+                tail={w.tip}
+              />
+            ))}
+            {saltLevel && (
+              <NoteRow
+                dot={SALT_COLOR[saltLevel]}
+                head="盐"
+                headColor="#33413b"
+                tail={SALT_LABEL[saltLevel]}
+                tailColor={SALT_COLOR[saltLevel]}
+                tailBold
+              />
+            )}
+            {/* 只在超量时提。喝了多少、喝的什么，已经在"今天吃了"那顿里写着 */}
+            {alcoholG > 25 && (
+              <NoteRow
+                dot="#b23c2c"
+                head={`酒 ${alcoholG} 克`}
+                headColor="#b23c2c"
+                tail="今天到此"
+              />
+            )}
+            {showTip && (
+              <NoteRow dot="#1f8a5b" head={showTip.text} headColor="#42514a" />
+            )}
+            {/* 一条都没有的时候不能说空白：那时候"没什么事"本身就是好消息 */}
+            {warnings.length === 0 &&
+              !saltLevel &&
+              alcoholG <= 25 &&
+              !showTip && (
+                <p className="text-[15px] leading-snug text-ink-500">
+                  今天吃得稳，照这个来
+                </p>
+              )}
+          </div>
+        </div>
+      </section>
 
       {/*
         三个营养素条原来常驻在环形图下面，删了。
@@ -412,63 +516,6 @@ export default function HomeView({
         下面那张"今天要注意的事"清单已经会说，还带一句该怎么做。
         常驻条只报数字，清单说的是行动。留下会说的那个。
       */}
-
-      {/*
-        所有"今天要注意的事"收进一张卡，最多四行。
-        以前是超标警告一张、盐一张、疾病一张，三四个白块上下摞着，
-        每块都要单独看一遍标题。合成一张之后，读起来是一份清单。
-        酒也在这张清单里 —— 它是一顿饭里的一部分，不该单独占一块。
-      */}
-      {(warnings.length > 0 || saltLevel || tip || alcoholG > 25) && (
-        <section className="mt-3 px-5">
-          <div className="divide-y divide-black/[0.05] rounded-2xl bg-white px-3.5">
-            {warnings.map((w) => (
-              <div key={w.key} className="flex items-center gap-2.5 py-2.5">
-                <Dot color={w.severe ? "#b23c2c" : "#a9631a"} />
-                <span
-                  className="shrink-0 text-[15px] font-semibold"
-                  style={{ color: w.severe ? "#b23c2c" : "#33413b" }}
-                >
-                  {w.short}
-                </span>
-                <span className="truncate text-[13px] text-ink-300">{w.tip}</span>
-              </div>
-            ))}
-            {saltLevel && (
-              <div className="flex items-center gap-2.5 py-2.5">
-                <Dot color={SALT_COLOR[saltLevel]} />
-                <span className="flex-1 text-[15px] text-ink-600">今天盐量</span>
-                <span
-                  className="text-[16px] font-semibold"
-                  style={{ color: SALT_COLOR[saltLevel] }}
-                >
-                  {SALT_LABEL[saltLevel]}
-                </span>
-              </div>
-            )}
-            {/* 只在超量时提。喝了多少、喝的什么，已经在"今天吃了"那顿里写着 */}
-            {alcoholG > 25 && (
-              <div className="flex items-center gap-2.5 py-2.5">
-                <Dot color="#b23c2c" />
-                <span className="shrink-0 text-[15px] font-semibold text-[#b23c2c]">
-                  酒精 {alcoholG} 克
-                </span>
-                <span className="truncate text-[13px] text-ink-300">
-                  {alcoholNote ?? "超了建议量"}
-                </span>
-              </div>
-            )}
-            {tip && (
-              <div className="flex items-center gap-2.5 py-2.5">
-                <Dot color="#1f8a5b" />
-                <span className="flex-1 text-[15px] leading-snug text-ink-700">
-                  {tip.text}
-                </span>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
 
       <section className="mt-5 px-5">
         <div className="mb-2.5 flex items-baseline justify-between">
