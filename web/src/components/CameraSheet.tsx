@@ -8,6 +8,7 @@ import type {
   Meal,
   MealTag,
   MealType,
+  NoteCheck,
   Nutrition,
   NutritionPlan,
   Profile,
@@ -16,9 +17,10 @@ import type {
 import { guessMealType, mealTypeLabel, todayStr } from "@/lib/nutrition";
 import { DRINK_CFG, DRINK_KINDS, drinkKcal, drinksLabel } from "@/lib/drinks";
 import { TAG_CFG, TAG_LIST, sodiumFromTags } from "@/lib/mealTags";
-import { ruleComment } from "@/lib/comment";
+import { ruleComment, ruleVerdict } from "@/lib/comment";
 import { putPhoto } from "@/lib/photos";
 import { Sheet } from "./ui";
+import Icon, { type IconName } from "./Icon";
 import VoiceInput from "./VoiceInput";
 
 type Phase = "idle" | "working" | "result" | "error";
@@ -103,6 +105,14 @@ export default function CameraSheet({
   const [demo, setDemo] = useState(false);
   const [errMsg, setErrMsg] = useState("");
   const [note, setNote] = useState("");
+  /**
+   * 每一道菜是否"算数"。
+   * 照片里看得见的默认算数；只来自他那句话的默认不算 ——
+   * 他说一句就能凭空多出三百大卡的话，这个账本就没有意义了。
+   */
+  const [confirmed, setConfirmed] = useState<boolean[]>([]);
+  /** 描述和照片对不上的地方，拿到就要问一句 */
+  const [noteCheck, setNoteCheck] = useState<NoteCheck | null>(null);
   /** 这顿喝了什么、盐从哪来 —— 照片拍不出来的两样，只能问 */
   const [drinks, setDrinks] = useState<Drink[]>([]);
   const [tags, setTags] = useState<MealTag[]>([]);
@@ -125,6 +135,8 @@ export default function CameraSheet({
     setDrinks([]);
     setTags([]);
     setZoom(false);
+    setConfirmed([]);
+    setNoteCheck(null);
   };
 
   const handleFile = async (file?: File | null) => {
@@ -150,6 +162,9 @@ export default function CameraSheet({
       }
       setItems(data.items);
       setFactors(data.items.map(() => 1));
+      // 照片里看不到的那几项先挂起，等用户点头再算热量
+      setConfirmed(data.items.map((it) => it.seen !== false));
+      setNoteCheck(data.noteCheck ?? null);
       setBase(data.nutrition);
       setConfidence(data.confidence ?? 0.6);
       setDemo(!!data.demo);
@@ -161,13 +176,21 @@ export default function CameraSheet({
     }
   };
 
+  /**
+   * 没确认的那几项按 0 算。
+   * 不是为了少算，是因为"他说了但我没看见"的东西，在得到他点头之前
+   * 没有资格进这本账。
+   */
+  const factorOf = (i: number) =>
+    confirmed[i] === false ? 0 : (factors[i] ?? 1);
+
   /** 按倍率重算营养 */
   const computed: Nutrition = (() => {
     if (!base || !items.length) {
       return { kcal: 0, protein: 0, carb: 0, fat: 0, sodium: 0 };
     }
     const scaledKcal = items.reduce(
-      (s, it, i) => s + it.kcal * (factors[i] ?? 1),
+      (s, it, i) => s + it.kcal * factorOf(i),
       0,
     );
     const ratio = base.kcal > 0 ? scaledKcal / base.kcal : 1;
@@ -181,7 +204,49 @@ export default function CameraSheet({
     };
   })();
 
+  /** 挂起待确认的条目：他说了，但照片里没看见 */
+  const pending = items
+    .map((it, i) => ({ it, i }))
+    .filter(({ i }) => confirmed[i] === false);
+
+  /**
+   * 冲突时列表里只留照片里看得到的。
+   * 上面那句已经说了"只按照片算"，下面再挂三条灰的让他一条条点，
+   * 属于让他替系统干活 —— 他刚说完自己吃了什么，现在又要亲手一条条否掉。
+   */
+  const visible = items
+    .map((it, i) => ({ it, i }))
+    .filter(
+      ({ i }) => noteCheck?.verdict !== "conflict" || confirmed[i] !== false,
+    );
+  const pendingKcal = pending.reduce(
+    (s, { it, i }) => s + Math.round(it.kcal * (factors[i] ?? 1)),
+    0,
+  );
+
+  /**
+   * 他说了、模型也在 unseen 里报出来了，却没有对应条目的情况。
+   * 正常不该出现（提示词要求必须列条目），但模型不听话时，
+   * 至少这一句要让他看见 —— 总比默默吞掉强。
+   */
+  const orphanUnseen = (noteCheck?.unseen ?? []).filter(
+    (n) =>
+      !items.some(
+        (it) =>
+          it.seen === false && (it.name.includes(n) || n.includes(it.name)),
+      ),
+  );
+
   const comment = ruleComment(
+    computed,
+    profile,
+    plan,
+    dayKcalBefore,
+    mealType,
+    new Date(),
+  );
+  // 存的是整句，界面上显示的是图标 + 四个字。同一套规则，两种呈现
+  const verdict = ruleVerdict(
     computed,
     profile,
     plan,
@@ -196,6 +261,15 @@ export default function CameraSheet({
         idx === i ? Math.min(2, Math.max(0.5, Math.round((f + delta) * 10) / 10)) : f,
       ),
     );
+  };
+
+  /** 用户说"不算"，就把这几项连同分数一起摘掉，账上不留痕 */
+  const dropPending = () => {
+    const keep = items.map((_, i) => confirmed[i] !== false);
+    setItems(items.filter((_, i) => keep[i]));
+    setFactors(factors.filter((_, i) => keep[i]));
+    setConfirmed(confirmed.filter((_, i) => keep[i]));
+    setNoteCheck(null);
   };
 
   const addDrink = (kind: DrinkKind) => {
@@ -224,6 +298,11 @@ export default function CameraSheet({
 
   const save = async () => {
     if (saving) return;
+    // 一道菜都没确认就别存了，存进去也是一条空账
+    if (!items.some((_, i) => confirmed[i] !== false)) {
+      setErrMsg("一道菜都没算上，先点「算了」或者重拍一张");
+      return;
+    }
     setSaving(true);
     try {
       const id =
@@ -248,10 +327,16 @@ export default function CameraSheet({
         id,
         date: todayStr(),
         mealType,
-        items: items.map((it, i) => ({
-          ...it,
-          kcal: Math.round(it.kcal * (factors[i] ?? 1)),
-        })),
+        // 只记他确认过的。说了但没算数的那几项不进账本，
+        // 否则"我随口说了一句"就会永久改掉他这顿饭的热量。
+        items: items
+          .map((it, i) => ({ it, i }))
+          .filter(({ i }) => confirmed[i] !== false)
+          .map(({ it, i }) => ({
+            name: it.name,
+            portion: it.portion,
+            kcal: Math.round(it.kcal * (factors[i] ?? 1)),
+          })),
         // 打了标的就用标签估钠；没打标就留着模型给的粗估值，首页也不会拿它当数
         nutrition: tags.length
           ? { ...computed, sodium: sodiumFromTags(tags) }
@@ -532,77 +617,214 @@ export default function CameraSheet({
             </div>
           )}
 
-          {note && (
-            <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[13px] leading-relaxed text-ink-500">
-              您说的「{note}」已经算进去了
-            </p>
+          {/*
+            他说了、但照片里没有的东西，不能闷头算进去。
+            以前的做法是直接采纳 —— 他说"还喝了碗汤"，账上就凭空多出两百大卡，
+            而没人会记得自己说过这句话。
+          */}
+          {noteCheck?.verdict === "conflict" && (
+            <div className="mt-3 rounded-2xl bg-[#fdecea] px-4 py-3.5">
+              <div className="flex items-start gap-2.5">
+                <Icon name="alert" className="mt-0.5 shrink-0 text-[#b23c2c]" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[16px] font-semibold text-[#b23c2c]">
+                    这照片和您说的对不上
+                  </p>
+                  <p className="mt-0.5 text-[14px] leading-snug text-[#b23c2c]/75">
+                    下面只按照片里的算。
+                    {noteCheck.unseen.length > 0 &&
+                      `「${noteCheck.unseen.join("、")}」没算进去。`}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={dropPending}
+                  className="h-11 flex-1 rounded-xl bg-[#b23c2c] text-[15px] font-semibold text-white active:scale-[0.98]"
+                >
+                  就按照片记
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="h-11 flex-1 rounded-xl bg-white text-[15px] font-semibold text-[#b23c2c] active:scale-[0.98]"
+                >
+                  重拍
+                </button>
+              </div>
+            </div>
           )}
+
+          {noteCheck?.verdict !== "conflict" &&
+            (pending.length > 0 || orphanUnseen.length > 0) && (
+            <div className="mt-3 rounded-2xl bg-[#fff4e5] px-4 py-3.5">
+              <div className="flex items-start gap-2.5">
+                <Icon name="eyeOff" className="mt-0.5 shrink-0 text-[#a9631a]" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[16px] font-semibold leading-snug text-[#a9631a]">
+                    照片里没看见
+                    {(pending.length > 0
+                      ? pending.map((p) => p.it.name)
+                      : orphanUnseen
+                    ).join("、")}
+                  </p>
+                  <p className="mt-0.5 text-[14px] leading-snug text-[#a9631a]/75">
+                    {pending.length === 0
+                      ? "这顿先不算，您看要不要重拍一张把它拍进去"
+                      : pendingKcal > 0
+                        ? `算上的话，这顿多 ${pendingKcal} 大卡`
+                        : "要算上吗？"}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                {pending.length > 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmed(items.map(() => true))}
+                      className="h-11 flex-1 rounded-xl bg-[#a9631a] text-[15px] font-semibold text-white active:scale-[0.98]"
+                    >
+                      我确实吃了
+                    </button>
+                    <button
+                      type="button"
+                      onClick={dropPending}
+                      className="h-11 flex-1 rounded-xl bg-white text-[15px] font-semibold text-[#a9631a] active:scale-[0.98]"
+                    >
+                      不算
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      className="h-11 flex-1 rounded-xl bg-[#a9631a] text-[15px] font-semibold text-white active:scale-[0.98]"
+                    >
+                      重拍一张
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoteCheck(null)}
+                      className="h-11 flex-1 rounded-xl bg-white text-[15px] font-semibold text-[#a9631a] active:scale-[0.98]"
+                    >
+                      就这样记
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {noteCheck?.verdict !== "conflict" &&
+            pending.length === 0 &&
+            orphanUnseen.length === 0 && (
+              <p className="mt-3 text-[13px] leading-relaxed text-ink-300">
+                {noteCheck && noteCheck.extraInPhoto.length > 0
+                  ? `照片里还有${noteCheck.extraInPhoto.join("、")}，也一起算上了`
+                  : "描述和照片对得上"}
+              </p>
+            )}
 
           {existing && (
             <div className="mt-4 rounded-xl bg-warn-100 px-3.5 py-3">
               <p className="text-[13px] leading-relaxed text-warn-600">
-                {mealTypeLabel(mealType)}今天已经记过（{existing.nutrition.kcal} 大卡）。
-                点下面会把这次拍的
+                {mealTypeLabel(mealType)}已记{" "}
+                {existing.nutrition.kcal} 大卡，这次会
                 <span className="font-semibold">加进那一顿</span>
-                ，不会多出一条。
               </p>
             </div>
           )}
 
-          <p className="mb-2 mt-5 text-[13px] text-ink-300">
-            分量不对？点右边的加减调一下
-          </p>
-          <div className="space-y-2">
-            {items.map((it, i) => (
-              <div
-                key={`${it.name}-${i}`}
-                className="flex items-center justify-between rounded-2xl bg-white px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-[17px] font-medium">{it.name}</p>
-                  <p className="text-[13px] text-ink-300">
-                    {it.portion} · 约 {Math.round(it.kcal * (factors[i] ?? 1))} 大卡
-                  </p>
+          <div className="mt-5 space-y-2">
+            {visible.map(({ it, i }) => {
+              const off = confirmed[i] === false;
+              return (
+                <div
+                  key={`${it.name}-${i}`}
+                  className={`flex items-center justify-between rounded-2xl px-4 py-3 ${
+                    off
+                      ? "border border-dashed border-[#d8b98e] bg-[#fffaf2]"
+                      : "bg-white"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p
+                      className={`truncate text-[17px] font-medium ${
+                        off ? "text-ink-300" : ""
+                      }`}
+                    >
+                      {it.name}
+                    </p>
+                    <p className="text-[13px] text-ink-300">
+                      {off
+                        ? "照片里没看见"
+                        : `${it.portion} · 约 ${Math.round(it.kcal * (factors[i] ?? 1))} 大卡`}
+                    </p>
+                  </div>
+                  {off ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfirmed((prev) =>
+                          prev.map((v, idx) => (idx === i ? true : v)),
+                        )
+                      }
+                      className="shrink-0 rounded-lg bg-[#a9631a] px-3 py-2 text-[14px] font-semibold text-white active:scale-95"
+                    >
+                      算上
+                    </button>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => adjust(i, -0.5)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                      >
+                        −
+                      </button>
+                      <span className="w-11 text-center text-[14px] font-semibold tabular-nums">
+                        {factors[i] ?? 1} 份
+                      </span>
+                      <button
+                        onClick={() => adjust(i, 0.5)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    onClick={() => adjust(i, -0.5)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
-                  >
-                    −
-                  </button>
-                  <span className="w-11 text-center text-[14px] font-semibold tabular-nums">
-                    {factors[i] ?? 1} 份
-                  </span>
-                  <button
-                    onClick={() => adjust(i, 0.5)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="mt-4 rounded-2xl bg-brand-50 px-4 py-4">
-            <p className="text-[16px] font-medium leading-relaxed text-brand-700">
-              {comment}
-            </p>
+          <div className="mt-4 rounded-2xl bg-brand-50 px-4 py-3.5">
+            <div className="flex items-center gap-1.5">
+              <Icon
+                name={verdict.icon as IconName}
+                size={18}
+                className="shrink-0 text-brand-700"
+              />
+              <span className="text-[17px] font-semibold text-brand-700">
+                {verdict.short}
+              </span>
+              <span className="truncate text-[14px] text-brand-700/65">
+                {verdict.tip}
+              </span>
+            </div>
           </div>
 
-          <p className="mb-1.5 mt-3 text-[12px] leading-relaxed text-ink-300">
-            下面三个克数也是按这张照片估的，不是称出来的
-          </p>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <Macro label="蛋白" value={computed.protein} unit="g" />
-            <Macro label="碳水" value={computed.carb} unit="g" />
-            <Macro label="脂肪" value={computed.fat} unit="g" />
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <Macro icon="protein" name="蛋" value={computed.protein} unit="g" />
+            <Macro icon="carb" name="饭" value={computed.carb} unit="g" />
+            <Macro icon="fat" name="油" value={computed.fat} unit="g" />
           </div>
 
           {confidence > 0 && confidence < 0.5 && (
             <p className="mt-3 text-[13px] leading-relaxed text-ink-300">
-              这张看不太清，数字是估算的，您可以点上面的加减改一下分量。
+              看不太清，数字是估的 — 点加减改一下
             </p>
           )}
 
@@ -611,9 +833,9 @@ export default function CameraSheet({
             与其让模型编，不如在这儿问两句。
           */}
           <div className="mt-3 rounded-2xl bg-white px-4 py-4">
-            <div className="flex items-baseline justify-between gap-3">
+            <div className="flex items-center gap-1.5">
+              <Icon name="alcohol" size={17} className="text-ink-400" />
               <p className="text-[16px] font-medium text-ink-700">喝酒了吗</p>
-              <span className="text-[13px] text-ink-300">拍了也看不出来</span>
             </div>
             <div className="mt-2.5 flex gap-2">
               {DRINK_KINDS.map((k) => {
@@ -667,22 +889,22 @@ export default function CameraSheet({
                     </div>
                   </div>
                 ))}
-                <p className="text-[13px] leading-relaxed text-ink-300">
-                  这顿连酒带菜一共{" "}
+                <p className="text-[13px] text-ink-400">
+                  连酒带菜{" "}
                   <span className="font-semibold tabular-nums text-ink-700">
                     {computed.kcal + drinkKcal(drinks)}
                   </span>{" "}
-                  大卡（{drinksLabel(drinks)}）
+                  大卡
                 </p>
               </div>
             )}
           </div>
 
           <div className="mt-3 rounded-2xl bg-white px-4 py-4">
-            <p className="text-[16px] font-medium text-ink-700">盐从哪来的</p>
-            <p className="mt-0.5 text-[13px] leading-relaxed text-ink-300">
-              照片看不出放了几克盐。勾一下来源，比瞎猜准得多
-            </p>
+            <div className="flex items-center gap-1.5">
+              <Icon name="salt" size={17} className="text-ink-400" />
+              <p className="text-[16px] font-medium text-ink-700">盐从哪来</p>
+            </div>
             <div className="mt-2.5 flex flex-wrap gap-2">
               {TAG_LIST.map((t) => {
                 const on = tags.includes(t);
@@ -691,13 +913,15 @@ export default function CameraSheet({
                     key={t}
                     type="button"
                     onClick={() => toggleTag(t)}
-                    className={`h-11 rounded-xl px-3.5 text-[15px] font-medium transition active:scale-[0.97] ${
+                    title={TAG_CFG[t].label}
+                    className={`flex h-11 items-center gap-1 rounded-xl px-3 text-[15px] font-medium transition active:scale-[0.97] ${
                       on
                         ? "bg-brand-500 text-white"
                         : "bg-black/[0.04] text-ink-700"
                     }`}
                   >
-                    {TAG_CFG[t].label}
+                    <Icon name={TAG_CFG[t].icon} size={17} />
+                    {TAG_CFG[t].short}
                   </button>
                 );
               })}
@@ -723,8 +947,7 @@ export default function CameraSheet({
             </button>
             {existing && (
               <p className="mt-2 text-center text-[12px] tabular-nums text-ink-300">
-                这顿现有 {existing.nutrition.kcal} 大卡，加完是{" "}
-                {existing.nutrition.kcal + computed.kcal} 大卡
+                {existing.nutrition.kcal} → {existing.nutrition.kcal + computed.kcal} 大卡
               </p>
             )}
           </div>
@@ -776,14 +999,23 @@ export default function CameraSheet({
   );
 }
 
-function Macro({ label, value, unit }: { label: string; value: number; unit: string }) {
+function Macro({
+  icon,
+  name,
+  value,
+  unit,
+}: {
+  icon: IconName;
+  name: string;
+  value: number;
+  unit: string;
+}) {
   return (
-    <div className="rounded-xl bg-white py-2.5">
-      <p className="text-[12px] text-ink-300">{label}</p>
-      <p className="text-[17px] font-semibold tabular-nums">
-        {value}
-        <span className="text-[11px] font-normal text-ink-300">{unit}</span>
-      </p>
+    <div className="flex items-center justify-center gap-1 rounded-xl bg-white py-2.5">
+      <Icon name={icon} size={14} className="text-ink-400" />
+      <span className="text-[12px] text-ink-400">{name}</span>
+      <span className="text-[16px] font-semibold tabular-nums">{value}</span>
+      <span className="text-[10px] text-ink-300">{unit}</span>
     </div>
   );
 }

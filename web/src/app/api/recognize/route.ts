@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { mockRecognize } from "@/lib/mock";
 import { checkRate } from "@/lib/ratelimit";
-import type { Nutrition } from "@/lib/types";
+import type { NoteCheck, Nutrition } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -18,10 +18,14 @@ const SYSTEM_PROMPT = `你是一位熟悉中国家常菜的营养师。用户会
 2. 按中国常见的家庭分量估算（一碗、一盘、一个），不要用克数描述分量。
 3. 营养值要贴近实际：一碗米饭约 200-250 大卡，一份家常炒菜约 150-350 大卡。
 4. 如果画面里没有食物或看不清，items 返回空数组，confidence 低于 0.3。
-5. 只输出 JSON，不要任何解释文字、不要 markdown 代码块。
+5. 每一项都要带 seen 字段：照片里看得见写 true，只来自用户那句话写 false。
+6. 菜名要写成人话。**不要**用"浅色椭圆形食物""深棕色块状物"这种形状描述 ——
+   用户看到这个只会觉得你没认出来，还要自己去猜。认不准就写最接近的常见菜名
+   （"米饭""土豆""炒青菜"），不确定的体现在 confidence 上，不要体现在菜名里。
+7. 只输出 JSON，不要任何解释文字、不要 markdown 代码块。
 
 输出格式：
-{"items":[{"name":"米饭","portion":"1 碗","kcal":230}],"nutrition":{"kcal":620,"protein":22,"carb":62,"fat":31,"sodium":980},"confidence":0.82}`;
+{"items":[{"name":"米饭","portion":"1 碗","kcal":230,"seen":true}],"nutrition":{"kcal":620,"protein":22,"carb":62,"fat":31,"sodium":980},"confidence":0.82}`;
 
 /** 数值区间校验：模型偶尔会给出离谱数值，这里做硬约束 */
 function sanitize(n: Partial<Nutrition>): Nutrition {
@@ -55,14 +59,26 @@ async function callModel(
   signal: AbortSignal,
 ) {
   const userText = note.trim()
-    ? `用户补充了一句：${note}。按下面的规则处理，不要简单照抄他的话：
+    ? `用户对这顿饭补充了一句：「${note}」
 
-1. 先按照片，把画面里能看到的食物全部列出，一个都不能少。
-2. 用户提到的食物，如果照片里看不到，补进列表，分量按他说的算；他没说分量的，按一个成年人正常一份估（一碗白粥约 130 大卡、一根香蕉约 90 大卡），不要按最小份压低。
-3. 用户提到的食物，如果照片里已经有了，只采用他的名字，分量仍按照片判断 —— 不要因为他说"三碗"就写成三碗。
-4. 绝对不能因为用户没提到，就删掉照片里明显存在的食物（比如他说"白粥"，桌上有米饭也要列出来）。
+请严格按这个顺序做，不要为了迎合他而迁就：
 
-按约定格式返回 JSON。`
+第一步，只看照片，把画面里能看到的食物全部列出来，一个都不能少，每条 seen 写 true。
+
+第二步，拿他这句话去对照照片：
+- 他说到的东西，照片里确实有 → 用他的叫法改名，seen 仍是 true，分量按照片判断，不要因为他说「三碗」就写三碗。
+- 他说到的东西，照片里找不到 → **必须补进 items 列表**，seen 写 false，同时在 unseen 里也列一遍。分量按一个成年人正常一份估（一碗白粥约 130 大卡、一根香蕉约 90 大卡），不要压到最小份。这一步不能跳过：前端要靠这条列表让他确认，只写进 unseen 而不列条目的，他永远看不到，也确认不了。
+- 照片里明显有、他一个字没提 → 照样列出来，seen 写 true，并记进 extraInPhoto。
+
+第三步，判断这两者是不是同一顿饭：
+- 他说的东西照片里基本都有 → verdict 写 "match"。
+- 他说的只占一小部分，大部分是照片里另外的东西 → verdict 写 "partial"。
+- 他描述的是完全另外一顿（比如他说吃的是白粥，照片里是火锅）→ verdict 写 "conflict"，这时候不要把他说的东西混进 items，只在 unseen 里列出来。
+
+输出在通用格式上多一个字段：
+"noteCheck":{"unseen":["他提到但照片里没有的"],"extraInPhoto":["照片里有但他没提的"],"verdict":"match|partial|conflict"}
+
+只输出 JSON。`
     : "这是什么饭菜？按约定格式返回 JSON。";
 
   const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
@@ -98,10 +114,62 @@ async function callModel(
   const data = await res.json();
   const text: string = data?.choices?.[0]?.message?.content ?? "";
   return extractJson(text) as {
-    items?: { name?: string; portion?: string; kcal?: number }[];
+    items?: { name?: string; portion?: string; kcal?: number; seen?: boolean }[];
     nutrition?: Partial<Nutrition>;
     confidence?: number;
+    noteCheck?: RawNoteCheck;
   };
+}
+
+type RawNoteCheck = {
+  unseen?: unknown;
+  extraInPhoto?: unknown;
+  verdict?: unknown;
+};
+
+/** 把模型给的 noteCheck 收成能用的形状，缺了就按 items 自己推 */
+function normalizeNoteCheck(
+  raw: RawNoteCheck | undefined,
+  items: { name: string; seen?: boolean }[],
+  note: string,
+): NoteCheck | undefined {
+  if (!note.trim()) return undefined;
+
+  const list = (v: unknown) =>
+    Array.isArray(v)
+      ? v
+          .filter((x): x is string => typeof x === "string" && !!x.trim())
+          .map((x) => x.trim().slice(0, 12))
+          .slice(0, 5)
+      : [];
+
+  const unseen = list(raw?.unseen);
+  const extraInPhoto = list(raw?.extraInPhoto);
+  const said = raw?.verdict;
+  let verdict: NoteCheck["verdict"] =
+    said === "match" || said === "partial" || said === "conflict" ? said : "match";
+
+  // 不轻信模型的自评：它嘴上一句"对得上"，实际把一半以上的条目都标成
+  // "照片里没有"，那还是得让用户看一眼。
+  const fromNote = items.filter((it) => it.seen === false).length;
+  if (verdict === "match" && items.length > 0 && fromNote / items.length >= 0.5) {
+    verdict = "partial";
+  }
+  if (verdict === "match" && unseen.length > 0) verdict = "partial";
+
+  // 一句都没对上号，却还列了一堆照片里看不见的东西 → 基本可以确定
+  // 他描述的是另一顿，不能闷头记进去
+  if (
+    verdict !== "conflict" &&
+    unseen.length > 0 &&
+    fromNote === 0 &&
+    items.length > 0 &&
+    items.every((it) => it.seen === false)
+  ) {
+    verdict = "conflict";
+  }
+
+  return { unseen, extraInPhoto, verdict };
 }
 
 export async function POST(req: Request) {
@@ -166,6 +234,9 @@ export async function POST(req: Request) {
           name: String(it.name).slice(0, 20),
           portion: String(it.portion ?? "1 份").slice(0, 12),
           kcal: Math.round(Number(it.kcal) || 0),
+          // 只有明确说"照片里看不见"才算描述来的；其余都当照片里看得到。
+          // 反过来判会出大问题：模型漏标 seen 时，真人吃的东西会被当成"没看见"。
+          seen: it.seen !== false,
         }));
 
       const confidence =
@@ -188,6 +259,7 @@ export async function POST(req: Request) {
         nutrition: sanitize(parsed.nutrition ?? {}),
         confidence,
         demo: false,
+        noteCheck: normalizeNoteCheck(parsed.noteCheck, items, note),
       });
     } catch (e) {
       clearTimeout(timer);

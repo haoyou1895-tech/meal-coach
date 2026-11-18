@@ -7,7 +7,7 @@ import type { MealType, Nutrition, NutritionPlan, Profile } from "./types";
 function nextMeal(mealType: MealType): { next: string; rest: string } {
   switch (mealType) {
     case "breakfast":
-      return { next: "午饭和晚饭", rest: "今天还剩午饭和晚饭" };
+      return { next: "午饭", rest: "今天还剩午饭和晚饭" };
     case "lunch":
       return { next: "晚饭", rest: "今天只剩晚饭" };
     case "dinner":
@@ -43,33 +43,31 @@ function slotRange(mealType: MealType, budget: number) {
   return { ref, high: ref * 1.3, low: ref * 0.6 };
 }
 
-/** 这顿吃多了，按餐次给不同的后果和下一步 */
-function tooMuch(mealType: MealType, kcal: number, next: string): string {
-  switch (mealType) {
-    case "breakfast":
-      return `早饭就吃了 ${kcal} 大卡，比一般早饭多不少，一上午都腻着。${next}清淡点，一碗面或者半碗饭配菜就够。`;
-    case "lunch":
-      return `午饭 ${kcal} 大卡，吃得有点撑，下午容易犯困。晚饭清一点，别再上这么重的。`;
-    case "dinner":
-      return `晚饭 ${kcal} 大卡，躺下时还在消化，睡不踏实。明天早饭粥配蛋就行。`;
-    default:
-      return `这一顿加餐 ${kcal} 大卡，比一顿正餐还多了。下次换个水果或者一小把坚果。`;
-  }
-}
+/**
+ * 一条点评长什么样。
+ *
+ * 结构是"图标 + 四个字 + 半句话"，不是一段说明文。
+ * 原因：一段四十字的点评，用户读第一句就不读了，后面三十字白写；
+ * 而四个字配一个图标，他扫一眼就知道这顿怎么样。
+ */
+export type VerdictIcon =
+  | "salt"
+  | "fat"
+  | "carb"
+  | "protein"
+  | "clock"
+  | "fire"
+  | "alert"
+  | "check"
+  | "sport";
 
-/** 这顿吃少了，按餐次说清代价 */
-function tooLittle(mealType: MealType, kcal: number): string | null {
-  switch (mealType) {
-    case "breakfast":
-      return `早饭才 ${kcal} 大卡，上午容易没劲。加个鸡蛋、一杯豆浆或者一个包子。`;
-    case "lunch":
-      return `午饭才 ${kcal} 大卡，下午还有大半天要撑，容易饿到晚上吃多。加个鸡蛋或者一小份肉。`;
-    case "dinner":
-      return `晚饭 ${kcal} 大卡，少是好事，但别饿到半夜找东西吃。真饿就加个鸡蛋或一小杯酸奶。`;
-    default:
-      // 加餐本来就该少，不提醒
-      return null;
-  }
+export interface Verdict {
+  tone: "good" | "warn" | "over";
+  icon: VerdictIcon;
+  /** 4–6 字，主判断 */
+  short: string;
+  /** 半句话，下一步该怎么办 */
+  tip: string;
 }
 
 /**
@@ -77,14 +75,14 @@ function tooLittle(mealType: MealType, kcal: number): string | null {
  * 用途：1) AI 不可用时的兜底　2) 校验 AI 输出是否靠谱
  * 原则：一次只说一件事，按优先级取最高的一条。
  */
-export function ruleComment(
+export function ruleVerdict(
   n: Nutrition,
   profile: Profile | null,
   plan: NutritionPlan,
   dayKcalBefore: number,
   mealType: MealType,
   eatenAt?: string | Date,
-): string {
+): Verdict {
   const diseases = profile?.diseases ?? [];
   const budget = plan.dailyBudgetKcal;
   const { next } = nextMeal(mealType);
@@ -92,42 +90,60 @@ export function ruleComment(
 
   // P0 —— 与疾病冲突
   if (diseases.includes("hypertension") && n.sodium > 800) {
-    return "这顿有点咸。您血压高，下回少放半勺盐。";
+    return { tone: "warn", icon: "salt", short: "有点咸", tip: "下回少放半勺盐" };
   }
   if (diseases.includes("diabetes") && n.carb > 80) {
-    return `主食偏多了。${next}少半碗饭，多夹两口菜。`;
+    return { tone: "warn", icon: "carb", short: "主食偏多", tip: `${next}少半碗饭` };
   }
   if (diseases.includes("fattyLiver")) {
     if (n.fat > 28) {
-      return `这顿油有点大。脂肪肝怕这个，${next}别再油炸了。`;
+      return { tone: "warn", icon: "fat", short: "油有点大", tip: `${next}别再油炸` };
     }
     if (n.kcal > 300 && n.carb * 4 > n.kcal * 0.62) {
-      return "主食占得有点多。脂肪肝怕糖，多夹点菜和肉。";
+      return { tone: "warn", icon: "carb", short: "主食太多", tip: "多夹菜和肉" };
     }
   }
   if (diseases.includes("hyperlipidemia") && n.fat > 32) {
-    return `油的量超了。肥肉和油炸的少碰，${next}多夹点青菜。`;
+    return { tone: "warn", icon: "fat", short: "油超了", tip: `${next}多吃青菜` };
   }
   if (diseases.includes("gout") && n.protein > 35) {
-    return "肉有点多。痛风的人吃肉要控量，这顿够了。";
+    return { tone: "warn", icon: "protein", short: "肉有点多", tip: "这顿够了，别再添" };
   }
 
   // P0.5 —— 通用钠超标（不依赖是否有高血压）
   if (n.sodium > 1500) {
-    return "这顿偏咸了，下回盐少放半勺，汤也少喝点。";
+    return { tone: "warn", icon: "salt", short: "偏咸", tip: "汤少喝点，盐少半勺" };
   }
 
   // P1 —— 这一顿的份量，对照的是它自己的标准，不是全天预算
   if (n.kcal > slot.high) {
-    return tooMuch(mealType, n.kcal, next);
+    const tip =
+      mealType === "dinner"
+        ? "明天早饭粥配蛋"
+        : mealType === "snack"
+          ? "下次换水果或坚果"
+          : `${next}清一点`;
+    return { tone: "over", icon: "fire", short: "吃撑了", tip };
   }
-  const little = n.kcal > 0 && n.kcal < slot.low ? tooLittle(mealType, n.kcal) : null;
-  if (little) return little;
+  if (n.kcal > 0 && n.kcal < slot.low && mealType !== "snack") {
+    const tip =
+      mealType === "breakfast"
+        ? "加个蛋或一杯豆浆"
+        : mealType === "lunch"
+          ? "加个蛋，别饿到晚上"
+          : "真饿加个蛋或酸奶";
+    return { tone: "warn", icon: "alert", short: "吃太少了", tip };
+  }
 
   // P1.5 —— 单顿合适，但今天累计超了
   if (dayKcalBefore + n.kcal > budget) {
     const over = Math.round(dayKcalBefore + n.kcal - budget);
-    return `这顿量是合适的，但今天加起来超了 ${over} 大卡。${next}挑清淡的吃。`;
+    return {
+      tone: "over",
+      icon: "alert",
+      short: `今天超了 ${over}`,
+      tip: `${next}挑淡的吃`,
+    };
   }
 
   // P2 —— 吃得太晚。时间本身是健康信号：
@@ -138,33 +154,46 @@ export function ruleComment(
     if (!Number.isNaN(d.getTime())) {
       const h = d.getHours();
       if (mealType === "dinner" && h >= 20) {
-        return `晚上 ${h} 点多才吃晚饭，吃完没多久就躺下，胃和血糖都跟着受累。明天试着提前到 7 点前。`;
+        return { tone: "warn", icon: "clock", short: "吃太晚了", tip: "明天提前到 7 点前" };
       }
       if (mealType === "breakfast" && h >= 10) {
-        return "早饭吃到十点，午饭就不饿了，一天容易变成两顿。明天提前半小时，哪怕先喝杯豆浆。";
+        return { tone: "warn", icon: "clock", short: "早饭太晚", tip: "明天提前半小时" };
       }
       if (mealType === "lunch" && h >= 15) {
-        return `下午 ${h - 12} 点才吃午饭，晚饭自然往后推，一天就乱了。明天尽量 12 点前后吃。`;
+        return { tone: "warn", icon: "clock", short: "午饭太晚", tip: "明天 12 点前后吃" };
       }
     }
   }
 
   // P2 —— 结构失衡。早饭的油阈值比其他顿低，早上吃太油一整天都腻
   if (mealType === "breakfast" && n.fat > 18) {
-    return "早饭油有点大。早上吃太油，一上午都腻着，明天换成粥配蛋。";
+    return { tone: "warn", icon: "fat", short: "早上太油", tip: "明天换粥配蛋" };
   }
   if (n.protein < 12 && n.kcal > 250) {
-    return "肉蛋有点少，加个鸡蛋或者一块豆腐，更扛饿。";
+    return { tone: "warn", icon: "protein", short: "肉蛋偏少", tip: "加个蛋或一块豆腐" };
   }
   if (n.fat > 30) {
-    return `这顿偏油了，下回少放点油，${next}炒菜改蒸煮。`;
+    return { tone: "warn", icon: "fat", short: "偏油", tip: `${next}改蒸煮` };
   }
 
-  // P3 —— 正向。把数字说出来，让人知道系统是按这顿的标准在算
-  if (n.kcal > 0) {
-    return `这顿 ${n.kcal} 大卡，量正好，照这个来。`;
-  }
-  return "这顿的量合适，照这个来。";
+  // P3 —— 正向
+  return { tone: "good", icon: "check", short: "这顿合适", tip: "照这个来" };
+}
+
+/**
+ * 一句话版本，给不接受图标的地方用（存进记录里的旧字段、读屏软件）。
+ * 不另外维护一套判断，避免两种口径打架。
+ */
+export function ruleComment(
+  n: Nutrition,
+  profile: Profile | null,
+  plan: NutritionPlan,
+  dayKcalBefore: number,
+  mealType: MealType,
+  eatenAt?: string | Date,
+): string {
+  const v = ruleVerdict(n, profile, plan, dayKcalBefore, mealType, eatenAt);
+  return `${v.short}。${v.tip}`;
 }
 
 /** 顶部状态条的一句话概括 */

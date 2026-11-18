@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { WeightLog } from "@/lib/types";
 import { round } from "@/lib/nutrition";
+import Icon from "./Icon";
 
 /**
  * 体重趋势。
@@ -98,9 +99,10 @@ export default function WeightTrend({
     return (
       <section className="mt-6 px-5">
         <h2 className="mb-3 text-[17px] font-bold">体重变化</h2>
-        <div className="card">
+        <div className="card flex items-center gap-2.5">
+          <Icon name="scale" size={20} className="shrink-0 text-ink-300" />
           <p className="text-[15px] leading-relaxed text-ink-500">
-            还没有体重记录。一周称两次，早上空腹称最准。
+            一周称两次，早上空腹最准
           </p>
         </div>
       </section>

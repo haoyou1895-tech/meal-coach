@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Icon, { type IconName } from "./Icon";
 
 /** 底部弹出层 */
 export function Sheet({
@@ -307,17 +308,17 @@ export function CalorieRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[15px] font-medium text-ink-500">
-          {tone === "over" ? "已超出" : "今天还能吃"}
+        <span className="text-[14px] font-medium text-ink-400">
+          {tone === "over" ? "超了" : "还能吃"}
         </span>
         <span
-          className="mt-1 text-[58px] font-bold leading-none tabular-nums tracking-tight"
+          className="mt-0.5 text-[58px] font-bold leading-none tabular-nums tracking-tight"
           style={{ color }}
         >
           {tone === "over" ? Math.round(used - budget) : Math.round(left)}
         </span>
-        <span className="mt-1.5 text-[15px] font-medium text-ink-500">
-          共 {budget} 大卡 · 已吃 {Math.round(used)}
+        <span className="mt-1 text-[13px] font-medium tabular-nums text-ink-300">
+          / {budget}
         </span>
       </div>
     </div>
@@ -333,11 +334,18 @@ export function CalorieRing({
  * 所以现在统一：没超是灰绿，快到了是黄，超了才是红。
  */
 export function MacroBar({
+  icon,
+  short,
   label,
   value,
   target,
   unit,
 }: {
+  /** 图标替掉中文标签：蛋=蛋白，碗=碳水，油滴=脂肪 */
+  icon: IconName;
+  /** 一个字。光有图标仍会被看成数字，加一个字才定得住 */
+  short: string;
+  /** 无障碍和读屏用的名字，界面上不显示 */
   label: string;
   value: number;
   target: number;
@@ -350,22 +358,23 @@ export function MacroBar({
   const barColor = over ? "#d94f3d" : near ? "#e0a83a" : "#8fae9c";
 
   return (
-    <div className="flex-1">
-      <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-[14px] font-medium text-ink-500">
-          {label}
-          {over && <span className="ml-0.5 text-[12px] text-[#b23c2c]">超</span>}
-        </span>
+    <div className="flex-1" title={label}>
+      <div className="mb-1.5 flex items-center gap-1">
+        <Icon
+          name={icon}
+          size={15}
+          className={over ? "text-[#b23c2c]" : "text-ink-400"}
+        />
+        <span className="text-[13px] leading-none text-ink-400">{short}</span>
         <span
-          className={`text-[15px] font-semibold tabular-nums ${
+          className={`ml-0.5 text-[16px] font-semibold leading-none tabular-nums ${
             over ? "text-[#b23c2c]" : "text-ink-700"
           }`}
         >
           {Math.round(value)}
-          <span className="ml-1 text-[12px] font-normal text-ink-300">
-            / {target}
-            {unit}
-          </span>
+        </span>
+        <span className="text-[11px] font-normal leading-none text-ink-300">
+          /{target}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">

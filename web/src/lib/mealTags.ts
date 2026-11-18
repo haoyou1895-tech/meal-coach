@@ -11,13 +11,50 @@ import type { Meal, MealTag } from "./types";
  */
 export const TAG_CFG: Record<
   MealTag,
-  { label: string; sodiumMg: number; why: string }
+  {
+    label: string;
+    /** 卡片上只显示这一个字，配上图标就够认了 */
+    short: string;
+    icon: "soup" | "pickled" | "out" | "fried" | "sweet";
+    sodiumMg: number;
+    why: string;
+  }
 > = {
-  soup: { label: "有汤", sodiumMg: 600, why: "一碗汤常有 2–3 克盐" },
-  pickled: { label: "咸菜腊味", sodiumMg: 800, why: "腌制品是隐形盐的大头" },
-  out: { label: "在外吃", sodiumMg: 500, why: "馆子的盐和油都比家里重" },
-  fried: { label: "油炸", sodiumMg: 150, why: "挂糊本身就带盐" },
-  sweet: { label: "糖醋甜口", sodiumMg: 120, why: "甜口菜也是要放盐的" },
+  soup: {
+    label: "有汤",
+    short: "汤",
+    icon: "soup",
+    sodiumMg: 600,
+    why: "一碗汤常有 2–3 克盐",
+  },
+  pickled: {
+    label: "咸菜腊味",
+    short: "腌",
+    icon: "pickled",
+    sodiumMg: 800,
+    why: "腌制品是隐形盐的大头",
+  },
+  out: {
+    label: "在外吃",
+    short: "外",
+    icon: "out",
+    sodiumMg: 500,
+    why: "馆子的盐和油都比家里重",
+  },
+  fried: {
+    label: "油炸",
+    short: "炸",
+    icon: "fried",
+    sodiumMg: 150,
+    why: "挂糊本身就带盐",
+  },
+  sweet: {
+    label: "糖醋甜口",
+    short: "甜",
+    icon: "sweet",
+    sodiumMg: 120,
+    why: "甜口菜也是要放盐的",
+  },
 };
 
 export const TAG_LIST = Object.keys(TAG_CFG) as MealTag[];

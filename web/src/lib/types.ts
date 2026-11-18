@@ -47,6 +47,26 @@ export interface FoodItem {
   name: string;
   portion: string;
   kcal: number;
+  /**
+   * 这一项在照片里到底看不看得到。
+   * false 表示只来自用户那句话（"我还喝了碗汤"），照片里没有 ——
+   * 这种必须让用户确认过才算数，不然他说一句就能凭空多出三百大卡。
+   */
+  seen?: boolean;
+}
+
+/**
+ * 对用户那句话的核对结果。
+ * 只对着照片点头是不够的：他说"白粥"，照片是火锅，这时候要质疑，
+ * 而不是把白粥和火锅一起列出来，做一个谁也不信的账本。
+ */
+export interface NoteCheck {
+  /** 描述里提到、但照片里找不到的东西 */
+  unseen: string[];
+  /** 照片里明显有、他一个字没提的 */
+  extraInPhoto: string[];
+  /** match 基本对得上 / partial 有没拍到的 / conflict 像不是同一顿 */
+  verdict: "match" | "partial" | "conflict";
 }
 
 export interface Nutrition {
@@ -139,6 +159,8 @@ export interface RecognizeResult {
   confidence: number;
   /** 是否为演示数据 */
   demo: boolean;
+  /** 有描述时，照片与描述的核对结果 */
+  noteCheck?: NoteCheck;
   /** 失败时的提示 */
   error?: string;
 }

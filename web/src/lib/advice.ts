@@ -9,13 +9,32 @@ import type {
 
 /* ---------- 1. 下一顿该吃什么 ---------- */
 
+/**
+ * 一顿饭拆成三格：主食、荤、素。
+ *
+ * 之前这里是一整句"半碗杂粮饭 + 一荤两素，油炸的先跳过"。
+ * 字都认识，但一眼扫过去要读三秒 —— 而这条恰恰是首页第一眼要看的东西。
+ * 拆成图标 + 两个字，不用读，扫一眼就知道。
+ */
+export interface MealPart {
+  kind: "carb" | "meat" | "veg";
+  /** 2–4 个字，多了就不是符号了 */
+  label: string;
+  /** 三格的主次：主格加粗，次格变灰 */
+  dim?: boolean;
+}
+
 export interface MealAdvice {
   /** 标题：晚饭这样吃 */
   headline: string;
-  /** 具体到菜的一句话 */
+  /** 具体到菜的一句话，留给"展开看"和读屏软件 */
   detail: string;
   /** 疾病的额外限制，没有就是空 */
   caution: string;
+  /** 图标版的三格 */
+  parts: MealPart[];
+  /** 疾病限制的图标 */
+  cautionIcon?: "salt" | "carb" | "fat" | "protein";
   tone: "good" | "warn" | "over";
 }
 
@@ -114,41 +133,88 @@ export function nextMealAdvice(
   const diseases = profile?.diseases ?? [];
 
   let detail: string;
+  let parts: MealPart[];
   let tone: MealAdvice["tone"] = "good";
 
   if (left < 0) {
     tone = "over";
     detail = "今天已经超了，这顿先别吃主食，喝点水或者清汤就行";
+    parts = [
+      { kind: "carb", label: "先不吃" },
+      { kind: "veg", label: "清汤青菜" },
+    ];
   } else if (left < 150) {
     tone = "over";
     detail = "几乎没额度了，只吃一小份青菜，主食先别碰";
+    parts = [
+      { kind: "carb", label: "先不吃" },
+      { kind: "veg", label: "一小份" },
+    ];
   } else if (ratio < 0.15) {
     tone = "warn";
     detail = "一份青菜 + 一个鸡蛋，主食先不上了";
+    parts = [
+      { kind: "carb", label: "先不吃" },
+      { kind: "meat", label: "一个蛋" },
+      { kind: "veg", label: "一份" },
+    ];
   } else if (ratio < 0.35) {
     tone = "warn";
     detail = "半碗米饭 + 一份青菜 + 一小份肉，别喝汤";
+    parts = [
+      { kind: "carb", label: "半碗" },
+      { kind: "meat", label: "一小份" },
+      { kind: "veg", label: "一份" },
+    ];
   } else if (ratio < 0.55) {
     detail = "半碗杂粮饭 + 一荤两素，油炸的先跳过";
+    parts = [
+      { kind: "carb", label: "半碗杂粮" },
+      { kind: "meat", label: "一份" },
+      { kind: "veg", label: "两样" },
+    ];
   } else {
     detail = "一碗米饭 + 一荤一素，正常吃就行";
+    parts = [
+      { kind: "carb", label: "一碗" },
+      { kind: "meat", label: "一份" },
+      { kind: "veg", label: "一样" },
+    ];
   }
 
   // 疾病修正：只加一句，不叠加
   let caution = "";
-  if (diseases.includes("hypertension")) caution = "菜少放盐，酱油和腌菜也算盐";
-  else if (diseases.includes("diabetes")) caution = "主食换杂粮，先吃菜再吃饭";
-  else if (diseases.includes("fattyLiver")) caution = "别油炸，少喝甜饮料";
-  else if (diseases.includes("hyperlipidemia")) caution = "肥肉和内脏跳过";
-  else if (diseases.includes("gout")) caution = "内脏和浓汤别碰，多喝水";
+  let cautionIcon: MealAdvice["cautionIcon"];
+  if (diseases.includes("hypertension")) {
+    caution = "菜少放盐，酱油和腌菜也算盐";
+    cautionIcon = "salt";
+  } else if (diseases.includes("diabetes")) {
+    caution = "主食换杂粮，先吃菜再吃饭";
+    cautionIcon = "carb";
+  } else if (diseases.includes("fattyLiver")) {
+    caution = "别油炸，少喝甜饮料";
+    cautionIcon = "fat";
+  } else if (diseases.includes("hyperlipidemia")) {
+    caution = "肥肉和内脏跳过";
+    cautionIcon = "fat";
+  } else if (diseases.includes("gout")) {
+    caution = "内脏和浓汤别碰，多喝水";
+    cautionIcon = "protein";
+  }
 
-  return { headline: `${label}这样吃`, detail, caution, tone };
+  return { headline: `${label}这样吃`, detail, caution, parts, cautionIcon, tone };
 }
 
 /* ---------- 2. 今天哪个营养素超了 ---------- */
 
 export interface MacroWarning {
   key: "fat" | "carb" | "protein" | "sodium";
+  /** 图标 */
+  icon: "fat" | "carb" | "protein" | "salt";
+  /** 5–8 字的主判断，界面上只显示这个 */
+  short: string;
+  /** 半句话的下一步 */
+  tip: string;
   text: string;
   /** 与疾病相关时更重要 */
   severe: boolean;
@@ -166,56 +232,43 @@ export function macroWarnings(
 
   if (totals.fat > plan.fatTargetG * 1.1) {
     const over = Math.round(totals.fat - plan.fatTargetG);
-    if (d.includes("fattyLiver")) {
-      out.push({
-        key: "fat",
-        text: `脂肪超了 ${over} 克。您有脂肪肝，这个最要紧。`,
-        severe: true,
-      });
-    } else if (d.includes("hyperlipidemia")) {
-      out.push({
-        key: "fat",
-        text: `脂肪超了 ${over} 克。血脂高要盯住这条。`,
-        severe: true,
-      });
-    } else {
-      out.push({
-        key: "fat",
-        text: `脂肪超了 ${over} 克，明天炒菜少放点油。`,
-        severe: false,
-      });
-    }
+    // 脂肪肝、高血脂的人，这条不是"注意一下"，是这顿饭最大的问题
+    const bad = d.includes("fattyLiver") || d.includes("hyperlipidemia");
+    out.push({
+      key: "fat",
+      icon: "fat",
+      short: `脂肪超 ${over} 克`,
+      tip: bad ? "这个对您最要紧，明天少油" : "明天炒菜少放点油",
+      text: `脂肪超了 ${over} 克，明天炒菜少放点油。`,
+      severe: bad,
+    });
   }
 
   if (totals.carb > plan.carbTargetG * 1.15) {
     const over = Math.round(totals.carb - plan.carbTargetG);
-    if (d.includes("diabetes")) {
-      out.push({
-        key: "carb",
-        text: `主食换算下来超了 ${over} 克碳水。血糖高，明天主食减半碗。`,
-        severe: true,
-      });
-    } else {
-      out.push({
-        key: "carb",
-        text: `碳水超了 ${over} 克，多半是米饭和面食吃多了。`,
-        severe: false,
-      });
-    }
-  }
-
-  if (totals.sodium > plan.sodiumLimitMg) {
+    const bad = d.includes("diabetes");
     out.push({
-      key: "sodium",
-      text: `盐超了 ${Math.round(totals.sodium - plan.sodiumLimitMg)} mg，明天汤和腌菜少碰。`,
-      severe: d.includes("hypertension"),
+      key: "carb",
+      icon: "carb",
+      short: `碳水超 ${over} 克`,
+      tip: bad ? "血糖高，明天主食减半碗" : "米饭面食吃多了",
+      text: `碳水超了 ${over} 克，多半是米饭和面食吃多了。`,
+      severe: bad,
     });
   }
+
+  // 盐不在这儿说了。
+  // 这里的数字来自模型对照片的估算，而盐在照片里根本看不见 ——
+  // 报一个估出来的毫克数，等于用一个假数字去否定旁边那张打标卡。
+  // 盐归"盐吃得重不重"那张卡管，它问来源，不猜克数。
 
   // 蛋白不够只在下午之后提，早上提没有意义
   if (now.getHours() >= 15 && totals.protein < plan.proteinTargetG * 0.5) {
     out.push({
       key: "protein",
+      icon: "protein",
+      short: "蛋白差一半",
+      tip: "晚饭加个蛋或一块豆腐",
       text: `蛋白才吃了 ${Math.round(totals.protein)} 克，差一半，晚饭加个蛋或者一块豆腐。`,
       severe: false,
     });
