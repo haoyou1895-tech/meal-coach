@@ -114,7 +114,15 @@ export default function HomeView({
   const reminder = now
     ? mealReminder(todayMeals, profile.mealRegular, now, habit)
     : null;
-  const tip = diseaseTip(profile);
+  const tipRaw = diseaseTip(profile);
+  /**
+   * 建议卡刚说过同一件事就不再重复。
+   * 一天里"少放盐"说两遍，除了让页面更长，没有别的效果。
+   */
+  const tip =
+    tipRaw && advice?.caution && advice.cautionIcon === tipRaw.icon
+      ? null
+      : tipRaw;
   const weekdayLabel = WEEKDAYS[new Date().getDay()];
   const sorted = [...todayMeals].sort((a, b) =>
     a.createdAt < b.createdAt ? 1 : -1,

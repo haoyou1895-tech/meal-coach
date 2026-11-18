@@ -25,6 +25,8 @@ import VoiceInput from "./VoiceInput";
 
 type Phase = "idle" | "working" | "result" | "error";
 
+const VTONE = { good: "#1f8a5b", warn: "#a9631a", over: "#b23c2c" };
+
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
 /** 压缩图片，避免上传大图拖慢识别 */
@@ -805,12 +807,17 @@ export default function CameraSheet({
               <Icon
                 name={verdict.icon as IconName}
                 size={18}
-                className="shrink-0 text-brand-700"
+                className="shrink-0"
+                // 图标跟着判断走：合适是绿的，有问题是橙的，别让"有点咸"配个绿勾
+                style={{ color: VTONE[verdict.tone] }}
               />
-              <span className="text-[17px] font-semibold text-brand-700">
+              <span
+                className="text-[17px] font-semibold"
+                style={{ color: VTONE[verdict.tone] }}
+              >
                 {verdict.short}
               </span>
-              <span className="truncate text-[14px] text-brand-700/65">
+              <span className="truncate text-[14px] text-ink-400">
                 {verdict.tip}
               </span>
             </div>

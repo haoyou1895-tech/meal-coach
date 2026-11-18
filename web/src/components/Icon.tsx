@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import type { CSSProperties, JSX } from "react";
 
 /**
  * 一套自己画的图标。
@@ -213,10 +213,13 @@ export default function Icon({
   name,
   size = 20,
   className,
+  style,
 }: {
   name: IconName;
   size?: number;
   className?: string;
+  /** 颜色有时得按状态算（红/橙/绿），只能用 inline style */
+  style?: CSSProperties;
 }) {
   return (
     <svg
@@ -229,6 +232,7 @@ export default function Icon({
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       {P[name]}
