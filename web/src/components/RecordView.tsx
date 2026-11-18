@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type {
+  ActivityLevel,
+  ActivityLog,
   FoodItem,
   Meal,
   MealType,
@@ -9,7 +11,13 @@ import type {
   Profile,
   WeightLog,
 } from "@/lib/types";
-import { mealTypeLabel, round, sumMeals, todayStr } from "@/lib/nutrition";
+import {
+  dayBudget,
+  mealTypeLabel,
+  round,
+  sumMeals,
+  todayStr,
+} from "@/lib/nutrition";
 import { dateList, latestWeightKg } from "@/lib/store";
 import { drinkKcal, drinksLabel } from "@/lib/drinks";
 import { ruleComment } from "@/lib/comment";
@@ -57,11 +65,14 @@ export default function RecordView({
   onUpdateMeal,
   autoEditId,
   onAutoEditDone,
+  activities,
 }: {
   profile: Profile;
   plan: NutritionPlan;
   meals: Meal[];
   weights: WeightLog[];
+  /** 每天的活动量。柱状图的预算线要靠它 —— 走一天和坐一天不是同一个额度 */
+  activities: ActivityLog[];
   onWeight: (kg: number) => void;
   onDeleteMeal: (id: string) => void;
   onUpdateMeal: (m: Meal) => void;
@@ -203,7 +214,24 @@ export default function RecordView({
       }),
     [last7, meals],
   );
-  const maxKcal = Math.max(plan.dailyBudgetKcal * 1.2, ...dailyKcal.map((d) => d.kcal));
+  /**
+   * 每一天各自的预算。
+   *
+   * 以前图上只有一根水平虚线（全周同一个额度），但预算本来就不是固定值：
+   * 走一天工地和坐一天办公室差两百多大卡。首页那三个「没动 / 走动 / 锻炼」
+   * 就是当天的活动系数，柱子上方的额度必须跟着它走，否则锻炼那天
+   * 明明没吃多，也会显得快贴到线。
+   */
+  const budgets = useMemo(() => {
+    const level = new Map<string, ActivityLevel>();
+    for (const a of activities) level.set(a.date, a.level);
+    return last7.map((d) => dayBudget(profile, level.get(d) ?? "normal"));
+  }, [last7, activities, profile]);
+
+  const maxKcal = Math.max(
+    ...budgets.map((b) => b * 1.2),
+    ...dailyKcal.map((d) => d.kcal),
+  );
 
   const grouped = useMemo(() => {
     const map = new Map<string, Meal[]>();
@@ -295,18 +323,47 @@ export default function RecordView({
         <h2 className="mb-3 text-[17px] font-bold">近 7 天</h2>
         <div className="card">
           <div className="relative flex h-40 items-end gap-1.5">
-            {/* 预算参考线 */}
-            <div
-              className="pointer-events-none absolute inset-x-0 z-10"
-              style={{
-                bottom: Math.round((plan.dailyBudgetKcal / maxKcal) * 104),
-              }}
-            >
-              <div className="border-t border-dashed border-warn-500/60" />
-              <span className="absolute -top-4 right-0 text-[10px] font-medium text-warn-600/80">
-                预算 {plan.dailyBudgetKcal}
-              </span>
+            {/*
+              预算线是**一段一段**的，不是一根通到底的虚线。
+              每天的活动量不同，额度就不同：锻炼那天高，没动那天低。
+              画成一根水平线，等于假装七天是同一张额度表。
+            */}
+            {/*
+              段与段之间用负边距咬合（列间距是 6px，两边各外扩 3px），
+              这样七段连成一条阶梯，而不是七个飘着的小横杠；
+              同时列宽仍和柱子一一对齐，不会越往右越偏。
+              段之间还要补一根竖线：只有横段的话，高低不同的地方会断开，
+              看着像七根飘着的虚线，而不是一条"额度"。
+            */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex h-[104px] items-end gap-1.5">
+              {budgets.map((b, i) => (
+                <div
+                  key={i}
+                  className="flex-1 border-t border-dashed border-warn-500/60"
+                  style={{
+                    height: Math.max(2, Math.round((b / maxKcal) * 104)),
+                    marginLeft: i === 0 ? 0 : -3,
+                    marginRight: i === budgets.length - 1 ? 0 : -3,
+                  }}
+                />
+              ))}
             </div>
+            {budgets.slice(0, -1).map((b, i) => {
+              const y1 = Math.max(2, Math.round((b / maxKcal) * 104));
+              const y2 = Math.max(2, Math.round((budgets[i + 1] / maxKcal) * 104));
+              if (y1 === y2) return null;
+              return (
+                <div
+                  key={`v${i}`}
+                  className="pointer-events-none absolute z-10 border-l border-dashed border-warn-500/60"
+                  style={{
+                    left: `${((i + 1) / budgets.length) * 100}%`,
+                    bottom: Math.min(y1, y2),
+                    height: Math.abs(y1 - y2),
+                  }}
+                />
+              );
+            })}
             {dailyKcal.map((d) => {
               const barH =
                 d.kcal === 0
@@ -355,25 +412,26 @@ export default function RecordView({
               </span>
             ))}
           </div>
-          <div className="mt-2.5 flex items-center justify-between border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
-            {/* 预算那根虚线图上已经标了「预算 1345」，这里再说一遍是重复 */}
-            <div className="flex items-center gap-2.5">
-              {[
-                ["早", MEAL_SHADE.breakfast],
-                ["午", MEAL_SHADE.lunch],
-                ["晚", MEAL_SHADE.dinner],
-                ["加", MEAL_SHADE.snack],
-              ].map(([label, color]) => (
-                <span key={label} className="flex items-center gap-1">
-                  <span
-                    className="h-2 w-2 rounded-[2px]"
-                    style={{ background: color }}
-                  />
-                  {label}
-                </span>
-              ))}
-            </div>
-            <span>点柱子看那天</span>
+          <div className="mt-2.5 flex items-center gap-2.5 border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
+            {[
+              ["早", MEAL_SHADE.breakfast],
+              ["午", MEAL_SHADE.lunch],
+              ["晚", MEAL_SHADE.dinner],
+              ["加", MEAL_SHADE.snack],
+            ].map(([label, color]) => (
+              <span key={label} className="flex items-center gap-1">
+                <span
+                  className="h-2 w-2 rounded-[2px]"
+                  style={{ background: color }}
+                />
+                {label}
+              </span>
+            ))}
+            {/* 不写“预算随运动量变”这种解释，直接给一个同款虚线样例，看图就懂 */}
+            <span className="ml-auto flex items-center gap-1">
+              <span className="w-3.5 border-t border-dashed border-warn-500/70" />
+              预算
+            </span>
           </div>
         </div>
       </section>

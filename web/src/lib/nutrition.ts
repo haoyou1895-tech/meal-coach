@@ -126,12 +126,41 @@ export function mealTypeLabel(t: Meal["mealType"]) {
   return { breakfast: "早餐", lunch: "午餐", dinner: "晚餐", snack: "加餐" }[t];
 }
 
-export function guessMealType(d = new Date()): Meal["mealType"] {
+/**
+ * 按钟点猜这是哪一顿。
+ *
+ * 以前只看小时数，于是晚上十点打开还是显示"午餐" ——
+ * 因为猜的动作发生在页面加载那一刻（早上），而人不关页面。
+ * 现在除了按钟点，还看今天已经记了哪几顿：
+ * 晚上九点以后、晚饭还没记，那多半是散得晚的饭局，算晚饭；
+ * 晚饭已经记过了，才是加餐。
+ */
+export function guessMealType(
+  d = new Date(),
+  recorded: Meal["mealType"][] = [],
+): Meal["mealType"] {
   const h = d.getHours();
-  if (h < 10) return "breakfast";
-  if (h < 15) return "lunch";
-  if (h < 21) return "dinner";
-  return "snack";
+  const base: Meal["mealType"] =
+    h < 10 ? "breakfast" : h < 15 ? "lunch" : h < 21 ? "dinner" : "snack";
+  if (base === "snack" && !recorded.includes("dinner")) return "dinner";
+  return base;
+}
+
+/**
+ * 这一天的预算。
+ *
+ * 预算不该是一个固定数字：走一天工地和坐一天办公室，差两百多大卡。
+ * 每天在首页点的那三个「没动 / 走动 / 锻炼」，就是这一天的活动系数。
+ * 没有记录的那天按"走动"算 —— 这是默认值，不是"没动"，
+ * 否则没点过的日子会全部显得超标。
+ */
+export function dayBudget(
+  p: Profile,
+  level: ActivityLevel = "normal",
+): number {
+  const bmr = calcBMR(p);
+  const raw = Math.round(bmr * ACTIVITY_FACTOR[level]) - DAILY_DEFICIT;
+  return Math.max(raw, SAFE_FLOOR[p.gender]);
 }
 
 /** 疾病 → 中文 */

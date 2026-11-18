@@ -124,6 +124,7 @@ export default function Page() {
           plan={plan!}
           meals={state.meals}
           weights={state.weights}
+          activities={state.activities}
           onWeight={(kg) =>
             update(withWeight(state, { date: today, weightKg: kg }))
           }

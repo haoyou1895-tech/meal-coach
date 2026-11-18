@@ -83,6 +83,23 @@ const KIND_ICON: Record<PartKind, IconName> = {
 };
 
 /**
+ * 清单前面的小圆点。
+ *
+ * 原来这里是图标（盐罐、油滴、蛋…），17px 下全糊成灰疙瘩，
+ * 而且每一行都在问"这是什么意思"。一个圆点不解释任何东西，
+ * 它只回答一件事：这件事有多急 —— 红 > 琥珀 > 绿。
+ * 话已经写在右边了，前面不需要再来一个说不清的名词。
+ */
+function Dot({ color }: { color: string }) {
+  return (
+    <span
+      className="h-[7px] w-[7px] shrink-0 rounded-full"
+      style={{ background: color }}
+    />
+  );
+}
+
+/**
  * 按疾病给一条当日提醒。
  * 这条以前是二十来个字的一句话，现在压到十个字以内 ——
  * 病人不需要被告知"为什么"，医生早就说过了；他需要被提醒"今天注意哪一件"。
@@ -407,12 +424,7 @@ export default function HomeView({
           <div className="divide-y divide-black/[0.05] rounded-2xl bg-white px-3.5">
             {warnings.map((w) => (
               <div key={w.key} className="flex items-center gap-2.5 py-2.5">
-                <Icon
-                  name={w.icon}
-                  size={17}
-                  className="shrink-0"
-                  style={{ color: w.severe ? "#b23c2c" : "#8a9a93" }}
-                />
+                <Dot color={w.severe ? "#b23c2c" : "#a9631a"} />
                 <span
                   className="shrink-0 text-[15px] font-semibold"
                   style={{ color: w.severe ? "#b23c2c" : "#33413b" }}
@@ -424,11 +436,7 @@ export default function HomeView({
             ))}
             {saltLevel && (
               <div className="flex items-center gap-2.5 py-2.5">
-                <Icon
-                  name="salt"
-                  size={17}
-                  style={{ color: SALT_COLOR[saltLevel] }}
-                />
+                <Dot color={SALT_COLOR[saltLevel]} />
                 <span className="flex-1 text-[15px] text-ink-600">今天盐量</span>
                 <span
                   className="text-[16px] font-semibold"
@@ -441,7 +449,7 @@ export default function HomeView({
             {/* 只在超量时提。喝了多少、喝的什么，已经在"今天吃了"那顿里写着 */}
             {alcoholG > 25 && (
               <div className="flex items-center gap-2.5 py-2.5">
-                <Icon name="alcohol" size={17} className="text-[#b23c2c]" />
+                <Dot color="#b23c2c" />
                 <span className="shrink-0 text-[15px] font-semibold text-[#b23c2c]">
                   酒精 {alcoholG} 克
                 </span>
@@ -452,11 +460,7 @@ export default function HomeView({
             )}
             {tip && (
               <div className="flex items-center gap-2.5 py-2.5">
-                <Icon
-                  name={tip.icon}
-                  size={17}
-                  className="shrink-0 text-warn-600"
-                />
+                <Dot color="#1f8a5b" />
                 <span className="flex-1 text-[15px] leading-snug text-ink-700">
                   {tip.text}
                 </span>

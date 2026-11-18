@@ -19,6 +19,10 @@ const SYSTEM_PROMPT = `你是一位熟悉中国家常菜的营养师。用户会
 
 要求：
 1. 只识别画面里能看到的食物，不要凭空添加。
+   用户可能一次给你**几张照片，都是同一顿饭**（圆桌太大，一张拍不下整桌）。
+   请把它们当成一顿饭：合并成一份清单，同一道菜在多张里出现只记一次，
+   分量按看得最清楚的那张算，不要因为"两张里都有米饭"就记两碗。
+   只有确实不同的菜才各列一条。
 2. 按中国常见的家庭分量估算（一碗、一盘、一个），不要用克数描述分量。
 3. 营养值要贴近实际：一碗米饭约 200-250 大卡，一份家常炒菜约 150-350 大卡。
 4. 如果画面里没有食物或看不清，items 返回空数组，confidence 低于 0.3。
@@ -63,7 +67,7 @@ function extractJson(text: string): unknown {
 }
 
 async function callModel(
-  image: string,
+  images: string[],
   note: string,
   signal: AbortSignal,
 ) {
@@ -105,7 +109,10 @@ async function callModel(
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: image } },
+            ...images.map((url) => ({
+              type: "image_url" as const,
+              image_url: { url },
+            })),
             { type: "text", text: userText },
           ],
         },
@@ -210,12 +217,23 @@ function normalizeNoteCheck(
   return { unseen, extraInPhoto, verdict };
 }
 
+/** 一次最多几张。跟前端 MAX_SHOTS 对应 */
+const MAX_IMAGES = 4;
+
 export async function POST(req: Request) {
-  let image = "";
+  let images: string[] = [];
   let note = "";
   try {
     const body = await req.json();
-    image = String(body?.image ?? "");
+    /*
+      老版本只传一张（image），新版本传数组（images）。
+      两个都收，免得已经在手机上的旧页面一上线就白屏。
+    */
+    const raw: unknown = body?.images;
+    images = Array.isArray(raw)
+      ? raw.filter((x): x is string => typeof x === "string")
+      : [String(body?.image ?? "")];
+    images = images.slice(0, MAX_IMAGES);
     // 用户补充的文字描述，限长避免超长 prompt
     note = String(body?.note ?? "")
       .slice(0, 60)
@@ -224,13 +242,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "请求格式不对" }, { status: 400 });
   }
 
-  if (!image.startsWith("data:image/")) {
+  if (!images.length || !images.every((s) => s.startsWith("data:image/"))) {
     return NextResponse.json({ error: "没有收到图片" }, { status: 400 });
   }
-  // 约 4MB 上限，防止超大图拖垮请求
-  if (image.length > 5_500_000) {
+  // 单张约 4MB、总量约 8MB 上限，防止超大图拖垮请求
+  if (
+    images.some((s) => s.length > 5_500_000) ||
+    images.reduce((n, s) => n + s.length, 0) > 9_000_000
+  ) {
     return NextResponse.json(
-      { error: "照片太大了，请重拍一张" },
+      { error: "照片太大了，请少选几张或重拍" },
       { status: 413 },
     );
   }
@@ -264,7 +285,7 @@ export async function POST(req: Request) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 40_000);
     try {
-      const parsed = await callModel(image, note, controller.signal);
+      const parsed = await callModel(images, note, controller.signal);
       clearTimeout(timer);
 
       const items = (parsed.items ?? [])

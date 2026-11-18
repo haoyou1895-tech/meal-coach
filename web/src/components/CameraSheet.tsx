@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   Drink,
   DrinkKind,
@@ -28,6 +28,12 @@ type Phase = "idle" | "working" | "result" | "error";
 const VTONE = { good: "#1f8a5b", warn: "#a9631a", over: "#b23c2c" };
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+
+/**
+ * 一次最多几张。
+ * 四张够拍完一桌菜，再多模型也看不过来，压缩和上传还会拖过 60 秒的时限。
+ */
+const MAX_SHOTS = 4;
 
 /**
  * 份量的三档，用词不用数。
@@ -120,6 +126,8 @@ export default function CameraSheet({
   const galleryRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<string>("");
+  /** 这一顿拍了几张。多张一起识别，预览只展示第一张 */
+  const [shots, setShots] = useState<string[]>([]);
   const [mealType, setMealType] = useState<MealType>(guessMealType());
   const [items, setItems] = useState<FoodItem[]>([]);
   const [base, setBase] = useState<Nutrition | null>(null);
@@ -152,9 +160,28 @@ export default function CameraSheet({
     ? existing.nutrition.kcal + drinkKcal(existing.drinks)
     : 0;
 
+  /**
+   * 每次打开面板都重新猜一次餐次。
+   *
+   * 以前这个猜测只在组件挂载时算一次，可这个面板是常驻的 ——
+   * 早上八点打开过页面，晚上十点再点"拍一张"，它还记着"早餐"，
+   * 于是十点钟被告知"这算午饭了，早饭 7 点前后吃"。人没疯，逻辑疯了。
+   *
+   * 只在"关→开"这一刻猜，不跟着每次重渲染猜：
+   * 否则他手动把餐次改成晚餐，下一次重渲染又会被改回去。
+   */
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      setMealType(guessMealType(new Date(), todayMeals.map((m) => m.mealType)));
+    }
+    wasOpen.current = open;
+  });
+
   const reset = () => {
     setPhase("idle");
     setPreview("");
+    setShots([]);
     setItems([]);
     setBase(null);
     setFactors([]);
@@ -169,17 +196,25 @@ export default function CameraSheet({
     setNoteCheck(null);
   };
 
-  const handleFile = async (file?: File | null) => {
-    if (!file) return;
+  const handleFile = async (files?: FileList | File[] | null) => {
+    const picked = files ? Array.from(files).slice(0, MAX_SHOTS) : [];
+    if (!picked.length) return;
     setPhase("working");
     setErrMsg("");
     try {
-      const dataUrl = await compress(file);
-      setPreview(dataUrl);
+      /*
+        一张照片装不下一桌菜。
+        圆桌一米五，他坐在一角，镜头只够拍面前三盘 —— 所以允许一次选多张，
+        一起送去识别。多张走同一次请求，不是拍一张等一次：
+        一次调用十秒，三张就是三十秒，没人会在饭桌上等。
+      */
+      const urls = await Promise.all(picked.map((f) => compress(f)));
+      setShots(urls);
+      setPreview(urls[0]);
       const res = await fetch("/api/recognize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl, note }),
+        body: JSON.stringify({ images: urls, image: urls[0], note }),
       });
       const data = (await res.json()) as RecognizeResult;
       if (!res.ok || data.error === "没有收到图片") {
@@ -425,20 +460,20 @@ export default function CameraSheet({
         capture="environment"
         className="hidden"
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          handleFile(f);
+          handleFile(e.target.files);
           e.target.value = "";
         }}
       />
-      {/* 不带 capture 就是"从相册选"：补记昨天、别人发来的照片都靠它 */}
+      {/* 不带 capture 就是"从相册选"：补记昨天、别人发来的照片都靠它。
+          相册这条路支持多选 —— 一桌菜拍不完，就让他们一次选几张一起认。 */}
       <input
         ref={galleryRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          handleFile(f);
+          handleFile(e.target.files);
           e.target.value = "";
         }}
       />
@@ -503,12 +538,7 @@ export default function CameraSheet({
                 下面拍的会加进这一顿
               </p>
             </div>
-          ) : (
-            /* 没记过才需要解释"这是猜的" */
-            <p className="mb-4 text-[13px] leading-relaxed text-ink-300">
-              餐次是按时间猜的，点一下能改
-            </p>
-          )}
+          ) : null}
 
           <div className="mb-4">
             <div className="mb-1.5 flex items-baseline justify-between">
@@ -560,7 +590,10 @@ export default function CameraSheet({
             onClick={() => galleryRef.current?.click()}
             className="mt-2.5 w-full rounded-2xl bg-white py-3.5 text-[16px] font-medium text-brand-600 shadow-sm transition active:scale-[0.99]"
           >
-            从相册选一张
+            从相册选
+            <span className="ml-1 text-[14px] font-normal text-ink-300">
+              可多选，一桌菜拍不完就选几张
+            </span>
           </button>
 
         </div>
@@ -568,13 +601,29 @@ export default function CameraSheet({
 
       {phase === "working" && (
         <div className="flex flex-col items-center py-8">
-          {preview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={preview}
-              alt="刚拍的照片"
-              className="h-44 w-44 rounded-2xl object-cover"
-            />
+          {/* 一次选了几张就都摆出来：他得看见自己那几张都进去了，
+              否则手机卡一下、少认一张，他不会知道 */}
+          {shots.length > 1 ? (
+            <div className="flex w-full items-center justify-center gap-2">
+              {shots.map((s, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={i}
+                  src={s}
+                  alt={`第 ${i + 1} 张`}
+                  className="h-24 w-24 rounded-xl object-cover"
+                />
+              ))}
+            </div>
+          ) : (
+            preview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={preview}
+                alt="刚拍的照片"
+                className="h-44 w-44 rounded-2xl object-cover"
+              />
+            )
           )}
           <div className="mt-6 flex items-center gap-2">
             <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-brand-500 [animation-delay:-0.3s]" />
@@ -582,7 +631,7 @@ export default function CameraSheet({
             <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-brand-500" />
           </div>
           <p className="mt-4 text-[17px] font-medium text-ink-700">
-            正在看这些菜…
+            {shots.length > 1 ? `正在看这 ${shots.length} 张` : "正在看这些菜…"}
           </p>
           <p className="mt-1 text-[14px] text-ink-300">一般 5–10 秒</p>
         </div>
@@ -975,9 +1024,27 @@ export default function CameraSheet({
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <Macro icon="protein" name="蛋白质" value={computed.protein} unit="g" />
-            <Macro icon="carb" name="碳水" value={computed.carb} unit="g" />
-            <Macro icon="fat" name="脂肪" value={computed.fat} unit="g" />
+            <Macro
+              icon="protein"
+              name="蛋白质"
+              value={computed.protein}
+              unit="g"
+              color="#a3563f"
+            />
+            <Macro
+              icon="carb"
+              name="碳水"
+              value={computed.carb}
+              unit="g"
+              color="#b0842c"
+            />
+            <Macro
+              icon="fat"
+              name="脂肪"
+              value={computed.fat}
+              unit="g"
+              color="#7d8b5e"
+            />
           </div>
 
           {confidence > 0 && confidence < 0.5 && (
@@ -1093,21 +1160,25 @@ function Macro({
   name,
   value,
   unit,
+  color,
 }: {
   icon: IconName;
   name: string;
   value: number;
   unit: string;
+  color: string;
 }) {
   return (
     <div className="rounded-xl bg-white py-2.5">
       <div className="flex items-center justify-center gap-1">
-        <Icon name={icon} size={12} className="text-ink-400" />
-        <span className="text-[12px] text-ink-400">{name}</span>
+        {/* 图标要上色：灰色图标在这个尺寸下和文字一样轻，等于没画。
+            尺寸不再往下压到 14 —— 14px 下不管画什么都只是一点，17 才认得出形状 */}
+        <Icon name={icon} size={17} style={{ color }} />
+        <span className="text-[13px] text-ink-400">{name}</span>
       </div>
-      <p className="mt-1 text-center text-[17px] font-semibold leading-none tabular-nums">
+      <p className="mt-1 text-center text-[18px] font-semibold leading-none tabular-nums">
         {value}
-        <span className="ml-0.5 text-[10px] font-normal text-ink-300">{unit}</span>
+        <span className="ml-0.5 text-[11px] font-normal text-ink-300">{unit}</span>
       </p>
     </div>
   );
