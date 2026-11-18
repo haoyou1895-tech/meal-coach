@@ -28,7 +28,7 @@ type Phase = "idle" | "working" | "result" | "error";
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
 /** 压缩图片，避免上传大图拖慢识别 */
-function compress(file: File, maxSide = 900): Promise<string> {
+function compress(file: File, maxSide = 720): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -43,7 +43,7 @@ function compress(file: File, maxSide = 900): Promise<string> {
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("画布不可用"));
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.82));
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
       };
       img.onerror = () => reject(new Error("图片读取失败"));
       img.src = String(reader.result);

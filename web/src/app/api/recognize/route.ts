@@ -4,7 +4,11 @@ import { checkRate } from "@/lib/ratelimit";
 import type { NoteCheck, Nutrition } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+/**
+ * 识别一次要调百炼的视觉模型，正常 4–8 秒；Vercel 默认只给 10 秒，
+ * 一旦排到跨洋的机房就会 504。这里放宽到 60 秒（Hobby 的上限）。
+ */
+export const maxDuration = 60;
 
 const AI_BASE_URL =
   process.env.AI_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
@@ -220,9 +224,11 @@ export async function POST(req: Request) {
     );
   }
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // 只试一次。以前试两次，可第一次都超时的话，第二次只会让用户多等一倍，
+  // 而且第一次失败往往是因为图太大，重试同样的图结果一样
+  for (let attempt = 0; attempt < 1; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25_000);
+    const timer = setTimeout(() => controller.abort(), 40_000);
     try {
       const parsed = await callModel(image, note, controller.signal);
       clearTimeout(timer);
@@ -263,7 +269,7 @@ export async function POST(req: Request) {
       });
     } catch (e) {
       clearTimeout(timer);
-      if (attempt === 1) {
+      if (attempt === 0) {
         const msg = e instanceof Error ? e.message : "识别失败";
         console.error(`[recognize] 识别失败: ${msg}`);
         // 刻意不降级到演示数据：假数据一旦被当成真结果存进记录，
