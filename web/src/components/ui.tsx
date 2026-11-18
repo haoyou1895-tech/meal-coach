@@ -66,6 +66,8 @@ export function Stepper({
   unit,
   big,
   decimals,
+  belowHint,
+  aboveHint,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -76,6 +78,10 @@ export function Stepper({
   big?: boolean;
   /** 保留几位小数，默认由 step 推导 */
   decimals?: number;
+  /** 低于下限时说什么。不传就只说范围 */
+  belowHint?: string;
+  /** 高于上限时说什么 */
+  aboveHint?: string;
 }) {
   // step < 1 时保留一位小数，否则取整。
   // 浮点累加必须收口，否则 73.1 + 0.1 会显示成 73.100000000000
@@ -91,14 +97,29 @@ export function Stepper({
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  // 输超范围了要说出来。以前是悄悄夹回边界，用户看着数字自己跳走，
+  // 不知道是输错了还是软件坏了。
+  const [rangeMsg, setRangeMsg] = useState("");
 
   const startEdit = () => {
     setDraft(fix(value).toFixed(digits));
+    setRangeMsg("");
     setEditing(true);
   };
   const commit = () => {
     const parsed = Number(draft);
-    if (draft.trim() !== "" && Number.isFinite(parsed)) set(parsed);
+    if (draft.trim() !== "" && Number.isFinite(parsed)) {
+      if (parsed < min) {
+        setRangeMsg(belowHint ?? `最少填 ${fix(min)}${unit}`);
+        if (fix(min) !== value) onChange(fix(min));
+      } else if (parsed > max) {
+        setRangeMsg(aboveHint ?? `最多填 ${fix(max)}${unit}`);
+        if (fix(max) !== value) onChange(fix(max));
+      } else {
+        setRangeMsg("");
+        set(parsed);
+      }
+    }
     setEditing(false);
   };
 
@@ -107,7 +128,10 @@ export function Stepper({
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={() => set(fix(value) - step)}
+          onClick={() => {
+            setRangeMsg("");
+            set(fix(value) - step);
+          }}
           disabled={fix(value) <= min}
           aria-label="减"
           className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-[28px] font-bold text-ink-700 shadow-sm transition active:scale-95 disabled:opacity-30"
@@ -147,7 +171,10 @@ export function Stepper({
         </div>
         <button
           type="button"
-          onClick={() => set(fix(value) + step)}
+          onClick={() => {
+            setRangeMsg("");
+            set(fix(value) + step);
+          }}
           disabled={fix(value) >= max}
           aria-label="加"
           className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-[28px] font-bold text-ink-700 shadow-sm transition active:scale-95 disabled:opacity-30"
@@ -155,8 +182,12 @@ export function Stepper({
           +
         </button>
       </div>
-      <p className="mt-2 text-center text-[12px] text-ink-300">
-        点数字可以直接输入
+      <p
+        className={`mt-2 text-center text-[12px] ${
+          rangeMsg ? "text-[#b23c2c]" : "text-ink-300"
+        }`}
+      >
+        {rangeMsg || "点数字可以直接输入"}
       </p>
     </div>
   );
@@ -294,35 +325,44 @@ export function CalorieRing({
 }
 
 /** 营养素小条 */
+/**
+ * 三个成分条。
+ *
+ * 以前是"蛋白绿、碳水橙、脂肪红" —— 但红条只填了 77% 的时候，
+ * 长辈看到红色会以为已经超标了。颜色该说状态，不该说类别。
+ * 所以现在统一：没超是灰绿，快到了是黄，超了才是红。
+ */
 export function MacroBar({
   label,
   value,
   target,
   unit,
-  color,
 }: {
   label: string;
   value: number;
   target: number;
   unit: string;
-  color: string;
 }) {
-  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  const over = target > 0 && value > target * 1.05;
+  const ratio = target > 0 ? value / target : 0;
+  const pct = Math.min(100, ratio * 100);
+  const over = ratio > 1.05;
+  const near = !over && ratio >= 0.85;
+  const barColor = over ? "#d94f3d" : near ? "#e0a83a" : "#8fae9c";
+
   return (
     <div className="flex-1">
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-[13px] font-medium text-ink-500">
+        <span className="text-[14px] font-medium text-ink-500">
           {label}
-          {over && <span className="ml-0.5 text-[11px] text-[#b23c2c]">超</span>}
+          {over && <span className="ml-0.5 text-[12px] text-[#b23c2c]">超</span>}
         </span>
         <span
-          className={`text-[13px] font-semibold tabular-nums ${
+          className={`text-[15px] font-semibold tabular-nums ${
             over ? "text-[#b23c2c]" : "text-ink-700"
           }`}
         >
           {Math.round(value)}
-          <span className="ml-1 text-[11px] font-normal text-ink-300">
+          <span className="ml-1 text-[12px] font-normal text-ink-300">
             / {target}
             {unit}
           </span>
@@ -331,7 +371,7 @@ export function MacroBar({
       <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]">
         <div
           className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: over ? "#d94f3d" : color }}
+          style={{ width: `${pct}%`, background: barColor }}
         />
       </div>
     </div>

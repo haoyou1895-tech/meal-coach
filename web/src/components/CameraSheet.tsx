@@ -2,8 +2,11 @@
 
 import { useRef, useState } from "react";
 import type {
+  Drink,
+  DrinkKind,
   FoodItem,
   Meal,
+  MealTag,
   MealType,
   Nutrition,
   NutritionPlan,
@@ -11,9 +14,12 @@ import type {
   RecognizeResult,
 } from "@/lib/types";
 import { guessMealType, mealTypeLabel, todayStr } from "@/lib/nutrition";
+import { DRINK_CFG, DRINK_KINDS, drinkKcal, drinksLabel } from "@/lib/drinks";
+import { TAG_CFG, TAG_LIST, sodiumFromTags } from "@/lib/mealTags";
 import { ruleComment } from "@/lib/comment";
 import { putPhoto } from "@/lib/photos";
 import { Sheet } from "./ui";
+import VoiceInput from "./VoiceInput";
 
 type Phase = "idle" | "working" | "result" | "error";
 
@@ -85,6 +91,8 @@ export default function CameraSheet({
   onSave: (m: Meal) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  /** 相册入口：不能强制调摄像头，补记昨天的饭、别人发来的照片都得能选 */
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<string>("");
   const [mealType, setMealType] = useState<MealType>(guessMealType());
@@ -95,6 +103,9 @@ export default function CameraSheet({
   const [demo, setDemo] = useState(false);
   const [errMsg, setErrMsg] = useState("");
   const [note, setNote] = useState("");
+  /** 这顿喝了什么、盐从哪来 —— 照片拍不出来的两样，只能问 */
+  const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [tags, setTags] = useState<MealTag[]>([]);
   const [zoom, setZoom] = useState(false);
   /** 写照片到本地仓库是异步的，加个锁防止连点记两遍 */
   const [saving, setSaving] = useState(false);
@@ -111,6 +122,8 @@ export default function CameraSheet({
     setErrMsg("");
     setDemo(false);
     setNote("");
+    setDrinks([]);
+    setTags([]);
     setZoom(false);
   };
 
@@ -168,13 +181,44 @@ export default function CameraSheet({
     };
   })();
 
-  const comment = ruleComment(computed, profile, plan, dayKcalBefore, mealType);
+  const comment = ruleComment(
+    computed,
+    profile,
+    plan,
+    dayKcalBefore,
+    mealType,
+    new Date(),
+  );
 
   const adjust = (i: number, delta: number) => {
     setFactors((prev) =>
       prev.map((f, idx) =>
         idx === i ? Math.min(2, Math.max(0.5, Math.round((f + delta) * 10) / 10)) : f,
       ),
+    );
+  };
+
+  const addDrink = (kind: DrinkKind) => {
+    setDrinks((prev) => {
+      const i = prev.findIndex((d) => d.kind === kind);
+      if (i < 0) return [...prev, { kind, count: 1 }];
+      const next = [...prev];
+      next[i] = { ...next[i], count: next[i].count + 1 };
+      return next;
+    });
+  };
+
+  const changeDrink = (kind: DrinkKind, delta: number) => {
+    setDrinks((prev) =>
+      prev
+        .map((d) => (d.kind === kind ? { ...d, count: d.count + delta } : d))
+        .filter((d) => d.count > 0),
+    );
+  };
+
+  const toggleTag = (t: MealTag) => {
+    setTags((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
     );
   };
 
@@ -208,13 +252,20 @@ export default function CameraSheet({
           ...it,
           kcal: Math.round(it.kcal * (factors[i] ?? 1)),
         })),
-        nutrition: computed,
+        // 打了标的就用标签估钠；没打标就留着模型给的粗估值，首页也不会拿它当数
+        nutrition: tags.length
+          ? { ...computed, sodium: sodiumFromTags(tags) }
+          : computed,
         comment,
         adjusted: factors.some((f) => f !== 1),
         confidence,
         createdAt: new Date().toISOString(),
+        // 拍照记餐这件事本身就是"正在吃饭"，所以吃的时间就是现在，不让用户填。
+        eatenAt: new Date().toISOString(),
         photoIds: photoIds.length ? photoIds : undefined,
         image,
+        drinks: drinks.length ? drinks : undefined,
+        tags: tags.length ? tags : undefined,
       };
       onSave(meal);
       reset();
@@ -254,6 +305,18 @@ export default function CameraSheet({
           e.target.value = "";
         }}
       />
+      {/* 不带 capture 就是"从相册选"：补记昨天、别人发来的照片都靠它 */}
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          handleFile(f);
+          e.target.value = "";
+        }}
+      />
 
       {phase === "idle" && (
         <div className="pb-4">
@@ -284,6 +347,13 @@ export default function CameraSheet({
               );
             })}
           </div>
+          {/*
+            餐次是按时间猜的（21 点后默认"加餐"），猜错整条记录都会错，
+            所以得把"这是猜的"说出来，而不是让它悄悄生效。
+          */}
+          <p className="mb-4 text-[13px] leading-relaxed text-ink-300">
+            餐次是按时间猜的，点一下能改
+          </p>
 
           <div className="mb-4">
             <div className="mb-1.5 flex items-baseline justify-between">
@@ -301,6 +371,11 @@ export default function CameraSheet({
               onChange={(e) => setNote(e.target.value)}
               placeholder="比如：一碗米饭、红烧肉、炒青菜"
               className="w-full resize-none rounded-xl bg-white px-4 py-3 text-[17px] leading-relaxed text-ink-700 placeholder:text-ink-300 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+            />
+            <VoiceInput
+              onText={(t) =>
+                setNote((prev) => (prev ? `${prev}、${t}` : t).slice(0, 60))
+              }
             />
             <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
               说出来它就不用猜，有汤、有凉菜的时候更准
@@ -327,6 +402,13 @@ export default function CameraSheet({
             <span className="text-[15px] text-ink-500">
               我帮您算这顿有多少大卡
             </span>
+          </button>
+
+          <button
+            onClick={() => galleryRef.current?.click()}
+            className="mt-2.5 w-full rounded-2xl bg-white py-3.5 text-[16px] font-medium text-brand-600 shadow-sm transition active:scale-[0.99]"
+          >
+            从相册选一张
           </button>
 
           <p className="mt-4 text-center text-[13px] leading-relaxed text-ink-300">
@@ -523,6 +605,109 @@ export default function CameraSheet({
               这张看不太清，数字是估算的，您可以点上面的加减改一下分量。
             </p>
           )}
+
+          {/*
+            酒和盐是照片的死角：一个在杯子里，一个化了看不见。
+            与其让模型编，不如在这儿问两句。
+          */}
+          <div className="mt-3 rounded-2xl bg-white px-4 py-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-[16px] font-medium text-ink-700">喝酒了吗</p>
+              <span className="text-[13px] text-ink-300">拍了也看不出来</span>
+            </div>
+            <div className="mt-2.5 flex gap-2">
+              {DRINK_KINDS.map((k) => {
+                const cur = drinks.find((d) => d.kind === k)?.count ?? 0;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => addDrink(k)}
+                    className={`h-11 flex-1 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
+                      cur > 0
+                        ? "bg-[#fdecea] text-[#b23c2c]"
+                        : "bg-black/[0.04] text-ink-700"
+                    }`}
+                  >
+                    {DRINK_CFG[k].label}
+                    {cur > 0 ? ` ${cur}` : ""}
+                  </button>
+                );
+              })}
+            </div>
+            {drinks.length > 0 && (
+              <div className="mt-3 space-y-2 border-t border-black/[0.05] pt-2.5">
+                {drinks.map((d) => (
+                  <div
+                    key={d.kind}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="text-[15px] text-ink-700">
+                      {DRINK_CFG[d.kind].label} {d.count}
+                      {DRINK_CFG[d.kind].unit}
+                      <span className="ml-1.5 text-[13px] text-ink-300">
+                        {DRINK_CFG[d.kind].kcalPerUnit * d.count} 大卡
+                      </span>
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => changeDrink(d.kind, -1)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                      >
+                        −
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => changeDrink(d.kind, 1)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.05] text-[18px] font-bold text-ink-700 active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[13px] leading-relaxed text-ink-300">
+                  这顿连酒带菜一共{" "}
+                  <span className="font-semibold tabular-nums text-ink-700">
+                    {computed.kcal + drinkKcal(drinks)}
+                  </span>{" "}
+                  大卡（{drinksLabel(drinks)}）
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 rounded-2xl bg-white px-4 py-4">
+            <p className="text-[16px] font-medium text-ink-700">盐从哪来的</p>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-ink-300">
+              照片看不出放了几克盐。勾一下来源，比瞎猜准得多
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {TAG_LIST.map((t) => {
+                const on = tags.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => toggleTag(t)}
+                    className={`h-11 rounded-xl px-3.5 text-[15px] font-medium transition active:scale-[0.97] ${
+                      on
+                        ? "bg-brand-500 text-white"
+                        : "bg-black/[0.04] text-ink-700"
+                    }`}
+                  >
+                    {TAG_CFG[t].label}
+                  </button>
+                );
+              })}
+            </div>
+            {tags.length > 0 && (
+              <p className="mt-2.5 text-[13px] leading-relaxed text-ink-500">
+                {tags.map((t) => TAG_CFG[t].why).join("；")}
+              </p>
+            )}
+          </div>
 
           <div className="mt-6">
             <button

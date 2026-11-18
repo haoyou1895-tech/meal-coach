@@ -168,7 +168,16 @@ export default function Onboarding({
 
         {step === 1 && (
           <Question title="年龄" hint="基础代谢跟年龄有关">
-            <Stepper value={age} onChange={setAge} min={30} max={90} unit="岁" big />
+            <Stepper
+              value={age}
+              onChange={setAge}
+              min={18}
+              max={90}
+              unit="岁"
+              big
+              belowHint="这个工具只做成年人的饮食参考，18 岁以下请找医生"
+              aboveHint="年龄请填 18 到 90 之间"
+            />
           </Question>
         )}
 

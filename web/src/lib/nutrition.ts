@@ -6,6 +6,7 @@ import type {
   NutritionPlan,
   Profile,
 } from "./types";
+import { drinkKcal } from "./drinks";
 
 /** Mifflin-St Jeor 基础代谢 */
 export function calcBMR(p: Pick<Profile, "gender" | "age" | "heightCm" | "weightKg">) {
@@ -76,7 +77,8 @@ export const EMPTY_NUTRITION: Nutrition = {
 export function sumMeals(meals: Meal[]): Nutrition {
   return meals.reduce<Nutrition>(
     (acc, m) => ({
-      kcal: acc.kcal + m.nutrition.kcal,
+      // 酒必须算进总热量：照片永远拍不出那瓶酒，但它比一桌菜更贵
+      kcal: acc.kcal + m.nutrition.kcal + drinkKcal(m.drinks),
       protein: acc.protein + m.nutrition.protein,
       carb: acc.carb + m.nutrition.carb,
       fat: acc.fat + m.nutrition.fat,
@@ -84,6 +86,28 @@ export function sumMeals(meals: Meal[]): Nutrition {
     }),
     { ...EMPTY_NUTRITION },
   );
+}
+
+/** 连续记录了几天（含今天；今天没记就从昨天往前数） */
+export function streakDays(meals: Meal[], today: string): number {
+  const days = new Set(meals.map((m) => m.date));
+  if (days.size === 0) return 0;
+
+  const d = new Date(`${today}T12:00:00`);
+  // 今天还没记不算断，从昨天开始数
+  if (!days.has(today)) d.setDate(d.getDate() - 1);
+
+  let n = 0;
+  while (true) {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    if (!days.has(`${y}-${mo}-${da}`)) break;
+    n += 1;
+    d.setDate(d.getDate() - 1);
+    if (n > 3650) break;
+  }
+  return n;
 }
 
 export function round(n: number, digits = 0) {

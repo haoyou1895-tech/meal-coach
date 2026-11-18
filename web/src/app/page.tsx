@@ -10,6 +10,7 @@ import { Sheet } from "@/components/ui";
 import { DISEASE_LABEL, buildPlan, sumMeals, todayStr } from "@/lib/nutrition";
 import {
   activityOfDate,
+  latestWeightKg,
   loadState,
   migratePhotos,
   resetState,
@@ -33,6 +34,10 @@ export default function Page() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [redoSetup, setRedoSetup] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
+  /** 搬家面板：导出 / 导入 */
+  const [dataPanel, setDataPanel] = useState<null | "export" | "import">(null);
+  const [dump, setDump] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const loaded = loadState();
@@ -201,7 +206,11 @@ export default function Page() {
 
       <Sheet
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={() => {
+          setSettingsOpen(false);
+          setDataPanel(null);
+          setNotice("");
+        }}
         title="设置"
       >
         <div className="space-y-3 pb-4">
@@ -210,7 +219,7 @@ export default function Page() {
             <InfoRow label="基础代谢" value={`${plan!.bmr} 大卡`} />
             <InfoRow
               label="当前体重"
-              value={`${state.weights[0]?.weightKg ?? profile.weightKg} 公斤`}
+              value={`${latestWeightKg(state.weights, profile.weightKg)} 公斤`}
             />
             <InfoRow label="目标体重" value={`${profile.targetWeightKg} 公斤`} />
             <InfoRow
@@ -232,6 +241,118 @@ export default function Page() {
           >
             重新设置身高体重
           </button>
+
+          {/*
+            换手机、清缓存、换浏览器 —— 本地数据会全没，而且用户不知道为什么。
+            照片在 IndexedDB 里搬不走，文字和数字能搬，这点必须说清楚，
+            不能让人以为"备份过了照片就还在"。
+          */}
+          <div className="card space-y-3 p-4!">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[16px] font-medium">搬家</span>
+              <span className="text-[13px] text-ink-300">换手机用这个</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-brand-600 active:scale-[0.98]"
+                onClick={() => {
+                  setDump(JSON.stringify(state));
+                  setDataPanel("export");
+                }}
+              >
+                备份一串码
+              </button>
+              <button
+                className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-brand-600 active:scale-[0.98]"
+                onClick={() => {
+                  setDump("");
+                  setDataPanel("import");
+                }}
+              >
+                粘回来
+              </button>
+            </div>
+            <p className="text-[13px] leading-relaxed text-ink-300">
+              只带记录和体重，照片带不走。换手机后照片会没有，数字都在。
+            </p>
+          </div>
+
+          {dataPanel && (
+            <div className="card space-y-3 p-4!">
+              <p className="text-[15px] font-medium">
+                {dataPanel === "export"
+                  ? "全选复制，存到微信收藏或备忘录里"
+                  : "把之前存下的那串码粘进下面"}
+              </p>
+              <textarea
+                value={dump}
+                onChange={(e) => setDump(e.target.value)}
+                readOnly={dataPanel === "export"}
+                rows={5}
+                className="w-full resize-none rounded-xl bg-black/[0.04] px-3 py-2.5 text-[13px] leading-relaxed text-ink-700 focus:outline-none"
+              />
+              <div className="flex gap-2">
+                {dataPanel === "export" ? (
+                  <button
+                    className="h-11 flex-1 rounded-xl bg-brand-500 text-[15px] font-medium text-white active:scale-[0.98]"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(dump);
+                        setNotice("复制好了");
+                      } catch {
+                        setNotice("复制不了，长按上面的文字全选");
+                      }
+                    }}
+                  >
+                    复制
+                  </button>
+                ) : (
+                  <button
+                    className="h-11 flex-1 rounded-xl bg-brand-500 text-[15px] font-medium text-white active:scale-[0.98]"
+                    onClick={() => {
+                      try {
+                        const parsed = JSON.parse(dump) as AppState;
+                        if (!parsed || !Array.isArray(parsed.meals)) {
+                          throw new Error("bad");
+                        }
+                        resetState();
+                        void clearPhotos();
+                        update({
+                          profile: parsed.profile ?? null,
+                          meals: parsed.meals,
+                          weights: Array.isArray(parsed.weights)
+                            ? parsed.weights
+                            : [],
+                          activities: Array.isArray(parsed.activities)
+                            ? parsed.activities
+                            : [],
+                          onboarded: !!parsed.onboarded,
+                        });
+                        setDataPanel(null);
+                        setNotice("恢复好了");
+                      } catch {
+                        setNotice("这串码不对，检查一下有没有复制全");
+                      }
+                    }}
+                  >
+                    恢复
+                  </button>
+                )}
+                <button
+                  className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-ink-500 active:scale-[0.98]"
+                  onClick={() => setDataPanel(null)}
+                >
+                  关掉
+                </button>
+              </div>
+            </div>
+          )}
+
+          {notice && (
+            <p className="text-center text-[14px] font-medium text-brand-600">
+              {notice}
+            </p>
+          )}
 
           <button
             className="btn-ghost text-danger-500!"

@@ -1,0 +1,14 @@
+# 鸿蒙工程构建产物，不用提交
+/node_modules
+/oh_modules
+/.hvigor
+/local.properties
+/.idea
+**/build/
+**/.preview/
+**/.cxx/
+*.hap
+*.hsp
+*.har
+pack.info
+sourceMaps.map

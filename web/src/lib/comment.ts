@@ -83,6 +83,7 @@ export function ruleComment(
   plan: NutritionPlan,
   dayKcalBefore: number,
   mealType: MealType,
+  eatenAt?: string | Date,
 ): string {
   const diseases = profile?.diseases ?? [];
   const budget = plan.dailyBudgetKcal;
@@ -127,6 +128,25 @@ export function ruleComment(
   if (dayKcalBefore + n.kcal > budget) {
     const over = Math.round(dayKcalBefore + n.kcal - budget);
     return `这顿量是合适的，但今天加起来超了 ${over} 大卡。${next}挑清淡的吃。`;
+  }
+
+  // P2 —— 吃得太晚。时间本身是健康信号：
+  // 同样的饭，七点吃和九点吃，对血糖和睡眠是两件事。
+  // 只在明显偏晚时开口，六点吃晚饭的人不该被说这句。
+  if (eatenAt) {
+    const d = typeof eatenAt === "string" ? new Date(eatenAt) : eatenAt;
+    if (!Number.isNaN(d.getTime())) {
+      const h = d.getHours();
+      if (mealType === "dinner" && h >= 20) {
+        return `晚上 ${h} 点多才吃晚饭，吃完没多久就躺下，胃和血糖都跟着受累。明天试着提前到 7 点前。`;
+      }
+      if (mealType === "breakfast" && h >= 10) {
+        return "早饭吃到十点，午饭就不饿了，一天容易变成两顿。明天提前半小时，哪怕先喝杯豆浆。";
+      }
+      if (mealType === "lunch" && h >= 15) {
+        return `下午 ${h - 12} 点才吃午饭，晚饭自然往后推，一天就乱了。明天尽量 12 点前后吃。`;
+      }
+    }
   }
 
   // P2 —— 结构失衡。早饭的油阈值比其他顿低，早上吃太油一整天都腻

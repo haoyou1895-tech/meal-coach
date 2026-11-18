@@ -5,11 +5,26 @@ import type { ActivityLevel, Meal, NutritionPlan, Profile } from "@/lib/types";
 import {
   mealTypeLabel,
   round,
+  streakDays,
   sumMeals,
   todayStr,
 } from "@/lib/nutrition";
 import { dayStatusText, ruleComment } from "@/lib/comment";
-import { macroWarnings, mealReminder, nextMealAdvice } from "@/lib/advice";
+import { macroWarnings, habitTimes, mealReminder, nextMealAdvice } from "@/lib/advice";
+import {
+  alcoholVerdict,
+  dayDrinks,
+  drinkAlcoholG,
+  drinkKcal,
+  drinksLabel,
+} from "@/lib/drinks";
+import {
+  SALT_COLOR,
+  SALT_LABEL,
+  TAG_CFG,
+  daySalt,
+  saltLevelOf,
+} from "@/lib/mealTags";
 import { CalorieRing, MacroBar } from "./ui";
 
 function greeting() {
@@ -24,7 +39,7 @@ const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "�
 
 /**
  * 活动量不做精确记录，只让用户点一下三选一。
- * 长辈记不清"走了多少步"，但一定知道"今天出没出汗"。
+ * 记不清"走了多少步"，但一定知道"今天出没出汗"。
  */
 const ACTIVITY_OPTIONS: { level: ActivityLevel; label: string }[] = [
   { level: "low", label: "基本没动" },
@@ -73,26 +88,38 @@ export default function HomeView({
   }, []);
 
   const left = plan.dailyBudgetKcal - totals.kcal;
-  const sodiumPct = Math.min(100, (totals.sodium / plan.sodiumLimitMg) * 100);
-  const sodiumOver = totals.sodium > plan.sodiumLimitMg;
+  // 从历史记录里学这个人平时几点吃，用在提醒和"下一顿该吃哪顿"上
+  const habit = useMemo(() => habitTimes(meals), [meals]);
   const advice = now
-    ? nextMealAdvice(left, plan.dailyBudgetKcal, profile, now)
+    ? nextMealAdvice(left, plan.dailyBudgetKcal, profile, now, habit)
     : null;
   const warnings = now ? macroWarnings(totals, plan, profile, now) : [];
   const reminder = now
-    ? mealReminder(todayMeals, profile.mealRegular, now)
+    ? mealReminder(todayMeals, profile.mealRegular, now, habit)
     : null;
   const tip = diseaseTip(profile);
-  const hasHypertension = profile.diseases.includes("hypertension");
   const weekdayLabel = WEEKDAYS[new Date().getDay()];
   const sorted = [...todayMeals].sort((a, b) =>
     a.createdAt < b.createdAt ? 1 : -1,
   );
+  const streak = streakDays(meals, today);
+
+  const drinks = dayDrinks(todayMeals);
+  const alcoholKcal = drinkKcal(drinks);
+  const alcoholG = drinkAlcoholG(drinks);
+  const alcoholNote = alcoholVerdict(alcoholG);
+
+  const salt = daySalt(todayMeals);
+  const saltLevel =
+    salt.taggedCount > 0 ? saltLevelOf(salt.mg, salt.taggedCount) : null;
+  // 钠 mg → 食盐 g（盐里钠占 39.3%）
+  const saltLimitG = (plan.sodiumLimitMg * 2.54) / 1000;
 
   /**
    * 点评按当前规则重算，不读存下来的旧字符串。
    * 否则规则一改，老记录还在说旧话术，看起来像没改。
    * 累计顺序按吃得先后算，因为"这顿之前已经吃了多少"会影响判断。
+   * 酒也要计进去 —— 半斤白酒就是七百多大卡，漏了它整条判断都是错的。
    */
   const liveComments = useMemo(() => {
     const map = new Map<string, string>();
@@ -101,8 +128,18 @@ export default function HomeView({
     );
     let before = 0;
     for (const m of asc) {
-      map.set(m.id, ruleComment(m.nutrition, profile, plan, before, m.mealType));
-      before += m.nutrition.kcal;
+      map.set(
+        m.id,
+        ruleComment(
+          m.nutrition,
+          profile,
+          plan,
+          before,
+          m.mealType,
+          m.eatenAt ?? m.createdAt,
+        ),
+      );
+      before += m.nutrition.kcal + drinkKcal(m.drinks);
     }
     return map;
   }, [todayMeals, profile, plan]);
@@ -111,22 +148,27 @@ export default function HomeView({
     <div className="pb-52">
       <header className="safe-top flex items-center justify-between px-5 pb-3 pt-3">
         <div>
-          <p className="text-[15px] font-medium text-ink-500">
+          <p className="text-[16px] font-medium text-ink-500">
             {greeting()}，{today.slice(5).replace("-", "月")}日{" "}
             {weekdayLabel}
           </p>
-          <p className="mt-0.5 text-[19px] font-bold tracking-tight text-ink-700">
+          <p className="mt-0.5 text-[21px] font-bold tracking-tight text-ink-700">
             {todayMeals.length === 0
               ? "今天还没开始记"
               : `今天已经记了 ${todayMeals.length} 顿`}
           </p>
+          {streak >= 2 && (
+            <p className="mt-1 text-[14px] font-medium text-brand-600">
+              连着记了 {streak} 天
+            </p>
+          )}
         </div>
         <button
           onClick={onOpenSettings}
           aria-label="设置"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink-500 shadow-sm"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-ink-500 shadow-sm"
         >
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
             <path
               d="M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z"
               stroke="currentColor"
@@ -143,25 +185,20 @@ export default function HomeView({
       </header>
 
       {reminder && (
-        <div className="mx-5 mb-1 mt-3 rounded-2xl bg-[#fff4e5] px-4 py-3">
-          <p className="text-[14px] font-medium leading-relaxed text-[#a9631a]">
+        <div className="mx-5 mb-1 mt-2 rounded-2xl bg-[#fff4e5] px-4 py-3">
+          <p className="text-[15px] font-medium leading-relaxed text-[#a9631a]">
             {reminder.text}
           </p>
         </div>
       )}
 
-      <InstallHint />
-
-      <div className="flex justify-center pt-2">
-        <CalorieRing
-          used={totals.kcal}
-          budget={plan.dailyBudgetKcal}
-          tone={status.tone}
-        />
-      </div>
-
+      {/*
+        第一眼就该看到"下一顿吃什么"。
+        以前建议卡排在环形图下面，要滚一下才露出来 ——
+        可这恰恰是这个产品唯一要说的话。
+      */}
       {advice && (
-        <section className="mt-4 px-5">
+        <section className="mt-3 px-5">
           <div
             className="rounded-2xl px-4 py-4"
             style={{
@@ -173,14 +210,14 @@ export default function HomeView({
                     : "#eaf5ef",
             }}
           >
-            <p className="text-[13px] font-semibold text-ink-500">
+            <p className="text-[14px] font-semibold text-ink-500">
               {advice.headline}
             </p>
-            <p className="mt-1 text-[19px] font-bold leading-snug text-ink-700">
+            <p className="mt-1.5 text-[22px] font-bold leading-snug text-ink-700">
               {advice.detail}
             </p>
             {advice.caution && (
-              <p className="mt-2 text-[13px] leading-relaxed text-ink-500">
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-500">
                 {advice.caution}
               </p>
             )}
@@ -188,61 +225,54 @@ export default function HomeView({
         </section>
       )}
 
-      <div className="mt-6 flex gap-4 px-6">
+      <div className="flex justify-center pt-3">
+        <CalorieRing
+          used={totals.kcal}
+          budget={plan.dailyBudgetKcal}
+          tone={status.tone}
+        />
+      </div>
+
+      {drinks.length > 0 && (
+        <section className="mt-4 px-5">
+          <div className="rounded-2xl bg-white px-4 py-4">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[15px] font-medium text-ink-700">
+                今天喝了
+              </span>
+              <span className="text-[16px] font-semibold tabular-nums text-[#b23c2c]">
+                {alcoholKcal} 大卡
+              </span>
+            </div>
+            <p className="mt-1 text-[17px] text-ink-700">{drinksLabel(drinks)}</p>
+            <p className="mt-1 text-[14px] leading-relaxed text-ink-500">
+              纯酒精约 {alcoholG} 克
+              {alcoholNote ? ` · ${alcoholNote}` : ""}
+            </p>
+          </div>
+        </section>
+      )}
+
+      <div className="mt-5 flex gap-4 px-5">
         <MacroBar
           label="蛋白"
           value={totals.protein}
           target={plan.proteinTargetG}
           unit="g"
-          color="#4aa87a"
         />
         <MacroBar
           label="碳水"
           value={totals.carb}
           target={plan.carbTargetG}
           unit="g"
-          color="#e8871e"
         />
         <MacroBar
           label="脂肪"
           value={totals.fat}
           target={plan.fatTargetG}
           unit="g"
-          color="#c4694a"
         />
       </div>
-
-      <section className="mt-5 px-5">
-        <div className="rounded-2xl bg-white px-4 py-3.5">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[14px] font-medium text-ink-500">
-              今天动了多少
-            </span>
-            <span className="text-[13px] tabular-nums text-ink-300">
-              额度 {plan.dailyBudgetKcal} 大卡
-            </span>
-          </div>
-          <div className="mt-2.5 flex gap-2">
-            {ACTIVITY_OPTIONS.map((o) => (
-              <button
-                key={o.level}
-                type="button"
-                onClick={() => onActivity(o.level)}
-                className={`h-11 flex-1 rounded-xl text-[15px] font-medium transition active:scale-[0.97] ${
-                  activity === o.level
-                    ? "bg-brand-500 text-white"
-                    : "bg-black/[0.04] text-ink-700"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[12px] leading-relaxed text-ink-300">
-            变了会跟着改今天的额度和下一顿的建议
-          </p>
-        </div>
-      </section>
 
       {warnings.length > 0 && (
         <section className="mt-4 space-y-2 px-5">
@@ -253,7 +283,7 @@ export default function HomeView({
               style={{ background: w.severe ? "#fdecea" : "#ffffff" }}
             >
               <p
-                className="text-[14px] font-medium leading-relaxed"
+                className="text-[15px] font-medium leading-relaxed"
                 style={{ color: w.severe ? "#b23c2c" : "#33413b" }}
               >
                 {w.text}
@@ -265,9 +295,9 @@ export default function HomeView({
 
       <section className="mt-6 px-5">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-[17px] font-bold">今天吃了</h2>
+          <h2 className="text-[18px] font-bold">今天吃了</h2>
           {todayMeals.length > 0 && (
-            <span className="text-[14px] text-ink-300">
+            <span className="text-[15px] text-ink-300">
               {todayMeals.length} 顿 · 共 {round(totals.kcal)} 大卡
             </span>
           )}
@@ -275,91 +305,161 @@ export default function HomeView({
 
         {sorted.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-ink-300/50 py-7 text-center">
-            <p className="text-[16px] font-medium text-ink-500">
-              今天还没记
-            </p>
-            <p className="mt-1 text-[14px] text-ink-300">
+            <p className="text-[17px] font-medium text-ink-500">今天还没记</p>
+            <p className="mt-1 text-[15px] text-ink-300">
               从下一顿开始，拍张照就行
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {sorted.map((m) => (
-              <article key={m.id} className="card animate-pop">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <span className="inline-block rounded-md bg-brand-50 px-2 py-0.5 text-[12px] font-semibold text-brand-600">
-                      {mealTypeLabel(m.mealType)}
-                    </span>
-                    <p className="mt-1.5 truncate text-[17px] font-medium">
-                      {m.items.map((i) => i.name).join("、")}
+            {sorted.map((m) => {
+              const dk = drinkKcal(m.drinks);
+              return (
+                <article key={m.id} className="card animate-pop">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="inline-block rounded-md bg-brand-50 px-2 py-0.5 text-[13px] font-semibold text-brand-600">
+                        {mealTypeLabel(m.mealType)}
+                      </span>
+                      <p className="mt-1.5 truncate text-[18px] font-medium">
+                        {m.items.map((i) => i.name).join("、")}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-[26px] font-bold leading-none tabular-nums">
+                        {m.nutrition.kcal + dk}
+                      </span>
+                      <span className="ml-0.5 text-[13px] text-ink-300">
+                        大卡
+                      </span>
+                    </div>
+                  </div>
+
+                  {dk > 0 && (
+                    <p className="mt-1.5 text-[14px] text-[#b23c2c]">
+                      含酒 {drinksLabel(m.drinks)} · {dk} 大卡
                     </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span className="text-[24px] font-bold leading-none tabular-nums">
-                      {m.nutrition.kcal}
-                    </span>
-                    <span className="ml-0.5 text-[12px] text-ink-300">大卡</span>
-                  </div>
-                </div>
-                <p className="mt-2.5 border-t border-black/[0.05] pt-2.5 text-[15px] leading-relaxed text-ink-700">
-                  {liveComments.get(m.id) ?? m.comment}
-                </p>
-              </article>
-            ))}
+                  )}
+
+                  {m.tags && m.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {m.tags.map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-md bg-black/[0.045] px-2 py-0.5 text-[13px] text-ink-500"
+                        >
+                          {TAG_CFG[t].label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="mt-2.5 border-t border-black/[0.05] pt-2.5 text-[16px] leading-relaxed text-ink-700">
+                    {liveComments.get(m.id) ?? m.comment}
+                  </p>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
 
+      {/*
+        盐不报毫克，报档位。
+        数字精度是假的：照片看不出放了几克盐，报"1240 mg"只会骗人。
+        "偏咸"这个词不会错，而且他听得懂。
+      */}
       {todayMeals.length > 0 && (
-        <>
-          {/*
-            钠以前只在"有高血压"时显示，结果别的人收到了"盐超了 750 mg"的提示，
-            页面上却找不到盐的数字。现在不管什么病都显示。
-          */}
-          <section className="mt-4 px-5">
-            <div className="rounded-2xl bg-white px-4 py-3.5">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[14px] font-medium text-ink-500">
-                  钠（盐）· 每天别超过 {plan.sodiumLimitMg} mg
-                </span>
+        <section className="mt-4 px-5">
+          <div className="rounded-2xl bg-white px-4 py-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[15px] font-medium text-ink-700">
+                盐吃得重不重
+              </span>
+              {saltLevel ? (
                 <span
-                  className="shrink-0 text-[14px] font-semibold tabular-nums"
-                  style={{ color: sodiumOver ? "#d94f3d" : undefined }}
+                  className="shrink-0 text-[17px] font-semibold"
+                  style={{ color: SALT_COLOR[saltLevel] }}
                 >
-                  {Math.round(totals.sodium)}
+                  {SALT_LABEL[saltLevel]}
                 </span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/[0.07]">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${sodiumPct}%`,
-                    background: sodiumOver ? "#d94f3d" : "#e8a531",
-                  }}
-                />
-              </div>
-              {/* 高血压的提醒就是讲盐的，正好跟这条配套；其他病放下面单独一张卡 */}
-              {tip && hasHypertension && (
-                <p className="mt-2.5 text-[13px] leading-relaxed text-ink-500">
-                  {tip}
-                </p>
+              ) : (
+                <span className="shrink-0 text-[15px] text-ink-300">
+                  还不知道
+                </span>
               )}
             </div>
-          </section>
 
-          {tip && !hasHypertension && (
-            <section className="mt-2 px-5">
-              <div className="rounded-2xl bg-white px-4 py-3.5">
-                <p className="text-[13px] font-medium text-ink-500">今天注意</p>
-                <p className="mt-1 text-[16px] font-medium leading-snug text-warn-600">
-                  {tip}
-                </p>
-              </div>
-            </section>
-          )}
-        </>
+            {saltLevel ? (
+              <p className="mt-1.5 text-[15px] leading-relaxed text-ink-500">
+                按「有汤、咸菜、在外吃」这几样估的，不是称出来的。目标是每天
+                不超过 {saltLimitG.toFixed(1)} 克盐。
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[15px] leading-relaxed text-ink-500">
+                照片看不出放了多少盐，所以我们不猜。记的时候勾一下「有汤」「咸菜」「在外吃」，就能算个大概。
+              </p>
+            )}
+
+            {saltLevel && salt.untagged > 0 && (
+              <p className="mt-2 text-[14px] leading-relaxed text-[#a9631a]">
+                有 {salt.untagged} 顿没标来源，那几顿算不准。
+              </p>
+            )}
+
+            {saltLevel && tip && profile.diseases.includes("hypertension") && (
+              <p className="mt-2.5 border-t border-black/[0.05] pt-2.5 text-[14px] leading-relaxed text-ink-500">
+                {tip}
+              </p>
+            )}
+          </div>
+        </section>
       )}
+
+      {tip && !profile.diseases.includes("hypertension") && (
+        <section className="mt-2 px-5">
+          <div className="rounded-2xl bg-white px-4 py-3.5">
+            <p className="text-[14px] font-medium text-ink-500">今天注意</p>
+            <p className="mt-1 text-[17px] font-medium leading-snug text-warn-600">
+              {tip}
+            </p>
+          </div>
+        </section>
+      )}
+
+      <section className="mt-4 px-5">
+        <div className="rounded-2xl bg-white px-4 py-3.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[15px] font-medium text-ink-500">
+              今天动了多少
+            </span>
+            <span className="text-[14px] tabular-nums text-ink-300">
+              额度 {plan.dailyBudgetKcal} 大卡
+            </span>
+          </div>
+          <div className="mt-2.5 flex gap-2">
+            {ACTIVITY_OPTIONS.map((o) => (
+              <button
+                key={o.level}
+                type="button"
+                onClick={() => onActivity(o.level)}
+                className={`h-12 flex-1 rounded-xl text-[16px] font-medium transition active:scale-[0.97] ${
+                  activity === o.level
+                    ? "bg-brand-500 text-white"
+                    : "bg-black/[0.04] text-ink-700"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
+            变了会跟着改今天的额度和下一顿的建议
+          </p>
+        </div>
+      </section>
+
+      <InstallHint />
     </div>
   );
 }
@@ -394,15 +494,15 @@ function InstallHint() {
   };
 
   return (
-    <div className="mx-5 mb-1 mt-3 flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3">
-      <p className="flex-1 text-[13px] leading-relaxed text-brand-700">
+    <div className="mx-5 mt-4 flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3">
+      <p className="flex-1 text-[14px] leading-relaxed text-brand-700">
         {mode === "wechat"
           ? "微信里看不到桌面图标。点右上角 ··· → 在浏览器打开，再添加到桌面。"
           : "点浏览器菜单里的「添加到桌面」，以后点图标就能直接用。"}
       </p>
       <button
         onClick={close}
-        className="shrink-0 rounded-lg px-2 py-0.5 text-[13px] font-medium text-brand-600/70 active:bg-brand-100"
+        className="shrink-0 rounded-lg px-2 py-0.5 text-[14px] font-medium text-brand-600/70 active:bg-brand-100"
       >
         知道了
       </button>

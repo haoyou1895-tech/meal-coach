@@ -10,12 +10,35 @@ import type {
   WeightLog,
 } from "@/lib/types";
 import { mealTypeLabel, round, sumMeals, todayStr } from "@/lib/nutrition";
-import { dateList } from "@/lib/store";
+import { dateList, latestWeightKg } from "@/lib/store";
+import { drinkKcal } from "@/lib/drinks";
 import { ruleComment } from "@/lib/comment";
 import MealPhoto from "./MealPhoto";
+import WeightTrend from "./WeightTrend";
 import { Sheet, Stepper } from "./ui";
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+
+/**
+ * 一周柱状图的配色：越晚吃颜色越深（顺序即强度），酒单独一档。
+ * 不用四种彩色，是不想让"颜色"变成需要背的图例。
+ */
+const MEAL_SHADE: Record<string, string> = {
+  breakfast: "#b6d4c2",
+  lunch: "#6ea98a",
+  dinner: "#1f8a5b",
+  snack: "#c9cfcb",
+  drink: "#c4694a",
+};
+
+/** 这顿是几点吃的。旧记录没有 eatenAt，退回记录时刻 */
+function mealTime(m: Meal): string {
+  const raw = m.eatenAt ?? m.createdAt;
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 /** 正在看的大图。带下标是因为一条记录可能有好几张照片 */
 interface Gallery {
@@ -41,7 +64,7 @@ export default function RecordView({
   onUpdateMeal: (m: Meal) => void;
 }) {
   const [weightOpen, setWeightOpen] = useState(false);
-  const latest = weights[0]?.weightKg ?? profile.weightKg;
+  const latest = latestWeightKg(weights, profile.weightKg);
   const [draft, setDraft] = useState(latest);
 
   // 编辑某一条记录
@@ -113,19 +136,40 @@ export default function RecordView({
         kcal: Math.round(it.kcal * (factors[i] ?? 1)),
       })),
       nutrition: edited,
-      comment: ruleComment(edited, profile, plan, before, editType),
+      comment: ruleComment(
+        edited,
+        profile,
+        plan,
+        before,
+        editType,
+        editing.eatenAt ?? editing.createdAt,
+      ),
       updatedAt: new Date().toISOString(),
     });
     setEditing(null);
   };
 
   const last7 = useMemo(() => dateList(7).reverse(), []);
+  /**
+   * 一天一根柱子看不出"哪顿吃爆了"，也看不出酒占了多少。
+   * 改成按餐次叠起来，一眼能看到是晚饭高还是那顿酒高。
+   */
   const dailyKcal = useMemo(
     () =>
-      last7.map((d) => ({
-        date: d,
-        kcal: sumMeals(meals.filter((m) => m.date === d)).kcal,
-      })),
+      last7.map((d) => {
+        const list = meals.filter((m) => m.date === d);
+        const parts = (
+          ["breakfast", "lunch", "dinner", "snack"] as MealType[]
+        )
+          .map((t) => ({
+            key: t as string,
+            kcal: sumMeals(list.filter((m) => m.mealType === t)).kcal,
+          }))
+          .filter((p) => p.kcal > 0);
+        const dk = list.reduce((s, m) => s + drinkKcal(m.drinks), 0);
+        if (dk > 0) parts.push({ key: "drink", kcal: dk });
+        return { date: d, kcal: sumMeals(list).kcal, parts };
+      }),
     [last7, meals],
   );
   const maxKcal = Math.max(plan.dailyBudgetKcal * 1.2, ...dailyKcal.map((d) => d.kcal));
@@ -183,8 +227,20 @@ export default function RecordView({
             </div>
             <div className="flex-1">
               <p className="text-[13px] text-ink-300">已减</p>
-              <p className="text-[18px] font-semibold tabular-nums text-brand-500">
-                {lost > 0 ? `${lost} kg` : "0 kg"}
+              <p
+                className={`text-[18px] font-semibold tabular-nums ${
+                  lost > 0
+                    ? "text-brand-500"
+                    : lost < 0
+                      ? "text-warn-600"
+                      : "text-ink-700"
+                }`}
+              >
+                {lost > 0
+                  ? `${lost} kg`
+                  : lost < 0
+                    ? `+${Math.abs(lost)} kg`
+                    : "0 kg"}
               </p>
             </div>
             <div className="flex-1">
@@ -196,6 +252,8 @@ export default function RecordView({
           </div>
         </div>
       </section>
+
+      <WeightTrend weights={weights} targetWeightKg={profile.targetWeightKg} />
 
       {/* 近 7 天热量 */}
       <section className="mt-6 px-5">
@@ -219,23 +277,31 @@ export default function RecordView({
                 d.kcal === 0
                   ? 4
                   : Math.max(8, Math.round((d.kcal / maxKcal) * 104));
-              const over = d.kcal > plan.dailyBudgetKcal;
               return (
                 <div
                   key={d.date}
                   className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
                 >
-                  <span className="text-[11px] leading-none tabular-nums text-ink-300">
+                  <span className="text-[12px] leading-none tabular-nums text-ink-300">
                     {d.kcal > 0 ? d.kcal : ""}
                   </span>
                   <div
-                    className="w-full rounded-md transition-all duration-500"
+                    className="flex w-full flex-col-reverse overflow-hidden rounded-md transition-all duration-500"
                     style={{
                       height: barH,
-                      background:
-                        d.kcal === 0 ? "#e7eae8" : over ? "#d94f3d" : "#1f8a5b",
+                      background: d.kcal === 0 ? "#e7eae8" : undefined,
                     }}
-                  />
+                  >
+                    {d.parts.map((p) => (
+                      <div
+                        key={p.key}
+                        style={{
+                          height: `${(p.kcal / Math.max(1, d.kcal)) * 100}%`,
+                          background: MEAL_SHADE[p.key] ?? "#8fae9c",
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
               );
             })}
@@ -250,8 +316,26 @@ export default function RecordView({
               </span>
             ))}
           </div>
-          <p className="mt-3 text-[13px] leading-relaxed text-ink-300">
-            灰的是没记的日子。预算 {plan.dailyBudgetKcal} 大卡，超过会变红。
+          <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
+            {[
+              ["早餐", MEAL_SHADE.breakfast],
+              ["午餐", MEAL_SHADE.lunch],
+              ["晚餐", MEAL_SHADE.dinner],
+              ["加餐", MEAL_SHADE.snack],
+              ["酒", MEAL_SHADE.drink],
+            ].map(([label, color]) => (
+              <span key={label} className="flex items-center gap-1">
+                <span
+                  className="h-2 w-2 rounded-[2px]"
+                  style={{ background: color }}
+                />
+                {label}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
+            一天一根，按餐次叠起来。没记的日子是灰的，虚线是预算{" "}
+            {plan.dailyBudgetKcal} 大卡。
           </p>
         </div>
       </section>
@@ -292,6 +376,9 @@ export default function RecordView({
                         <div className="min-w-0 flex-1">
                           <p className="text-[12px] font-medium text-brand-600">
                             {mealTypeLabel(m.mealType)}
+                            <span className="ml-1.5 font-normal tabular-nums text-ink-500">
+                              {mealTime(m)}
+                            </span>
                             {m.updatedAt && (
                               <span className="ml-1.5 font-normal text-ink-300">
                                 已改过

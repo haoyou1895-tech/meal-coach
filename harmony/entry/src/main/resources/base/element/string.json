@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "餐谋，帮你判断这一餐吃对了没"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "餐谋主界面"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "餐谋"
+    }
+  ]
+}

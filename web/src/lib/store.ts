@@ -133,6 +133,9 @@ export function upsertMeal(s: AppState, meal: Meal): AppState {
     photoIds: [...photoIdsOf(meal), ...photoIdsOf(old)].slice(0, 8),
     photoId: undefined,
     image: old.image ?? meal.image,
+    // 同一顿补拍第二次，吃饭时间还是第一次那个。
+    // 老记录没有 eatenAt，就借这次补拍补上。
+    eatenAt: old.eatenAt ?? meal.eatenAt,
     updatedAt: new Date().toISOString(),
   };
   const next = [...s.meals];
@@ -158,6 +161,20 @@ export function withWeight(s: AppState, log: WeightLog): AppState {
     ...s,
     weights: [log, ...rest].sort((a, b) => (a.date < b.date ? 1 : -1)),
   };
+}
+
+/**
+ * 取最近一次的体重。
+ * 不能直接用 weights[0]——那只在"写入时排好序"的前提下成立，
+ * 导入备份、旧版本数据、手动改过的数据都可能是升序，会读成最早的体重。
+ */
+export function latestWeightKg(weights: WeightLog[], fallback: number): number {
+  if (!weights.length) return fallback;
+  let best = weights[0];
+  for (const w of weights) {
+    if (w.date > best.date) best = w;
+  }
+  return best.weightKg;
 }
 
 export function withActivity(
