@@ -11,6 +11,7 @@ import type {
   WeightLog,
 } from "./types";
 import { photoIdsOf, putPhoto } from "./photos";
+import { readRaw, removeRaw, writeRaw } from "./storage";
 
 const KEY = "mealcoach.v1";
 
@@ -32,10 +33,9 @@ const EMPTY: AppState = {
 };
 
 export function loadState(): AppState {
-  if (typeof window === "undefined") return EMPTY;
+  const raw = readRaw(KEY);
+  if (!raw) return EMPTY;
   try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return EMPTY;
     const parsed = JSON.parse(raw) as Partial<AppState>;
     return {
       profile: parsed.profile ?? null,
@@ -50,32 +50,28 @@ export function loadState(): AppState {
 }
 
 export function saveState(state: AppState) {
-  if (typeof window === "undefined") return;
+  if (writeRaw(KEY, JSON.stringify(state))) return;
+  // 照片已经存进 IndexedDB，localStorage 只剩文字，正常不会超。
+  // 真超了（比如老数据还带着 base64），先把老图丢掉保住文字记录。
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(state));
-    return;
-  } catch (e) {
-    // 照片已经存进 IndexedDB，localStorage 只剩文字，正常不会超。
-    // 真超了（比如老数据还带着 base64），先把老图丢掉保住文字记录。
-    try {
-      const light: AppState = {
-        ...state,
-        meals: state.meals.map((m) =>
-          m.image ? { ...m, image: undefined } : m,
-        ),
-      };
-      window.localStorage.setItem(KEY, JSON.stringify(light));
+    const light: AppState = {
+      ...state,
+      meals: state.meals.map((m) =>
+        m.image ? { ...m, image: undefined } : m,
+      ),
+    };
+    if (writeRaw(KEY, JSON.stringify(light))) {
       console.warn("本地存储紧张，已清理较早的照片，文字记录都还在");
       return;
-    } catch {
-      console.warn("保存失败，可能是存储空间不足", e);
     }
+    console.warn("保存失败，可能是存储空间不足");
+  } catch (e) {
+    console.warn("保存失败，可能是存储空间不足", e);
   }
 }
 
 export function resetState() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(KEY);
+  removeRaw(KEY);
 }
 
 /**
