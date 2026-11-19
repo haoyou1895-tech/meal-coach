@@ -1,0 +1,101 @@
+.page {
+  min-height: 100vh;
+  padding: 32rpx 32rpx 60rpx;
+  background: var(--page-bg);
+}
+
+.lede {
+  display: block;
+  padding: 8rpx 8rpx 32rpx;
+  font-size: 32rpx;
+  line-height: 1.6;
+  color: var(--ink-700);
+  white-space: pre-line;
+}
+
+.field {
+  background: #ffffff;
+  border-radius: 32rpx;
+  padding: 28rpx 32rpx;
+  margin-bottom: 20rpx;
+}
+
+.label {
+  display: block;
+  font-size: 27rpx;
+  color: var(--ink-500);
+  margin-bottom: 16rpx;
+}
+
+.input {
+  height: 88rpx;
+  font-size: 40rpx;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.row {
+  display: flex;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.chip {
+  min-width: 140rpx;
+  height: 76rpx;
+  padding: 0 28rpx;
+  margin: 0 16rpx 16rpx 0;
+  border-radius: 20rpx;
+  background: rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip.is-on {
+  background: var(--brand-500);
+}
+
+.chip-text {
+  font-size: 30rpx;
+  color: var(--ink-700);
+}
+
+.chip.is-on .chip-text {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.submit {
+  margin-top: 20rpx;
+  height: 116rpx;
+  border-radius: 32rpx;
+  background: var(--brand-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 32rpx rgba(31, 138, 91, 0.3);
+}
+
+.submit:active {
+  background: var(--brand-600);
+}
+
+.submit-text {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.fine {
+  display: block;
+  margin-top: 32rpx;
+  padding: 0 16rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: var(--ink-300);
+  text-align: center;
+}

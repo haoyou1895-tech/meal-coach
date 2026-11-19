@@ -1,0 +1,178 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 32rpx 60rpx;
+  background: var(--page-bg);
+}
+
+/* ---------- 体重 ---------- */
+.weight {
+  padding: 36rpx;
+}
+
+.weight-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.weight-label {
+  font-size: 26rpx;
+  color: var(--ink-500);
+}
+
+.weight-nums {
+  display: flex;
+  align-items: baseline;
+  margin-top: 8rpx;
+}
+
+.weight-num {
+  font-size: 72rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.weight-unit {
+  margin-left: 10rpx;
+  font-size: 28rpx;
+  color: var(--ink-500);
+}
+
+.weight-target {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 48rpx;
+  font-weight: 600;
+  color: var(--brand-600);
+  line-height: 1;
+}
+
+.weight-delta {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: var(--ink-500);
+}
+
+.weight-btn {
+  margin-top: 24rpx;
+  height: 88rpx;
+  border-radius: 24rpx;
+  background: var(--brand-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.weight-btn-text {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--brand-600);
+}
+
+.weight-edit {
+  display: flex;
+  align-items: center;
+  margin-top: 24rpx;
+}
+
+.weight-input {
+  flex: 1;
+  height: 88rpx;
+  padding: 0 24rpx;
+  border-radius: 24rpx;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 34rpx;
+}
+
+.weight-ok {
+  width: 140rpx;
+  height: 88rpx;
+  margin-left: 16rpx;
+  border-radius: 24rpx;
+  background: var(--brand-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.weight-ok-text {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* ---------- 列表 ---------- */
+.section-title {
+  display: block;
+  margin: 40rpx 8rpx 16rpx;
+  font-size: 26rpx;
+  color: var(--ink-300);
+}
+
+.day {
+  margin-bottom: 16rpx;
+  padding: 28rpx 32rpx;
+}
+
+.day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 16rpx;
+  border-bottom: 2rpx solid rgba(0, 0, 0, 0.05);
+}
+
+.day-date {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+
+.day-kcal {
+  font-size: 26rpx;
+  color: var(--ink-500);
+}
+
+.meal-row {
+  display: flex;
+  align-items: center;
+  margin-top: 18rpx;
+}
+
+.meal-type {
+  width: 96rpx;
+  flex-shrink: 0;
+  font-size: 28rpx;
+  color: var(--ink-700);
+}
+
+.meal-items {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: var(--ink-500);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.meal-kcal {
+  margin-left: 16rpx;
+  font-size: 26rpx;
+  color: var(--ink-500);
+}
+
+.empty {
+  padding: 32rpx;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+
+.tail {
+  height: 40rpx;
+}

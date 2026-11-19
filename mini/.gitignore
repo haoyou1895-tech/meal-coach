@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dist-h5/
+.DS_Store
+*.log
+.temp/
+.swc/

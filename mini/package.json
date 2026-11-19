@@ -1,0 +1,59 @@
+{
+  "name": "canmou-mini",
+  "version": "0.1.0",
+  "private": true,
+  "description": "餐谋 · 微信小程序版",
+  "templateInfo": {
+    "name": "default",
+    "typescript": true,
+    "css": "sass",
+    "framework": "react"
+  },
+  "scripts": {
+    "dev": "taro build --type weapp --watch",
+    "build": "taro build --type weapp",
+    "build:h5": "taro build --type h5",
+    "shot": "node scripts/shot-h5.mjs",
+    "sync": "node ../tools/sync-shared.mjs",
+    "prebuild": "node ../tools/sync-shared.mjs",
+    "predev": "node ../tools/sync-shared.mjs"
+  },
+  "browserslist": [
+    "last 3 versions",
+    "Android >= 4.1",
+    "ios >= 8"
+  ],
+  "overrides": {
+    "esbuild": "0.25.0"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.24.4",
+    "@tarojs/components": "4.3.3",
+    "@tarojs/helper": "4.3.3",
+    "@tarojs/plugin-framework-react": "4.3.3",
+    "@tarojs/plugin-html": "^4.3.3",
+    "@tarojs/plugin-platform-h5": "^4.3.3",
+    "@tarojs/plugin-platform-weapp": "4.3.3",
+    "@tarojs/react": "4.3.3",
+    "@tarojs/router": "^4.3.3",
+    "@tarojs/runtime": "4.3.3",
+    "@tarojs/shared": "4.3.3",
+    "@tarojs/taro": "4.3.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.4",
+    "@babel/preset-env": "^7.29.14",
+    "@babel/preset-react": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
+    "@tarojs/cli": "4.3.3",
+    "@tarojs/webpack5-runner": "4.3.3",
+    "@types/react": "^18.2.0",
+    "@types/webpack-env": "^1.18.4",
+    "babel-preset-taro": "4.3.3",
+    "sass": "^1.77.0",
+    "typescript": "^5.4.5",
+    "webpack": "5.91.0"
+  }
+}

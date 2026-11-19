@@ -1,0 +1,146 @@
+/**
+ * 全局样式。配色照抄网页版 globals.css，一个值都没改 ——
+ * 两端看起来得是同一样东西，不然用户换端会觉得换了产品。
+ *
+ * 单位说明：设计稿 750 宽，这里的 rpx 就是网页上的 px 乘 2。
+ * 网页 17px 的字号 = 这里 34rpx。
+ */
+page {
+  --brand-50: #eef8f2;
+  --brand-100: #d6eddf;
+  --brand-200: #aedcc2;
+  --brand-400: #4aa87a;
+  --brand-500: #1f8a5b;
+  --brand-600: #176f49;
+  --brand-700: #115639;
+
+  --warn-100: #fff1d6;
+  --warn-500: #e8871e;
+  --warn-600: #c56f10;
+
+  --danger-100: #ffe4e0;
+  --danger-500: #d94f3d;
+
+  --ink-900: #1b2320;
+  --ink-700: #3b4642;
+  --ink-500: #6b7671;
+  --ink-300: #b6bdb9;
+
+  --page-bg: #f4f6f4;
+
+  background: var(--page-bg);
+  color: var(--ink-900);
+  font-size: 34rpx;
+  font-family: -apple-system, BlinkMacSystemFont, "HarmonyOS Sans SC",
+    "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * h5 里没有 page 这个元素，变量得再挂一份到 :root，
+ * 否则所有 var(--brand-500) 全部失效 —— 小程序里看着好好的，
+ * 一到浏览器预览就是白底白字，排查起来很费劲。
+ * 两段必须一模一样，改颜色记得两边都改。
+ */
+:root {
+  --brand-50: #eef8f2;
+  --brand-100: #d6eddf;
+  --brand-200: #aedcc2;
+  --brand-400: #4aa87a;
+  --brand-500: #1f8a5b;
+  --brand-600: #176f49;
+  --brand-700: #115639;
+
+  --warn-100: #fff1d6;
+  --warn-500: #e8871e;
+  --warn-600: #c56f10;
+
+  --danger-100: #ffe4e0;
+  --danger-500: #d94f3d;
+
+  --ink-900: #1b2320;
+  --ink-700: #3b4642;
+  --ink-500: #6b7671;
+  --ink-300: #b6bdb9;
+
+  --page-bg: #f4f6f4;
+}
+
+view,
+text,
+image,
+button {
+  box-sizing: border-box;
+}
+
+/* 卡片：白底、大圆角、很淡的投影 */
+.card {
+  background: #ffffff;
+  border-radius: 48rpx;
+  padding: 40rpx;
+  box-shadow: 0 4rpx 32rpx rgba(27, 35, 32, 0.06);
+}
+
+/* 主按钮 */
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 128rpx;
+  width: 100%;
+  border-radius: 32rpx;
+  background: var(--brand-500);
+  color: #ffffff;
+  font-size: 38rpx;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.btn-primary:active {
+  background: var(--brand-600);
+}
+
+.btn-primary.is-disabled {
+  opacity: 0.4;
+}
+
+/* 次要按钮 */
+.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 112rpx;
+  width: 100%;
+  border-radius: 32rpx;
+  border: 2rpx solid rgba(182, 189, 185, 0.6);
+  background: #ffffff;
+  color: var(--ink-700);
+  font-size: 36rpx;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.muted {
+  color: var(--ink-500);
+}
+
+.tiny {
+  font-size: 26rpx;
+  color: var(--ink-300);
+}
+
+/* 去掉小程序 button 自带的边框和灰底 */
+button {
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  line-height: normal;
+}
+
+button::after {
+  border: none;
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx);
+}
