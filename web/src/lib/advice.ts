@@ -65,6 +65,45 @@ export function currentMealSlot(
   return "dinner";
 }
 
+/** 各餐的默认钟点，没有历史作息时用来算"离下一顿还有多久" */
+const SLOT_MIN: Record<MealType, number> = {
+  breakfast: 7 * 60,
+  lunch: 12 * 60,
+  dinner: 18 * 60,
+  snack: 15 * 60,
+};
+
+/**
+ * 今天还该推荐哪一顿。
+ *
+ * 上一版只会看钟点：下午两点刚记完午饭，首页还在说"午饭这样吃" ——
+ * 那不是在帮他，是在证明它没在听。
+ * 现在先跳过已经记过的餐次，再顺延到下一顿；
+ * 但离下一顿还早（三小时以上）就先闭嘴 ——
+ * 刚放下碗就谈晚饭，是骚扰不是提醒。
+ */
+export function nextMealSlot(
+  d = new Date(),
+  habit?: Partial<Record<MealType, number>> | null,
+  recorded: MealType[] = [],
+): MealType | null {
+  const cur = currentMealSlot(d, habit);
+  if (!cur) return null;
+  if (!recorded.includes(cur)) return cur;
+
+  const order: MealType[] = ["breakfast", "lunch", "dinner"];
+  const nowMin = d.getHours() * 60 + d.getMinutes();
+  for (let i = order.indexOf(cur) + 1; i < order.length; i++) {
+    const slot = order[i];
+    if (recorded.includes(slot)) continue;
+    const at = habit?.[slot] ?? SLOT_MIN[slot];
+    if (at - nowMin > 180) return null;
+    return slot;
+  }
+  // 三顿都记过了，今天不需要再推荐
+  return null;
+}
+
 /** 把分钟数写成 12:40 的样子 */
 export function fmtMinute(min: number): string {
   const h = Math.floor(min / 60) % 24;
@@ -124,8 +163,10 @@ export function nextMealAdvice(
   profile: Profile | null,
   now = new Date(),
   habit?: Partial<Record<MealType, number>> | null,
+  /** 今天已经记过的餐次，推荐会跳过它们 */
+  recorded: MealType[] = [],
 ): MealAdvice | null {
-  const slot = currentMealSlot(now, habit);
+  const slot = nextMealSlot(now, habit, recorded);
   if (!slot) return null;
 
   const label = SLOT_LABEL[slot];
@@ -141,14 +182,14 @@ export function nextMealAdvice(
     detail = "今天已经超了，这顿先别吃主食，喝点水或者清汤就行";
     parts = [
       { kind: "carb", label: "先不吃" },
-      { kind: "veg", label: "清汤" },
+      { kind: "veg", label: "喝清汤" },
     ];
   } else if (left < 150) {
     tone = "over";
     detail = "几乎没额度了，只吃一小份青菜，主食先别碰";
     parts = [
       { kind: "carb", label: "先不吃" },
-      { kind: "veg", label: "一小份" },
+      { kind: "veg", label: "一小碟菜" },
     ];
   } else if (ratio < 0.15) {
     tone = "warn";
@@ -156,29 +197,29 @@ export function nextMealAdvice(
     parts = [
       { kind: "carb", label: "先不吃" },
       { kind: "meat", label: "一个蛋" },
-      { kind: "veg", label: "一份" },
+      { kind: "veg", label: "一盘菜" },
     ];
   } else if (ratio < 0.35) {
     tone = "warn";
     detail = "半碗米饭 + 一份青菜 + 一小份肉，别喝汤";
     parts = [
-      { kind: "carb", label: "半碗" },
-      { kind: "meat", label: "一小份" },
-      { kind: "veg", label: "一份" },
+      { kind: "carb", label: "半碗饭" },
+      { kind: "meat", label: "一小份肉" },
+      { kind: "veg", label: "一盘菜" },
     ];
   } else if (ratio < 0.55) {
     detail = "半碗杂粮饭 + 一荤两素，油炸的先跳过";
     parts = [
-      { kind: "carb", label: "半碗杂粮" },
-      { kind: "meat", label: "一份" },
-      { kind: "veg", label: "两样" },
+      { kind: "carb", label: "杂粮半碗" },
+      { kind: "meat", label: "一份肉" },
+      { kind: "veg", label: "两样菜" },
     ];
   } else {
     detail = "一碗米饭 + 一荤一素，正常吃就行";
     parts = [
-      { kind: "carb", label: "一碗" },
-      { kind: "meat", label: "一份" },
-      { kind: "veg", label: "一样" },
+      { kind: "carb", label: "一碗饭" },
+      { kind: "meat", label: "一份肉" },
+      { kind: "veg", label: "一盘菜" },
     ];
   }
 

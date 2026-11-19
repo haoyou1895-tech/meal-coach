@@ -10,6 +10,7 @@ import type {
 } from "@/lib/types";
 import {
   mealTypeLabel,
+  snackLabel,
   round,
   streakDays,
   sumMeals,
@@ -213,8 +214,20 @@ export default function HomeView({
   const left = plan.dailyBudgetKcal - totals.kcal;
   // 从历史记录里学这个人平时几点吃，用在提醒和"下一顿该吃哪顿"上
   const habit = useMemo(() => habitTimes(meals), [meals]);
+  // 已经记过的餐次传进去：记完午饭就别再推荐午饭
+  const recordedSlots = useMemo(
+    () => todayMeals.map((m) => m.mealType),
+    [todayMeals],
+  );
   const advice = now
-    ? nextMealAdvice(left, plan.dailyBudgetKcal, profile, now, habit)
+    ? nextMealAdvice(
+        left,
+        plan.dailyBudgetKcal,
+        profile,
+        now,
+        habit,
+        recordedSlots,
+      )
     : null;
   const warnings = now ? macroWarnings(totals, plan, profile, now) : [];
   const reminder = now
@@ -702,7 +715,7 @@ export default function HomeView({
                       <div className="flex items-center gap-1.5 text-ink-400">
                         <Icon name={SLOT_ICON[m.mealType]} size={15} />
                         <span className="text-[13px] font-medium">
-                          {mealTypeLabel(m.mealType)}
+                          {snackLabel(m)}
                         </span>
                         {time && (
                           <span className="text-[13px] tabular-nums">{time}</span>

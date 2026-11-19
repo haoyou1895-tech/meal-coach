@@ -127,6 +127,23 @@ export function mealTypeLabel(t: Meal["mealType"]) {
 }
 
 /**
+ * 加餐到底算下午茶还是宵夜。
+ *
+ * "加餐"是个分类词，不是人话。下午三点吃碗绿豆汤，他自己会说"下午茶"；
+ * 十一点吃碗馄饨，那是"宵夜"。同一个 snack，两个完全不同的场景，
+ * 写清楚比归对类有用。
+ */
+export function snackLabel(m: Pick<Meal, "mealType" | "eatenAt" | "createdAt">) {
+  if (m.mealType !== "snack") return mealTypeLabel(m.mealType);
+  const raw = m.eatenAt ?? m.createdAt;
+  const d = raw ? new Date(raw) : new Date();
+  const h = Number.isNaN(d.getTime()) ? new Date().getHours() : d.getHours();
+  if (h >= 20 || h < 3) return "宵夜";
+  if (h >= 13) return "下午茶";
+  return "加餐";
+}
+
+/**
  * 按钟点猜这是哪一顿。
  *
  * 以前只看小时数，于是晚上十点打开还是显示"午餐" ——

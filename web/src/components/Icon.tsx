@@ -14,6 +14,7 @@ export type IconName =
   | "alert"
   | "eyeOff"
   | "check"
+  | "close"
   | "plus"
   | "camera"
   | "gallery"
@@ -61,6 +62,7 @@ const P: Record<IconName, JSX.Element> = {
     </>
   ),
   check: <path d="M4.5 12.6l4.8 4.7L19.5 7" />,
+  close: <path d="M6.2 6.2l11.6 11.6M17.8 6.2L6.2 17.8" />,
   plus: <path d="M12 5v14M5 12h14" />,
   camera: (
     <>

@@ -19,6 +19,7 @@ import { DRINK_CFG, DRINK_KINDS, drinkKcal } from "@/lib/drinks";
 import { TAG_CFG, TAG_LIST, saltGram, sodiumWithTags } from "@/lib/mealTags";
 import { ruleComment, ruleVerdict } from "@/lib/comment";
 import { putPhoto } from "@/lib/photos";
+import { compress, makeThumb } from "@/lib/image";
 import { Sheet } from "./ui";
 import Icon, { type IconName } from "./Icon";
 import VoiceInput from "./VoiceInput";
@@ -54,51 +55,6 @@ const PORTION_STEPS = [
 ] as const;
 
 /** 压缩图片，避免上传大图拖慢识别 */
-function compress(file: File, maxSide = 720): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("画布不可用"));
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.75));
-      };
-      img.onerror = () => reject(new Error("图片读取失败"));
-      img.src = String(reader.result);
-    };
-    reader.onerror = () => reject(new Error("图片读取失败"));
-    reader.readAsDataURL(file);
-  });
-}
-
-/** 从已经压好的大图再生成一张小缩略图。仅在 IndexedDB 不可用时降级使用 */
-function makeThumb(dataUrl: string, maxSide = 480, quality = 0.7): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return resolve("");
-      ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL("image/jpeg", quality));
-    };
-    img.onerror = () => resolve("");
-    img.src = dataUrl;
-  });
-}
 
 export default function CameraSheet({
   open,
@@ -152,6 +108,8 @@ export default function CameraSheet({
   const [zoom, setZoom] = useState(false);
   /** 写照片到本地仓库是异步的，加个锁防止连点记两遍 */
   const [saving, setSaving] = useState(false);
+  /** 打开面板那一刻的钟点，用来判断"加餐"到底是下午茶还是宵夜 */
+  const [hour, setHour] = useState<number | null>(null);
 
   /** 这个餐次今天是否已经记过；记过就只能往这顿里加，不再新增一条 */
   const existing = todayMeals.find((m) => m.mealType === mealType);
@@ -173,7 +131,9 @@ export default function CameraSheet({
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current) {
-      setMealType(guessMealType(new Date(), todayMeals.map((m) => m.mealType)));
+      const now = new Date();
+      setMealType(guessMealType(now, todayMeals.map((m) => m.mealType)));
+      setHour(now.getHours());
     }
     wasOpen.current = open;
   });
@@ -503,7 +463,19 @@ export default function CameraSheet({
                       : "bg-white text-ink-700 shadow-sm"
                   }`}
                 >
-                  {mealTypeLabel(t)}
+                  <span className="flex flex-col items-center justify-center leading-tight">
+                    <span>{mealTypeLabel(t)}</span>
+                    {/* "加餐"是个分类词，不是人话：下午三点是下午茶，十一点是宵夜 */}
+                    {t === "snack" && hour !== null && (
+                      <span
+                        className={`text-[10px] font-normal ${
+                          mealType === t ? "text-white/70" : "text-ink-300"
+                        }`}
+                      >
+                        {hour >= 17 || hour < 3 ? "宵夜" : "下午茶"}
+                      </span>
+                    )}
+                  </span>
                   {recorded && (
                     <span
                       className={`absolute bottom-0.5 right-1.5 text-[10px] ${

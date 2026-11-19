@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActivityLevel,
   ActivityLog,
@@ -15,11 +15,16 @@ import {
   dayBudget,
   mealTypeLabel,
   round,
+  snackLabel,
   sumMeals,
   todayStr,
 } from "@/lib/nutrition";
 import { dateList, latestWeightKg } from "@/lib/store";
 import { drinkKcal, drinksLabel } from "@/lib/drinks";
+import { deletePhoto, getPhoto, photoIdsOf, putPhoto } from "@/lib/photos";
+import { compress } from "@/lib/image";
+import { sodiumWithTags } from "@/lib/mealTags";
+import type { Nutrition } from "@/lib/types";
 import { ruleComment } from "@/lib/comment";
 import MealPhoto from "./MealPhoto";
 import WeightTrend from "./WeightTrend";
@@ -89,6 +94,27 @@ export default function RecordView({
   const [editType, setEditType] = useState<MealType>("lunch");
   const [editItems, setEditItems] = useState<FoodItem[]>([]);
   const [factors, setFactors] = useState<number[]>([]);
+  /**
+   * 编辑时的照片，和"原记录里有哪些照片"分开存：
+   * 用户可能在编辑里删了又加，只有在按下"保存"时才动库 ——
+   * 中途点"不改了"，照片不能跟着少。
+   * id 为 null 表示这张是早期版本直接塞在记录里的 base64 图。
+   */
+  const [editPhotos, setEditPhotos] = useState<
+    { id: string | null; src: string }[]
+  >([]);
+  /**
+   * 重新识别拿到的营养值。
+   * 一旦重新算过，"按比例缩"的基准就得换成新值 ——
+   * 否则删一道菜会被按老照片的比例缩放，数字对不上新算出来的菜。
+   */
+  const [recalcBase, setRecalcBase] = useState<Nutrition | null>(null);
+  const [recalcBusy, setRecalcBusy] = useState(false);
+  const [recalcErr, setRecalcErr] = useState("");
+  const [addingPhoto, setAddingPhoto] = useState(false);
+  /** 照片是从 IndexedDB 异步读的。没读完就保存，会把还没读出来的那些当"被删了" */
+  const [photosReady, setPhotosReady] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [gallery, setGallery] = useState<Gallery | null>(null);
   /** 点柱状图跳到那天的记录后，让那天闪一下，否则滚过去也不知道看哪儿 */
   const [flashDate, setFlashDate] = useState<string | null>(null);
@@ -106,6 +132,122 @@ export default function RecordView({
     setEditType(m.mealType);
     setEditItems(m.items.map((it) => ({ ...it })));
     setFactors(m.items.map(() => 1));
+    setEditPhotos([]);
+    setRecalcBase(null);
+    setRecalcErr("");
+    setPhotosReady(false);
+    void (async () => {
+      const list: { id: string | null; src: string }[] = [];
+      if (m.image) list.push({ id: null, src: m.image });
+      for (const id of photoIdsOf(m)) {
+        const d = await getPhoto(id);
+        if (d) list.push({ id, src: d });
+      }
+      setEditPhotos(list);
+      setPhotosReady(true);
+    })();
+  };
+
+  /** 补拍一张：先压到 720，再进 IndexedDB 拿 id，这样保存前就已经占好位置 */
+  const addPhotos = async (files?: FileList | null) => {
+    if (!files?.length) return;
+    setAddingPhoto(true);
+    try {
+      const room = Math.max(0, 4 - editPhotos.length);
+      const picked = Array.from(files).slice(0, room);
+      const added: { id: string | null; src: string }[] = [];
+      for (const f of picked) {
+        const data = await compress(f);
+        const id =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `p${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+        await putPhoto(id, data);
+        added.push({ id, src: data });
+      }
+      const next = [...editPhotos, ...added];
+      setEditPhotos(next);
+      // 加了照片就重算：不然新拍到的那盘菜在账上不存在
+      if (added.length) void recalc(next);
+    } finally {
+      setAddingPhoto(false);
+    }
+  };
+
+  /**
+   * 删掉一张。
+   *
+   * 删完必须重算 —— 用户删的往往正是"这张不算我的"，
+   * 账上的菜就该跟着这张图一起消失。不重算的话，
+   * 他删了照片、数字没动，下次看只会觉得这软件在瞎记。
+   */
+  const removePhoto = (i: number) => {
+    const next = editPhotos.filter((_, idx) => idx !== i);
+    setEditPhotos(next);
+    setRecalcErr("");
+    if (next.length) {
+      void recalc(next);
+    } else {
+      // 一张都不剩就没有依据了，把上一次的识别结果也一起清掉
+      setRecalcBase(null);
+    }
+  };
+
+  /** 保存时把照片的变化落库：新增的已经在库里，删掉的在这里销毁 */
+  const commitPhotos = () => {
+    if (!editing) return { ids: [] as string[], legacy: undefined };
+    // 还没读完就别动：宁可什么都不改，也不能因为读得慢把照片全删了
+    if (!photosReady) {
+      return { ids: photoIdsOf(editing), legacy: editing.image };
+    }
+    const ids = editPhotos
+      .map((p) => p.id)
+      .filter((v): v is string => typeof v === "string");
+    const legacy = editPhotos.find((p) => p.id === null)?.src;
+    for (const old of photoIdsOf(editing)) {
+      if (!ids.includes(old)) void deletePhoto(old);
+    }
+    return { ids, legacy };
+  };
+
+  /**
+   * 拿现在这几张照片重算一遍。
+   *
+   * 改了照片却不重算，等于让盘子里的菜和账上的数字各说各话 ——
+   * 用户删掉了那张"其实是我儿子的"照片，热量就该跟着少。
+   */
+  const recalc = async (list: { id: string | null; src: string }[] = editPhotos) => {
+    if (!list.length || recalcBusy) return;
+    setRecalcBusy(true);
+    setRecalcErr("");
+    try {
+      const res = await fetch("/api/recognize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: list.map((p) => p.src),
+          image: list[0].src,
+          note: "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "没算出来，待会儿再试");
+      if (!data.items?.length) throw new Error("这几张都没看清，换一张试试");
+      setEditItems(data.items as FoodItem[]);
+      setFactors((data.items as FoodItem[]).map(() => 1));
+      // 重新算过的钠还是按"照片估的 + 标签补的"来，跟记一餐时同一套规矩
+      setRecalcBase({
+        ...(data.nutrition as Nutrition),
+        sodium: sodiumWithTags(
+          (data.nutrition as Nutrition)?.sodium ?? 0,
+          editing?.tags,
+        ),
+      });
+    } catch (e) {
+      setRecalcErr(e instanceof Error ? e.message : "没算出来");
+    } finally {
+      setRecalcBusy(false);
+    }
   };
 
   // 从「记一餐」弹层里点「改」过来：切到这一页时直接把编辑弹层打开
@@ -124,18 +266,20 @@ export default function RecordView({
       (s, it, i) => s + it.kcal * (factors[i] ?? 1),
       0,
     );
-    // 删掉一道菜之后热量变少，三大营养素按同样比例缩，够用
-    const base = editing.nutrition.kcal > 0 ? editing.nutrition.kcal : 1;
+    // 删掉一道菜之后热量变少，三大营养素按同样比例缩，够用。
+    // 重新识别过就以新值为基准，否则还是按原记录的比例。
+    const source = recalcBase ?? editing.nutrition;
+    const base = source.kcal > 0 ? source.kcal : 1;
     const ratio = scaledKcal / base;
     const scale = (n: number) => Math.round(n * ratio);
     return {
       kcal: Math.round(scaledKcal),
-      protein: scale(editing.nutrition.protein),
-      carb: scale(editing.nutrition.carb),
-      fat: scale(editing.nutrition.fat),
-      sodium: scale(editing.nutrition.sodium),
+      protein: scale(source.protein),
+      carb: scale(source.carb),
+      fat: scale(source.fat),
+      sodium: scale(source.sodium),
     };
-  }, [editing, editItems, factors]);
+  }, [editing, editItems, factors, recalcBase]);
 
   /**
    * 能选哪几顿。
@@ -165,8 +309,11 @@ export default function RecordView({
     if (!editing || !edited || !editItems.length) return;
     const dayTotal = sumMeals(meals.filter((m) => m.date === editing.date)).kcal;
     const before = dayTotal - editing.nutrition.kcal;
+    const photos = commitPhotos();
     onUpdateMeal({
       ...editing,
+      photoIds: photos.ids.length ? photos.ids : undefined,
+      image: photos.legacy,
       mealType: editType,
       items: editItems.map((it, i) => ({
         ...it,
@@ -482,7 +629,7 @@ export default function RecordView({
 
                         <div className="min-w-0 flex-1">
                           <p className="text-[12px] font-medium text-brand-600">
-                            {mealTypeLabel(m.mealType)}
+                            {snackLabel(m)}
                             <span className="ml-1.5 font-normal tabular-nums text-ink-500">
                               {mealTime(m)}
                             </span>
@@ -576,23 +723,109 @@ export default function RecordView({
       >
         {editing && edited && (
           <div className="pb-2">
-            <div className="flex items-center gap-3">
-              <MealPhoto
-                meal={editing}
-                className="h-20 w-20 shrink-0 rounded-xl"
-                onOpen={(srcs, index) => setGallery({ srcs, index })}
-              />
-              <div>
-                <p className="text-[14px] text-ink-500">
-                  {editing.date === todayStr() ? "今天" : editing.date}
-                </p>
-                <p className="text-[30px] font-bold leading-tight tabular-nums">
-                  {edited.kcal}
-                  <span className="ml-1 text-[15px] font-medium text-ink-500">
-                    大卡
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                void addPhotos(e.target.files);
+                e.target.value = "";
+              }}
+            />
+
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-[14px] text-ink-500">
+                {editing.date === todayStr() ? "今天" : editing.date}
+              </p>
+              <p className="text-[26px] font-bold leading-none tabular-nums">
+                {edited.kcal}
+                <span className="ml-1 text-[14px] font-medium text-ink-500">
+                  大卡
+                </span>
+              </p>
+            </div>
+
+            {/*
+              照片在这一层也能改。
+              以前的编辑只让他改菜名和份量，可是最常见的错法是"拍进来一张不该算的图"，
+              或者"少拍了一盘" —— 那时候只能整条删掉重拍，前功尽弃。
+              删掉或补一张，会自动按新的一组重算，账上的菜跟着图走。
+            */}
+            <div className="mt-2 flex items-center gap-2">
+              {editPhotos.map((p, i) => (
+                <div key={p.id ?? `legacy-${i}`} className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGallery({
+                        srcs: editPhotos.map((x) => x.src),
+                        index: i,
+                      })
+                    }
+                    aria-label={`看第 ${i + 1} 张照片`}
+                    className="block h-[68px] w-[68px] overflow-hidden rounded-xl active:scale-95"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.src}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    aria-label={`删掉第 ${i + 1} 张照片`}
+                    className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white shadow-sm active:scale-90"
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                </div>
+              ))}
+
+              {editPhotos.length < 4 && (
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={addingPhoto}
+                  className="flex h-[68px] w-[68px] flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-black/10 text-ink-300 active:scale-95"
+                >
+                  <Icon name="plus" size={18} />
+                  <span className="text-[11px] leading-none">
+                    {addingPhoto ? "压图…" : "加一张"}
                   </span>
-                </p>
-              </div>
+                </button>
+              )}
+            </div>
+
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {recalcBusy ? (
+                <span className="text-[12px] text-ink-400">
+                  正在按这几张重算…
+                </span>
+              ) : editPhotos.length > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void recalc()}
+                    className="text-[12px] font-medium text-brand-600"
+                  >
+                    按这几张重算
+                  </button>
+                  <span className="text-[12px] text-ink-300">
+                    换过照片会自动算一次
+                  </span>
+                </>
+              ) : (
+                <span className="text-[12px] text-ink-300">
+                  没有照片，补一张才能重算
+                </span>
+              )}
+              {recalcErr && (
+                <span className="text-[12px] text-[#b23c2c]">{recalcErr}</span>
+              )}
             </div>
 
             <p className="mb-2 mt-5 text-[14px] font-medium text-ink-700">
@@ -643,9 +876,9 @@ export default function RecordView({
                       onClick={() => removeItem(i)}
                       disabled={editItems.length <= 1}
                       aria-label={`删掉${it.name}`}
-                      className="shrink-0 rounded-lg px-2.5 py-1 text-[13px] font-medium text-ink-500 active:bg-black/[0.05] disabled:opacity-25"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black/[0.04] text-ink-500 active:scale-95 disabled:opacity-20"
                     >
-                      删掉
+                      <Icon name="trash" size={15} />
                     </button>
                   </div>
                   <div className="mt-2.5 flex items-center justify-between border-t border-black/[0.04] pt-2.5">
@@ -691,7 +924,7 @@ export default function RecordView({
             </div>
             {editItems.length <= 1 && (
               <p className="mt-2 text-[12px] leading-relaxed text-ink-300">
-                只剩一样菜了。想整顿都不要，回上一页点「删」。
+                只剩一样菜了。想整顿都不要，回上一页点垃圾桶图标。
               </p>
             )}
 
