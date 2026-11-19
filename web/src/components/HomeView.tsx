@@ -206,6 +206,10 @@ export default function HomeView({
     return () => clearInterval(timer);
   }, []);
 
+  // "预算怎么算的"默认折叠：九成日子他不需要看那三个数字，
+  // 但想质疑的时候必须点得到 —— 藏在设置页里就等于没有
+  const [showHow, setShowHow] = useState(false);
+
   const left = plan.dailyBudgetKcal - totals.kcal;
   // 从历史记录里学这个人平时几点吃，用在提醒和"下一顿该吃哪顿"上
   const habit = useMemo(() => habitTimes(meals), [meals]);
@@ -505,6 +509,61 @@ export default function HomeView({
               )}
           </div>
         </div>
+      </section>
+
+      {/*
+        预算这个数字原来是凭空出现的：环里写着一个 1719，
+        既没说它怎么来，也没说照这个吃多久能到目标体重。
+        所以这里拆成两件事：左边只给结果（几周到几公斤），
+        右边一个"怎么算的"，点开才是推导。默认收起。
+      */}
+      <section className="mt-2 px-5">
+        <button
+          type="button"
+          onClick={() => setShowHow((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 py-1 text-left"
+        >
+          <span className="text-[13px] text-ink-400">
+            照这个吃，约{" "}
+            <b className="font-semibold tabular-nums text-ink-700">
+              {plan.weeksToGoal}
+            </b>{" "}
+            周到{" "}
+            <b className="font-semibold tabular-nums text-ink-700">
+              {profile.targetWeightKg}
+            </b>{" "}
+            公斤
+          </span>
+          <span className="shrink-0 text-[13px] text-ink-300">
+            {showHow ? "收起" : "怎么算的"}
+          </span>
+        </button>
+        {showHow && (
+          <div className="mt-2 space-y-2 rounded-2xl bg-black/[0.035] px-3.5 py-3 text-[13px] leading-relaxed text-ink-500">
+            <p>
+              躺着不动，一天要花{" "}
+              <b className="tabular-nums text-ink-700">{plan.bmr}</b> 大卡；
+              按「
+              {ACTIVITY_OPTIONS.find((o) => o.level === activity)?.label ?? "走动"}
+              」算，加上走路说话，约{" "}
+              <b className="tabular-nums text-ink-700">{plan.tdee}</b> 大卡。
+            </p>
+            <p>
+              想瘦就得留缺口：每天少吃 400 大卡，剩下的{" "}
+              <b className="tabular-nums text-ink-700">{plan.dailyBudgetKcal}</b>{" "}
+              就是环里那个数。
+            </p>
+            <p>
+              一周大约掉 0.4 公斤。{profile.weightKg} 到 {profile.targetWeightKg}{" "}
+              公斤差{" "}
+              <b className="tabular-nums text-ink-700">
+                {Math.max(0, Math.round((profile.weightKg - profile.targetWeightKg) * 10) / 10)}
+              </b>{" "}
+              公斤，所以是 {plan.weeksToGoal} 周。
+            </p>
+            <p className="text-ink-300">400 大卡，差不多是一碗米饭加一勺油。</p>
+          </div>
+        )}
       </section>
 
       {/*

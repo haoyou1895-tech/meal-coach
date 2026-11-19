@@ -16,7 +16,7 @@ import type {
 } from "@/lib/types";
 import { guessMealType, mealTypeLabel, todayStr } from "@/lib/nutrition";
 import { DRINK_CFG, DRINK_KINDS, drinkKcal } from "@/lib/drinks";
-import { TAG_CFG, TAG_LIST, sodiumFromTags } from "@/lib/mealTags";
+import { TAG_CFG, TAG_LIST, saltGram, sodiumWithTags } from "@/lib/mealTags";
 import { ruleComment, ruleVerdict } from "@/lib/comment";
 import { putPhoto } from "@/lib/photos";
 import { Sheet } from "./ui";
@@ -316,6 +316,17 @@ export default function CameraSheet({
     kcal: computed.kcal + drinkKcal(drinks),
   };
 
+  /**
+   * 这一顿的盐，实时跟着勾选变。
+   * 用户勾一个"有汤"，上面的数字立刻从 2.4 跳到 3.3 ——
+   * 这个即时反馈比任何解释都管用，他才知道勾了会发生什么。
+   */
+  const saltMg = sodiumWithTags(computed.sodium, tags);
+  const saltG = saltGram(saltMg);
+  const saltLimitMg = plan?.sodiumLimitMg ?? 2000;
+  const saltTone =
+    saltMg > saltLimitMg ? "#b23c2c" : saltMg > saltLimitMg * 0.6 ? "#a9631a" : "#4a7d63";
+
   const comment = ruleComment(
     withDrinks,
     profile,
@@ -412,10 +423,9 @@ export default function CameraSheet({
             portion: it.portion,
             kcal: Math.round(it.kcal * (factors[i] ?? 1)),
           })),
-        // 打了标的就用标签估钠；没打标就留着模型给的粗估值，首页也不会拿它当数
-        nutrition: tags.length
-          ? { ...computed, sodium: sodiumFromTags(tags) }
-          : computed,
+        // 模型估的钠是地基，标签只往上补。
+        // 不勾也有盐 —— 一盘正常炒菜本来就有，勾选回答的是"还有没有别的"。
+        nutrition: { ...computed, sodium: sodiumWithTags(computed.sodium, tags) },
         comment,
         adjusted: factors.some((f) => f !== 1),
         confidence,
@@ -1053,11 +1063,26 @@ export default function CameraSheet({
             </p>
           )}
 
+          {/*
+            「盐从哪来」这个标题问的是来源，用户读起来像一道填空题：
+            我不勾，是不是就等于这顿没盐？—— 这是上一版的真错误，
+            钠被标签独占，不勾只剩 250mg 底。
+            现在标题直接给答案（这一顿几克），下面的标签变成可选项：
+            「还有这些没拍到吗」，勾了往上加，不勾也是数。
+          */}
           <div className="mt-3 rounded-2xl bg-white px-4 py-4">
-            <div className="flex items-center gap-1.5">
-              <Icon name="salt" size={17} className="text-ink-400" />
-              <p className="text-[16px] font-medium text-ink-700">盐从哪来</p>
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Icon name="salt" size={17} className="shrink-0" style={{ color: saltTone }} />
+                <p className="text-[16px] font-medium text-ink-700">
+                  这顿盐 <span className="tabular-nums">{saltG}</span> 克
+                </p>
+              </div>
+              <span className="text-[12px] text-ink-300">一天最多 5 克</span>
             </div>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-400">
+              按照片估的。下面这些没拍到的话，勾上会往上加。
+            </p>
             <div className="mt-2.5 flex flex-wrap gap-2">
               {TAG_LIST.map((t) => {
                 const on = tags.includes(t);

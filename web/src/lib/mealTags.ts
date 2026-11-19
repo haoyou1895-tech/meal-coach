@@ -77,6 +77,31 @@ export function sodiumFromTags(tags?: MealTag[]): number {
   );
 }
 
+/**
+ * 一顿饭的钠：模型看照片给的基础值 + 标签补上「照片看不出来」的那部分。
+ *
+ * 上一版这里是个真错误：不管你勾不勾，钠都只按标签重算 ——
+ * 不勾 = 只有 250mg 底，等于「这顿几乎没放盐」。可正常的炒菜本来就有盐，
+ * 用户不勾不是因为他吃得淡，是因为那几个按钮问得奇怪。
+ *
+ * 所以现在以模型的估值为地基（它看得见盘子里有什么），标签只往上加。
+ * 加的时候打六折：模型看图多半已经看出「有汤」「在外面吃」，
+ * 标签全额加上去会把同一碗汤算两遍。
+ */
+export function sodiumWithTags(baseMg: number, tags?: MealTag[]): number {
+  const extra = (tags ?? []).reduce(
+    (s, t) => s + (TAG_CFG[t]?.sodiumMg ?? 0),
+    0,
+  );
+  const base = baseMg > 0 ? baseMg : BASE_MG;
+  return Math.round(base + extra * 0.6);
+}
+
+/** 1 克盐 ≈ 400 毫克钠，人话是「几克盐」不是「几千毫克钠」 */
+export function saltGram(mg: number): number {
+  return Math.round((mg / 400) * 10) / 10;
+}
+
 export type SaltLevel = "light" | "medium" | "heavy";
 
 export const SALT_LABEL: Record<SaltLevel, string> = {
@@ -92,21 +117,33 @@ export const SALT_COLOR: Record<SaltLevel, string> = {
 };
 
 /**
- * 一天里已经打了标的几顿，盐大概到什么程度。
- * 没打标的顿数单独数出来 —— 不是 0，是「不知道」，这两者不能混。
+ * 一天吃进来多少钠。
+ *
+ * 每顿的钠在存的时候就算好了（模型估的 + 标签补的），这里只需要加起来。
+ * 老记录里没有钠值（或者为 0）的，退回按标签估 —— 不然以前记的那些会凭空消失。
  */
 export function daySalt(meals: Meal[]) {
-  const tagged = meals.filter((m) => (m.tags?.length ?? 0) > 0);
-  const mg = tagged.reduce((s, m) => s + sodiumFromTags(m.tags), 0);
-  const untagged = meals.length - tagged.length;
-  return { mg, taggedCount: tagged.length, untagged };
+  let mg = 0;
+  let counted = 0;
+  for (const m of meals) {
+    const own = m.nutrition?.sodium ?? 0;
+    if (own > 0) {
+      mg += own;
+      counted += 1;
+    } else if ((m.tags?.length ?? 0) > 0) {
+      mg += sodiumFromTags(m.tags);
+      counted += 1;
+    }
+  }
+  return { mg, taggedCount: counted, untagged: meals.length - counted };
 }
 
 export function saltLevelOf(mg: number, taggedCount: number): SaltLevel {
-  // 按打标的顿数折算成一整天的量，否则只记一顿的人永远"清淡"
+  // 只记了一顿的人，按这顿的样子推算一整天 —— 否则他永远是「清淡」
   const perMeal = taggedCount > 0 ? mg / taggedCount : 0;
   const projected = perMeal * 3;
-  if (projected <= 1500) return "light";
-  if (projected <= 3000) return "medium";
+  // 5 克盐 ≈ 2000mg 钠，这就是一天的上限，不是 1500
+  if (projected <= 2000) return "light";
+  if (projected <= 3200) return "medium";
   return "heavy";
 }
