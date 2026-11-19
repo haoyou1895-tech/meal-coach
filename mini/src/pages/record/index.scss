@@ -1,178 +1,541 @@
-.page {
-  min-height: 100vh;
-  padding: 24rpx 32rpx 60rpx;
-  background: var(--page-bg);
+/**
+ * 记录页样式。数值照 web/src/components/RecordView.tsx 与 WeightTrend.tsx 抄。
+ * h-40 = 170px、h-12 = 51px、h-9 = 38.25px —— 又是 17px 根字号那一层换算。
+ */
+
+/* ---------- 标题 ---------- */
+
+.rec-head {
+  /* 网页版 safe-top px-5 pb-3 pt-5，safe-top 把 pt 覆盖成 0 */
+  padding: 0 tw(5) tw(3);
 }
 
-/* ---------- 体重 ---------- */
-.weight {
-  padding: 36rpx;
+.rec-title {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.675px;
+  /* 网页版 h1 没写 leading，吃的是 1.5 —— 写成 1.2 会让标题块矮 8px，
+     下面所有内容跟着往上顶，越往下差得越多 */
+  line-height: 1.5;
 }
 
-.weight-row {
+/* ---------- 体重卡 ---------- */
+
+.wt-top {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
 }
 
-.weight-label {
-  font-size: 26rpx;
-  color: var(--ink-500);
+.wt-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-500;
 }
 
-.weight-nums {
+.wt-nums {
   display: flex;
   align-items: baseline;
-  margin-top: 8rpx;
+  gap: tw(1.5);
+  margin-top: tw(1);
 }
 
-.weight-num {
-  font-size: 72rpx;
+.wt-num {
+  font-size: 46px;
   font-weight: 700;
   line-height: 1;
 }
 
-.weight-unit {
-  margin-left: 10rpx;
-  font-size: 28rpx;
-  color: var(--ink-500);
+.wt-unit {
+  font-size: 16px;
+  font-weight: 500;
+  color: $ink-500;
 }
 
-.weight-target {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 48rpx;
-  font-weight: 600;
-  color: var(--brand-600);
-  line-height: 1;
-}
-
-.weight-delta {
-  display: block;
-  margin-top: 16rpx;
-  font-size: 26rpx;
-  color: var(--ink-500);
-}
-
-.weight-btn {
-  margin-top: 24rpx;
-  height: 88rpx;
-  border-radius: 24rpx;
-  background: var(--brand-50);
+.wt-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: tw(12);
+  padding: 0 tw(5);
+  border-radius: tw(3);
+  background: $brand-50;
 }
 
-.weight-btn-text {
-  font-size: 30rpx;
+.wt-btn-text {
+  font-size: 16px;
   font-weight: 600;
-  color: var(--brand-600);
+  color: $brand-600;
 }
 
-.weight-edit {
+.wt-stats {
   display: flex;
-  align-items: center;
-  margin-top: 24rpx;
+  gap: tw(3);
+  margin-top: tw(4);
+  padding-top: tw(4);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.weight-input {
+.wt-stat {
   flex: 1;
-  height: 88rpx;
-  padding: 0 24rpx;
-  border-radius: 24rpx;
-  background: rgba(0, 0, 0, 0.04);
-  font-size: 34rpx;
 }
 
-.weight-ok {
-  width: 140rpx;
-  height: 88rpx;
-  margin-left: 16rpx;
-  border-radius: 24rpx;
-  background: var(--brand-500);
+.wt-stat-label {
+  display: block;
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.wt-stat-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.wt-stat-value.is-down {
+  color: $brand-500;
+}
+
+.wt-stat-value.is-up {
+  color: $warn-600;
+}
+
+/* ---------- 体重折线 ---------- */
+
+.trend-chart {
+  width: 100%;
+  height: 92px;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.trend-axis {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: tw(1);
+}
+
+.trend-axis-text {
+  font-size: 12px;
+  color: $ink-300;
+}
+
+.trend-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: tw(3);
+  padding-top: tw(3);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.trend-foot-label {
+  display: block;
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.trend-delta {
+  display: block;
+  margin-top: tw(0.5);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: $ink-700;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-delta.is-down {
+  color: $brand-500;
+}
+
+.trend-right {
+  text-align: right;
+}
+
+.trend-remain {
+  display: block;
+  margin-top: tw(0.5);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-verdict {
+  display: block;
+  margin-top: tw(3);
+  font-size: 14px;
+  line-height: 1.625;
+  color: $ink-700;
+}
+
+.trend-hint {
+  display: block;
+  margin-top: tw(4);
+  padding: 0 tw(5);
+  font-size: 13px;
+  line-height: 1.625;
+  color: $ink-300;
+}
+
+/* ---------- 近 7 天柱状图 ---------- */
+
+.bars {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: tw(1.5);
+  height: tw(40);
+}
+
+/* 预算虚线：七段拼成一条阶梯，不是一根通到底的线 */
+.budget-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  gap: tw(1.5);
+  height: 104px;
+  pointer-events: none;
+}
+
+.budget-seg {
+  flex: 1;
+  border-top: 1px dashed rgba(232, 135, 30, 0.6);
+}
+
+.budget-v {
+  position: absolute;
+  z-index: 10;
+  border-left: 1px dashed rgba(232, 135, 30, 0.6);
+  pointer-events: none;
+}
+
+.bar-col {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: tw(1.5);
+  height: 100%;
+}
+
+.bar-kcal {
+  font-size: 12px;
+  line-height: 1;
+  color: $ink-300;
+}
+
+.bar {
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: hidden;
+  border-radius: tw(1.5);
+}
+
+.bar-part {
+  width: 100%;
+}
+
+.chart-days {
+  display: flex;
+  justify-content: space-between;
+  gap: tw(2);
+  margin-top: tw(2);
+}
+
+.chart-day {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  color: $ink-300;
+}
+
+.chart-legend {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: tw(2.5);
+  margin-top: tw(2.5);
+  padding-top: tw(2.5);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.weight-ok-text {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #ffffff;
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: tw(1);
 }
 
-/* ---------- 列表 ---------- */
-.section-title {
-  display: block;
-  margin: 40rpx 8rpx 16rpx;
-  font-size: 26rpx;
-  color: var(--ink-300);
+.legend-dot {
+  width: tw(2);
+  height: tw(2);
+  border-radius: 2px;
 }
 
-.day {
-  margin-bottom: 16rpx;
-  padding: 28rpx 32rpx;
+.legend-text {
+  font-size: 12px;
+  color: $ink-300;
+}
+
+.legend-budget {
+  display: flex;
+  align-items: center;
+  gap: tw(1);
+  margin-left: auto;
+}
+
+.legend-dash {
+  width: tw(3.5);
+  border-top: 1px dashed rgba(232, 135, 30, 0.7);
+}
+
+/* ---------- 吃过的 ---------- */
+
+.empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: tw(9) 0;
+}
+
+.empty-text {
+  font-size: 16px;
+  color: $ink-500;
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: tw(5);
 }
 
 .day-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding-bottom: 16rpx;
-  border-bottom: 2rpx solid rgba(0, 0, 0, 0.05);
+  margin-bottom: tw(2);
+  padding: 0 tw(1);
 }
 
 .day-date {
-  font-size: 28rpx;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--ink-700);
+  color: $ink-700;
 }
 
 .day-kcal {
-  font-size: 26rpx;
-  color: var(--ink-500);
+  font-size: 13px;
+  color: $ink-300;
 }
 
-.meal-row {
+.day-list {
+  display: flex;
+  flex-direction: column;
+  gap: tw(2);
+}
+
+.rec-row {
   display: flex;
   align-items: center;
-  margin-top: 18rpx;
+  gap: tw(3);
+  padding: tw(3);
+  border-radius: tw(4);
+  background: #ffffff;
 }
 
-.meal-type {
-  width: 96rpx;
+.rec-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
   flex-shrink: 0;
-  font-size: 28rpx;
-  color: var(--ink-700);
+  border-radius: tw(3);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.04);
 }
 
-.meal-items {
+.rec-img {
+  width: 100%;
+  height: 100%;
+}
+
+.rec-photo-none {
+  font-size: 11px;
+  color: $ink-300;
+}
+
+.rec-mid {
   flex: 1;
   min-width: 0;
-  font-size: 26rpx;
-  color: var(--ink-500);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
-.meal-kcal {
-  margin-left: 16rpx;
-  font-size: 26rpx;
-  color: var(--ink-500);
+.rec-meta {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: $brand-600;
+  line-height: 1.5;
 }
 
-.empty {
-  padding: 32rpx;
+.rec-time {
+  font-weight: 400;
+  color: $ink-500;
 }
 
-.empty-text {
-  font-size: 28rpx;
-  line-height: 1.6;
-  color: var(--ink-500);
+.rec-edited {
+  font-weight: 400;
+  color: $ink-300;
 }
 
-.tail {
-  height: 40rpx;
+.rec-items {
+  margin-top: 2.125px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.375;
+}
+
+.rec-kcal {
+  display: block;
+  margin-top: 2.125px;
+  font-size: 13px;
+  color: $ink-500;
+}
+
+.rec-acts {
+  display: flex;
+  flex-direction: column;
+  gap: tw(1.5);
+  flex-shrink: 0;
+}
+
+.rec-act {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: tw(9);
+  height: tw(9);
+  border-radius: tw(2);
+}
+
+.rec-act.is-edit {
+  background: $brand-50;
+}
+
+.rec-act.is-del {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.disclaimer {
+  display: block;
+  margin-top: tw(8);
+  padding: 0 tw(8);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.625;
+  color: $ink-300;
+}
+
+/* ---------- 记体重的弹层 ---------- */
+
+.sheet-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.sheet {
+  padding: tw(4) tw(5) tw(7);
+  border-radius: 28px 28px 0 0;
+  background: $page-bg;
+}
+
+.sheet-title {
+  display: block;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.sheet-hint {
+  display: block;
+  margin: tw(6) 0;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.625;
+  color: $ink-500;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: tw(2);
+}
+
+.step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: tw(16);
+  height: tw(16);
+  flex-shrink: 0;
+  border-radius: tw(4);
+  background: #ffffff;
+  box-shadow: $shadow-sm;
+}
+
+.step-sign {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: $ink-700;
+}
+
+.step-mid {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: center;
+  gap: tw(1.5);
+}
+
+.step-input {
+  width: 4.4em;
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  border-bottom: 2px solid $brand-500;
+}
+
+.step-unit {
+  font-size: 17px;
+  font-weight: 500;
+  color: $ink-500;
+}
+
+.sheet-ok {
+  margin-top: tw(8);
+}
+
+.sheet-ok-text {
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 600;
 }

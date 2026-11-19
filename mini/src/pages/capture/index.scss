@@ -1,125 +1,137 @@
-.page {
-  min-height: 100vh;
-  padding: 24rpx 32rpx 40rpx;
-  background: var(--page-bg);
+@import "../../styles/var.scss";
+
+/**
+ * 拍照记录页。数值对着 web/src/components/CameraSheet.tsx。
+ *
+ * 上一版这里全用 rpx —— 小程序里 rpx 合法，但 h5 产物里 rpx 原样输出，
+ * 浏览器不认这个单位，整条规则被丢弃，于是预览时这一页完全没样式。
+ * 现在跟其他页一样用 px + tw()，两端同一套数。
+ */
+
+.page.cap {
+  padding: tw(4) tw(5) tw(6);
 }
 
 /* ---------- 选图 ---------- */
+
 .pick {
-  padding: 80rpx 16rpx 0;
+  padding-top: tw(10);
 }
 
 .pick-title {
   display: block;
-  font-size: 44rpx;
+  font-size: 27px;
   font-weight: 700;
+  line-height: 1.375;
+  letter-spacing: -0.675px;
 }
 
 .pick-sub {
   display: block;
-  margin-top: 16rpx;
-  font-size: 30rpx;
+  margin-top: tw(2);
+  font-size: 16px;
   line-height: 1.6;
-  color: var(--ink-500);
+  color: $ink-500;
 }
 
+/* 主按钮：跟网页版 .btn-primary 同一套（h-16 rounded-2xl text-[19px]） */
 .pick-btn {
-  margin-top: 32rpx;
-  height: 116rpx;
-  border-radius: 32rpx;
-  background: var(--brand-500);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12rpx 32rpx rgba(31, 138, 91, 0.3);
+  margin-top: tw(7);
+  height: tw(16); /* 68 */
+  border-radius: tw(4); /* 17 */
+  background: $brand-500;
+  box-shadow: 0 8px 24px rgba(31, 138, 91, 0.28);
 }
 
-.pick-btn:active {
-  background: var(--brand-600);
+.pick-btn.is-down {
+  background: $brand-600;
 }
 
 .pick-btn-text {
-  font-size: 36rpx;
-  font-weight: 700;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
   color: #ffffff;
 }
 
+/* 次按钮：白底、虚线边，跟网页版的「从相册选」一致 */
 .pick-btn.ghost {
+  margin-top: tw(2.5);
   background: #ffffff;
-  border: 2rpx solid rgba(182, 189, 185, 0.7);
+  border: 1px solid rgba(182, 189, 185, 0.6);
   box-shadow: none;
 }
 
-.pick-btn.ghost:active {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.ghost-text {
-  color: var(--ink-700);
-  font-weight: 600;
+.pick-btn.ghost .pick-btn-text {
+  color: $brand-600;
+  font-weight: 500;
+  font-size: 17px;
 }
 
 /* ---------- 预览 ---------- */
-.preview {
-  margin-top: 16rpx;
-}
 
 .preview-img {
   width: 100%;
-  height: 460rpx;
-  border-radius: 40rpx;
+  height: 260px;
+  margin-top: tw(5);
+  border-radius: tw(6); /* 25.5 */
   background: #dfe5e1;
-}
-
-.preview-body {
-  margin-top: 32rpx;
 }
 
 .preview-label {
   display: block;
-  font-size: 27rpx;
-  color: var(--ink-500);
+  margin-top: tw(5);
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-700;
 }
 
 .note-input {
-  margin-top: 16rpx;
-  height: 96rpx;
-  padding: 0 28rpx;
-  border-radius: 24rpx;
+  width: 100%;
+  height: 64px;
+  margin-top: tw(2);
+  padding: tw(3) tw(4);
+  border-radius: tw(4);
   background: #ffffff;
-  font-size: 30rpx;
+  font-size: 17px;
+  line-height: 1.5;
+  color: $ink-700;
 }
 
 .err {
   display: block;
-  margin-top: 20rpx;
-  font-size: 27rpx;
+  margin-top: tw(3);
+  font-size: 15px;
   line-height: 1.5;
-  color: #d94f3d;
+  color: #b23c2c;
 }
 
 /* ---------- 识别中 ---------- */
+
 .busy {
-  padding: 60rpx 16rpx 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding-top: tw(12);
 }
 
 .busy-img {
-  width: 360rpx;
-  height: 360rpx;
-  border-radius: 48rpx;
+  width: 176px;
+  height: 176px;
+  border-radius: tw(4);
   background: #dfe5e1;
 }
 
 .spinner {
-  width: 64rpx;
-  height: 64rpx;
-  margin-top: 48rpx;
+  width: 32px;
+  height: 32px;
+  margin-top: tw(6);
   border-radius: 50%;
-  border: 6rpx solid var(--brand-100);
-  border-top-color: var(--brand-500);
+  border: 3px solid $brand-100;
+  border-top-color: $brand-500;
   animation: spin 0.9s linear infinite;
 }
 
@@ -130,62 +142,63 @@
 }
 
 .busy-text {
-  margin-top: 28rpx;
-  font-size: 32rpx;
-  font-weight: 600;
+  margin-top: tw(4);
+  font-size: 17px;
+  font-weight: 500;
+  color: $ink-700;
 }
 
 .busy-sub {
-  margin-top: 10rpx;
-  font-size: 26rpx;
-  color: var(--ink-300);
+  margin-top: tw(1);
+  font-size: 14px;
+  color: $ink-300;
 }
 
 /* ---------- 结果 ---------- */
+
 .result-img {
   width: 100%;
-  height: 300rpx;
-  border-radius: 40rpx;
+  height: 150px;
+  border-radius: tw(6);
   background: #dfe5e1;
 }
 
-.card {
-  margin-top: 24rpx;
-  padding: 32rpx;
+.card.mealtype-card {
+  margin-top: tw(4);
 }
 
 .field-label {
-  font-size: 27rpx;
-  color: var(--ink-500);
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-500;
 }
 
+/* 餐次四个按钮：网页版是 h-12 rounded-xl text-[16px]，选中的绿底白字 */
 .row {
   display: flex;
-  margin-top: 16rpx;
+  gap: tw(2);
+  margin-top: tw(2.5);
 }
 
 .chip {
-  flex: 1;
-  height: 80rpx;
-  margin-right: 14rpx;
-  border-radius: 20rpx;
-  background: rgba(0, 0, 0, 0.04);
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
-}
-
-.chip:last-child {
-  margin-right: 0;
+  height: tw(12); /* 51 */
+  border-radius: tw(3); /* 12.75 */
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .chip.is-on {
-  background: var(--brand-500);
+  background: $brand-500;
 }
 
 .chip-text {
-  font-size: 29rpx;
-  color: var(--ink-700);
+  font-size: 16px;
+  font-weight: 500;
+  color: $ink-700;
 }
 
 .chip.is-on .chip-text {
@@ -200,31 +213,36 @@
 }
 
 .kcal-big {
-  font-size: 36rpx;
+  font-size: 28px;
   font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
 .demo-tip {
   display: block;
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #a9631a;
+  margin-top: tw(2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: $warn-600;
 }
 
 .empty-tip {
   display: block;
-  margin-top: 20rpx;
-  font-size: 28rpx;
+  margin-top: tw(3);
+  font-size: 15px;
   line-height: 1.6;
-  color: var(--ink-500);
+  color: $ink-500;
 }
 
+/* 一道菜一行：白底圆角块，跟网页版结果列表同构 */
 .item-row {
   display: flex;
   align-items: center;
-  margin-top: 24rpx;
-  padding-top: 24rpx;
-  border-top: 2rpx solid rgba(0, 0, 0, 0.05);
+  margin-top: tw(2);
+  padding: tw(3) tw(4);
+  border-radius: tw(4);
+  background: rgba(0, 0, 0, 0.025);
 }
 
 .item-left {
@@ -233,91 +251,115 @@
 }
 
 .item-name {
-  font-size: 32rpx;
-  font-weight: 600;
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  color: $ink-900;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .item-portion {
   display: block;
-  margin-top: 4rpx;
-  font-size: 25rpx;
-  color: var(--ink-300);
+  margin-top: tw(0.5);
+  font-size: 13px;
+  color: $ink-300;
 }
 
 .item-kcal {
-  margin-right: 20rpx;
-  font-size: 30rpx;
-  color: var(--ink-700);
+  margin-right: tw(3);
+  font-size: 15px;
+  font-weight: 600;
+  color: $ink-700;
+  font-variant-numeric: tabular-nums;
 }
 
 .item-del {
-  width: 72rpx;
-  height: 56rpx;
-  border-radius: 16rpx;
-  background: rgba(217, 79, 61, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
+  width: tw(9);
+  height: tw(9);
+  border-radius: tw(2);
+  background: rgba(217, 79, 61, 0.08);
 }
 
 .item-del-text {
-  font-size: 26rpx;
-  color: #d94f3d;
+  font-size: 13px;
+  color: $danger-500;
 }
 
 .comment {
   display: block;
-  margin-top: 28rpx;
-  padding-top: 24rpx;
-  border-top: 2rpx solid rgba(0, 0, 0, 0.05);
-  font-size: 28rpx;
+  margin-top: tw(4);
+  padding-top: tw(3.5);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 15px;
   line-height: 1.6;
-  color: var(--ink-700);
+  color: $ink-700;
 }
 
-.macros {
+/* 营养四格：网页版是 rounded-xl bg-white py-2.5 的小卡 */
+.card.macros {
   display: flex;
+  gap: tw(2);
+  margin-top: tw(3);
+  padding: tw(3);
 }
 
 .macro-cell {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
+  padding: tw(2.5) 0;
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.025);
 }
 
 .macro-cell-value {
-  font-size: 34rpx;
+  font-size: 18px;
   font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
 .macro-cell-unit {
-  font-size: 22rpx;
+  font-size: 11px;
   font-weight: 400;
-  color: var(--ink-300);
+  color: $ink-300;
 }
 
 .macro-cell-label {
-  margin-top: 6rpx;
-  font-size: 24rpx;
-  color: var(--ink-300);
+  margin-top: tw(1);
+  font-size: 13px;
+  color: $ink-500;
 }
 
 /* ---------- 底部按钮 ---------- */
+
 .bottom-space {
-  height: 260rpx;
+  height: 160px;
 }
 
 .bottom {
   position: fixed;
-  left: 32rpx;
-  right: 32rpx;
-  bottom: 24rpx;
-  padding-top: 20rpx;
-  background: linear-gradient(to top, var(--page-bg) 60%, rgba(244, 246, 244, 0));
+  left: tw(5);
+  right: tw(5);
+  bottom: 0;
+  padding: tw(4) 0 calc(env(safe-area-inset-bottom) + 12px);
+  background: linear-gradient(
+    to top,
+    $page-bg 55%,
+    rgba(244, 246, 244, 0)
+  );
 }
 
 .bottom .pick-btn {
-  margin-top: 16rpx;
-  height: 104rpx;
+  margin-top: 0;
+}
+
+.bottom .pick-btn.ghost {
+  margin-top: tw(2);
 }

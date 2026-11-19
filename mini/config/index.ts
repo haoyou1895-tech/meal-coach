@@ -1,18 +1,25 @@
+import path from "node:path";
 import devConfig from "./dev";
 import prodConfig from "./prod";
 
 /**
  * Taro 4 + webpack5。
  *
- * designWidth 750：设计稿按 750 宽写，样式里 1px 就是 1rpx。
- * 网页版的字号是「手机实际像素」（17px），搬过来要乘 2 变成 34rpx，
- * 否则在手机上会小一半 —— 这个 App 是给 46 岁的人看的，字号不能缩水。
+ * designWidth 375 + deviceRatio 375:2 —— 这是为了让**样式能一比一照抄网页版**。
+ *
+ * 之前的写法是 designWidth 750，1px 输出 1rpx，于是每个数值都要人工乘 2
+ * （网页版 17px 字号要写成 34rpx）。乘错了看不出来，只是"感觉不一样"——
+ * 而"感觉不一样"正是这次返工的原因。现在 SCSS 里写 17px，
+ * 编译成 34rpx，在 375pt 的屏幕上就是 17pt，跟网页版同一个字。
+ *
+ * h5 那边关掉 pxtransform：浏览器里 1px 就是 1px，
+ * 这样电脑上预览和网页版可以逐像素对照。
  */
 export default async function (merge) {
   const baseConfig = {
     projectName: "canmou-mini",
     date: "2026-11-19",
-    designWidth: 750,
+    designWidth: 375,
     deviceRatio: {
       640: 2.34 / 2,
       750: 1,
@@ -29,6 +36,13 @@ export default async function (merge) {
       options: {},
     },
     framework: "react",
+    /**
+     * 每个 .scss 自动注入换算基准（$u / tw() / 颜色）。
+     * 不注入的话每个文件都得手写 @import，漏一个就是编译报错。
+     */
+    sass: {
+      resource: [path.resolve(__dirname, "../src/styles/var.scss")],
+    },
     compiler: {
       type: "webpack5",
       prebundle: { enable: false },
@@ -56,6 +70,11 @@ export default async function (merge) {
         chunkFilename: "css/[name].[chunkhash].css",
       },
       postcss: {
+        // 浏览器里不需要缩放：px 保持 px，好跟网页版逐像素对照
+        pxtransform: {
+          enable: false,
+          config: {},
+        },
         autoprefixer: {
           enable: true,
           config: {},

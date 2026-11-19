@@ -1,129 +1,198 @@
-.page {
-  min-height: 100vh;
-  padding: 24rpx 32rpx 0;
-  background: var(--page-bg);
-}
+/**
+ * 首页样式。数值全部来自网页版 HomeView.tsx 的 Tailwind 类，
+ * 用 tw() 换算（1 单位 = 4.25px，即 17px 根字号下的 0.25rem）。
+ *
+ * 对照关系举例：
+ *   mt-3  → tw(3)  = 12.75px
+ *   gap-2 → tw(2)  = 8.5px
+ *   h-16  → tw(16) = 68px
+ *   text-[15px] → 15px（任意值，不随 rem 变）
+ *
+ * .page / .sec / .mtN 这些跨页共用的骨架在 app.scss 里。
+ */
 
 /* ---------- 顶部 ---------- */
-.head {
-  padding: 16rpx 8rpx 28rpx;
-}
 
-.head-date {
-  display: block;
-  font-size: 26rpx;
-  color: var(--ink-300);
-}
-
-.head-title {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 44rpx;
-  font-weight: 700;
-  letter-spacing: -0.5rpx;
-}
-
-/* ---------- 下一顿这样吃 ---------- */
-.advice {
-  padding: 36rpx 36rpx 32rpx;
-  background: #ffffff;
-}
-
-.advice-headline {
-  display: block;
-  font-size: 36rpx;
-  font-weight: 700;
-}
-
-.advice.tone-over .advice-headline {
-  color: #b23c2c;
-}
-
-.parts {
+.hd {
   display: flex;
-  margin-top: 24rpx;
+  align-items: flex-start;
+  justify-content: space-between;
+  /* 网页版这里写着 pt-3，但 globals.css 的 .safe-top 把 padding-top 覆盖成了
+     env(safe-area-inset-top)（浏览器里是 0），所以实际顶部内边距是 0。
+     照实测来，不照意图来 —— 差这 12.75px，整页就会比网页版低一截。 */
+  padding: 0 tw(5) tw(2);
 }
 
-.part {
-  flex: 1;
-  height: 104rpx;
-  margin-right: 16rpx;
-  border-radius: 28rpx;
+.hd-left {
+  min-width: 0;
+}
+
+.hd-date {
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-900;
+  line-height: 1.5;
+}
+
+.hd-streak {
+  display: flex;
+  align-items: center;
+  gap: tw(1);
+  margin-top: tw(1);
+}
+
+.hd-streak-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: $brand-600;
+  line-height: 1.5;
+}
+
+.hd-none {
+  display: block;
+  margin-top: tw(1);
+  font-size: 14px;
+  color: $ink-300;
+  line-height: 1.5;
+}
+
+/* h-11 w-11 rounded-full bg-white shadow-sm，右移出 1 个单位（-mr-1） */
+.hd-set {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: tw(11);
+  height: tw(11);
+  margin-right: tw(-1);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: $shadow-sm;
 }
 
-.part:last-child {
-  margin-right: 0;
+/* ---------- 通用段落 ---------- */
+
+/* ---------- 吃饭提醒 ---------- */
+
+.reminder {
+  display: flex;
+  align-items: flex-start;
+  gap: tw(2);
+  margin: tw(1) tw(5);
+  padding: tw(2.5) tw(3.5);
+  border-radius: tw(4);
+  background: #fff4e5;
 }
 
-.part-label {
-  font-size: 30rpx;
-  font-weight: 600;
-}
-
-.part-carb {
-  background: #fdf6e7;
-}
-
-.part-carb .part-label {
-  color: #8a6316;
-}
-
-.part-meat {
-  background: #fbeee9;
-}
-
-.part-meat .part-label {
-  color: #8d4534;
-}
-
-.part-veg {
-  background: #eef6f0;
-}
-
-.part-veg .part-label {
-  color: #2f6b48;
-}
-
-.part.is-dim {
-  opacity: 0.5;
-}
-
-.advice-detail {
-  display: block;
-  margin-top: 20rpx;
-  font-size: 28rpx;
-  line-height: 1.5;
-  color: var(--ink-500);
-}
-
-.advice-caution {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 26rpx;
+.reminder-text {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.625;
   color: #a9631a;
 }
 
-/* ---------- 环 + 提醒 + 营养条 ---------- */
+/* ---------- 下一步吃什么 ---------- */
+
+.advice {
+  border-radius: tw(4);
+  padding: tw(3.5);
+}
+
+.advice.tone-good {
+  background: #eaf5ef;
+}
+.advice.tone-warn {
+  background: #fff4e5;
+}
+.advice.tone-over {
+  background: #fdecea;
+}
+
+.advice-head {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+}
+
+.advice-headline {
+  font-size: 15px;
+  font-weight: 600;
+  color: $ink-500;
+  line-height: 1.5;
+}
+
+/* 三格：圆角 12.75、白底 75%、上下 10.625 */
+.advice-parts {
+  display: flex;
+  gap: tw(2);
+  margin-top: tw(2.5);
+}
+
+.advice-part {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: tw(1);
+  padding: tw(2.5) 0;
+  border-radius: tw(3);
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.advice-part-label {
+  font-size: 12px;
+  line-height: 1;
+  color: $ink-500;
+}
+
+.advice-part-value {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: $ink-700;
+}
+
+.advice-caution {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+  margin-top: tw(2);
+}
+
+.advice-caution-text {
+  font-size: 13px;
+  line-height: 1.25;
+  color: $ink-500;
+}
+
+/* ---------- 圆环 + 提醒清单 ---------- */
+
 .dash {
-  margin-top: 24rpx;
-  padding: 32rpx 28rpx 24rpx;
+  background: #ffffff;
+  border-radius: tw(6);
+  padding: tw(4) tw(3.5) tw(3);
 }
 
 .dash-top {
   display: flex;
   align-items: center;
+  gap: tw(3);
 }
 
 .ring {
-  width: 220rpx;
-  height: 220rpx;
+  position: relative;
+  width: 104px;
+  height: 104px;
   flex-shrink: 0;
-  margin-right: 20rpx;
   background-size: 100% 100%;
   background-repeat: no-repeat;
+}
+
+.ring-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -131,192 +200,601 @@
 }
 
 .ring-label {
-  font-size: 22rpx;
-  color: var(--ink-300);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: $ink-500;
 }
 
 .ring-num {
-  margin-top: 4rpx;
-  font-size: 52rpx;
+  margin-top: tw(0.5);
+  font-size: 26px;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: -0.65px;
+  font-variant-numeric: tabular-nums;
 }
 
-.ring-sub {
-  margin-top: 6rpx;
-  font-size: 20rpx;
-  color: var(--ink-300);
+.ring-budget {
+  margin-top: tw(1);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: $ink-300;
+  font-variant-numeric: tabular-nums;
 }
 
 .notes {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: tw(2);
 }
 
 .note {
   display: flex;
-  align-items: center;
-  margin-bottom: 12rpx;
+  align-items: flex-start;
+  gap: tw(2);
 }
 
-.dot {
-  width: 12rpx;
-  height: 12rpx;
+/* mt-[7px]：让 7px 的圆点跟第一行文字的中线对齐 */
+.note-dot-wrap {
+  margin-top: 7px;
+}
+
+.note-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  margin-right: 12rpx;
-  flex-shrink: 0;
 }
 
-.note-text {
-  font-size: 27rpx;
+.note-head {
+  font-size: 15px;
   font-weight: 600;
-  margin-right: 10rpx;
+  line-height: 1.375;
 }
 
-.note-tip {
-  font-size: 26rpx;
-  color: var(--ink-500);
+.note-tail {
+  margin-left: tw(1);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.note-tail.is-bold {
+  font-weight: 600;
 }
 
 .note-quiet {
-  font-size: 28rpx;
-  color: var(--ink-500);
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.375;
+  color: $ink-500;
 }
 
+/* 三条营养素：上边框隔开，跟热量是同一笔账 */
 .macros {
   display: flex;
-  margin-top: 24rpx;
-  padding-top: 24rpx;
-  border-top: 2rpx solid rgba(0, 0, 0, 0.06);
+  gap: tw(3);
+  margin-top: tw(3);
+  padding-top: tw(3);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .macro {
   flex: 1;
-  margin-right: 20rpx;
+  min-width: 0;
 }
 
-.macro:last-child {
-  margin-right: 0;
+.macro-head {
+  display: flex;
+  align-items: center;
+  gap: tw(1);
 }
 
 .macro-label {
-  font-size: 25rpx;
+  font-size: 13px;
+  line-height: 1;
+  color: $ink-500;
 }
 
 .macro-nums {
   display: flex;
   align-items: baseline;
-  margin-top: 8rpx;
+  gap: tw(0.5);
+  margin-top: tw(1.5);
 }
 
-.macro-value {
-  font-size: 36rpx;
+.macro-val {
+  font-size: 18px;
   font-weight: 600;
   line-height: 1;
 }
 
 .macro-target {
-  font-size: 22rpx;
-  color: var(--ink-300);
+  font-size: 11px;
+  line-height: 1;
+  color: $ink-300;
 }
 
 .macro-track {
-  margin-top: 12rpx;
-  height: 10rpx;
-  border-radius: 8rpx;
+  height: tw(2);
+  margin-top: tw(1.5);
+  border-radius: 999px;
   background: rgba(0, 0, 0, 0.07);
   overflow: hidden;
 }
 
 .macro-fill {
   height: 100%;
-  border-radius: 8rpx;
+  border-radius: 999px;
+}
+
+/* ---------- 定计划 ---------- */
+
+.plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: tw(2);
+  padding: tw(1) 0;
+}
+
+.plan-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: $ink-500;
+  line-height: 1.5;
+}
+
+/* 行内加粗数字：字重提上去，颜色跟着加深 */
+.b {
+  font-weight: 600;
+  color: $ink-700;
+  font-variant-numeric: tabular-nums;
+}
+
+.b.danger {
+  color: #b23c2c;
+}
+
+/* 胶囊：背景 5.5% 黑，展开时变浅绿 */
+.plan-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: tw(1.5) tw(2.5);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.055);
+  flex-shrink: 0;
+}
+
+.plan-pill.is-open {
+  background: $brand-50;
+}
+
+.plan-pill-text {
+  font-size: 12px;
+  line-height: 1;
+  color: $ink-500;
+}
+
+.plan-pill.is-open .plan-pill-text {
+  color: $brand-700;
+}
+
+/* 三个点是固定 px（h-[8px]/h-[10px]），不随 rem 缩放 */
+.plan-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.26);
+}
+
+.plan-dot.is-on {
+  width: 10px;
+  height: 10px;
+  background: $brand-500;
+}
+
+.plan-panel {
+  margin-top: tw(2);
+  padding: tw(3) tw(3.5);
+  border-radius: tw(4);
+  background: rgba(0, 0, 0, 0.035);
+  font-size: 13px;
+  line-height: 1.625;
+  color: $ink-500;
+}
+
+/* 三档卡片上面那段，下面用一条细线跟解释分开 */
+.speeds-wrap {
+  padding-bottom: tw(2.5);
+  margin-bottom: tw(2);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.speeds {
+  display: flex;
+  gap: tw(1.5);
+}
+
+.speed {
+  flex: 1;
+  padding: tw(2) tw(1);
+  border-radius: tw(3);
+  background: #ffffff;
+  text-align: center;
+}
+
+.speed.is-on {
+  background: $brand-500;
+}
+
+.speed-label {
+  display: block;
+  font-size: 11px;
+  line-height: 1;
+  color: $ink-300;
+}
+
+.speed-weeks {
+  display: block;
+  margin-top: tw(1);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  color: $ink-500;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-budget {
+  display: block;
+  margin-top: tw(1);
+  font-size: 11px;
+  line-height: 1;
+  color: $ink-300;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed.is-on .speed-weeks {
+  color: #ffffff;
+}
+
+.speed.is-on .speed-label,
+.speed.is-on .speed-budget {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.plan-note {
+  display: block;
+  margin-top: tw(2);
+  font-size: 12px;
+  line-height: 1.625;
+  color: $ink-500;
+}
+
+.plan-p {
+  display: block;
+  margin-top: tw(2);
+  font-size: 13px;
+  line-height: 1.625;
+  color: $ink-500;
 }
 
 /* ---------- 今天吃了 ---------- */
-.section {
-  margin-top: 40rpx;
-}
 
-.section-title {
-  display: block;
-  margin: 0 8rpx 16rpx;
-  font-size: 26rpx;
-  color: var(--ink-300);
-}
-
-.meal {
-  margin-bottom: 16rpx;
-  padding: 28rpx 32rpx;
+.sec-head {
   display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: tw(2.5);
+}
+
+.sec-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.sec-sub {
+  font-size: 14px;
+  color: $ink-300;
+}
+
+/* 分段控件：按顿看 / 按热量排 */
+.seg {
+  display: flex;
+  gap: tw(1);
+  margin-bottom: tw(2.5);
+  padding: tw(1);
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.seg-btn {
+  display: flex;
+  flex: 1;
   align-items: center;
+  justify-content: center;
+  height: tw(8);
+  border-radius: tw(2);
+}
+
+.seg-btn.is-on {
+  background: #ffffff;
+  box-shadow: $shadow-sm;
+}
+
+.seg-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: $ink-500;
+}
+
+.seg-btn.is-on .seg-text {
+  color: $ink-700;
+}
+
+/* 空状态：虚线框 + 相机 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: tw(6) 0;
+  border: 1px dashed rgba(182, 189, 185, 0.5);
+  border-radius: tw(4);
+}
+
+.empty-text {
+  margin-top: tw(2);
+  font-size: 15px;
+  color: $ink-300;
+}
+
+/* ---------- 餐卡 ---------- */
+
+.meals {
+  display: flex;
+  flex-direction: column;
+  gap: tw(2.5);
+}
+
+.meal-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: tw(3);
 }
 
 .meal-left {
   flex: 1;
   min-width: 0;
-  margin-right: 20rpx;
 }
 
-.meal-type {
-  font-size: 32rpx;
-  font-weight: 600;
+.meal-meta {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+}
+
+.meal-meta-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: $ink-500;
+}
+
+.meal-time {
+  font-size: 13px;
+  color: $ink-500;
 }
 
 .meal-items {
-  display: block;
-  margin-top: 6rpx;
-  font-size: 26rpx;
-  color: var(--ink-500);
-  line-height: 1.45;
+  margin-top: tw(1);
+  font-size: 18px;
+  font-weight: 500;
 }
 
 .meal-kcal {
-  font-size: 34rpx;
+  flex-shrink: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+}
+
+.meal-tags {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+  margin-top: tw(2);
+}
+
+.meal-tag {
+  font-size: 13px;
+  color: $ink-500;
+}
+
+.meal-verdict {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+  margin-top: tw(2.5);
+  padding-top: tw(2.5);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.meal-verdict-short {
+  font-size: 16px;
   font-weight: 600;
-  color: var(--ink-700);
+  line-height: 1;
+  flex-shrink: 0;
 }
 
-.empty {
-  padding: 32rpx;
+.meal-verdict-tip {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: $ink-300;
 }
 
-.empty-text {
-  font-size: 28rpx;
-  color: var(--ink-500);
-  line-height: 1.6;
-}
-
-/* ---------- 悬浮按钮 ---------- */
-.fab-space {
-  height: 200rpx;
-}
-
-.fab {
-  position: fixed;
-  left: 32rpx;
-  right: 32rpx;
-  bottom: 24rpx;
-  z-index: 10;
-}
-
-.fab-btn {
-  height: 116rpx;
-  border-radius: 32rpx;
-  background: var(--brand-500);
-  box-shadow: 0 12rpx 36rpx rgba(31, 138, 91, 0.35);
+/* "今天还有 N 顿" */
+.log-more {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: tw(1);
+  padding: tw(2.5) 0;
+  border-radius: tw(3);
+  background: #ffffff;
 }
 
-.fab-btn:active {
-  background: var(--brand-600);
+.log-more-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: $ink-500;
 }
 
-.fab-text {
-  font-size: 36rpx;
+.log-arrow {
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s;
+}
+
+.log-arrow.is-open {
+  transform: rotate(180deg);
+}
+
+/* ---------- 按热量排 ---------- */
+
+.rank {
+  padding: 0 tw(3.5) tw(1);
+  border-radius: tw(4);
+  background: #ffffff;
+}
+
+.rank-top {
+  display: block;
+  padding-top: tw(3);
+  font-size: 14px;
+  line-height: 1.375;
+  color: $ink-500;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: tw(3);
+  padding: tw(2.5) 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.rank-row:last-child {
+  border-bottom: none;
+}
+
+.rank-no {
+  width: tw(5);
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 13px;
   font-weight: 700;
-  color: #ffffff;
+}
+
+.rank-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+.rank-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: tw(1.5);
+}
+
+.rank-name {
+  max-width: 100%;
+  font-size: 16px;
+  font-weight: 500;
+  color: $ink-700;
+}
+
+.rank-portion {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: $ink-300;
+}
+
+.rank-track {
+  height: 3px;
+  margin-top: tw(1.5);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.rank-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.rank-kcal {
+  width: tw(11);
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 600;
+  color: $ink-700;
+}
+
+.rank-more {
+  padding: tw(1.5) 0 tw(2);
+  text-align: center;
+}
+
+.rank-more-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: $brand-600;
+}
+
+/* ---------- 运动量 ---------- */
+
+.act-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: tw(2);
+}
+
+.act-label {
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.act-btns {
+  display: flex;
+  gap: tw(1);
+}
+
+.act-btn {
+  display: flex;
+  align-items: center;
+  height: tw(8);
+  padding: 0 tw(3);
+  border-radius: tw(2);
+}
+
+.act-btn.is-on {
+  background: $brand-50;
+}
+
+.act-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: $ink-300;
+}
+
+.act-btn.is-on .act-text {
+  color: $brand-700;
 }

@@ -1,0 +1,80 @@
+/* 底部操作区：白卡片浮起 + 绿色大按钮，对着网页版 page.tsx 的底部那块抄 */
+
+.bottombar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+}
+
+/* 顶部做一段渐变，让内容滚到按钮底下时是淡出的，不是被硬切一刀 */
+.bottombar-grad {
+  background: linear-gradient(to top, #f4f6f4 0%, #f4f6f4 55%, rgba(244, 246, 244, 0) 100%);
+  padding: tw(6) tw(5) tw(1);
+}
+
+.capture-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: tw(2.5); /* 10.625 */
+  height: tw(16); /* 68 */
+  width: 100%;
+  margin-bottom: tw(2.5);
+  border-radius: tw(4); /* 17 */
+  background: $brand-500;
+  box-shadow: 0 8px 24px rgba(31, 138, 91, 0.35);
+}
+
+.capture-btn:active,
+.capture-btn.tap {
+  background: $brand-600;
+}
+
+.capture-text {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tabs {
+  display: flex;
+  gap: tw(2);
+}
+
+.tab-btn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: tw(2);
+  height: tw(14); /* 59.5 */
+  border-radius: tw(4);
+  color: $ink-500;
+}
+
+.tab-btn.is-active {
+  background: #ffffff;
+  box-shadow: $shadow-sm;
+}
+
+.tab-label {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tab-btn.is-active .tab-label {
+  color: $brand-600;
+}
+
+/* iOS 底部那条 home indicator 要单独让开。
+   不用 calc(env() + rpx)：rpx 不是 CSS 标准单位，postcss 压缩器会报解析错误。 */
+.bottombar-safe {
+  background: $page-bg;
+  height: 12px;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: content-box;
+}

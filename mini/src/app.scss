@@ -1,69 +1,58 @@
 /**
- * 全局样式。配色照抄网页版 globals.css，一个值都没改 ——
- * 两端看起来得是同一样东西，不然用户换端会觉得换了产品。
- *
- * 单位说明：设计稿 750 宽，这里的 rpx 就是网页上的 px 乘 2。
- * 网页 17px 的字号 = 这里 34rpx。
+ * 全局样式。所有数值都对着网页版 globals.css 的 @layer components 抄，
+ * 单位用 px —— 编译时按 375 设计稿转成 rpx，在手机上跟网页版同一个尺寸。
+ * （换算细节见 styles/var.scss 顶部那段说明。）
  */
-page {
-  --brand-50: #eef8f2;
-  --brand-100: #d6eddf;
-  --brand-200: #aedcc2;
-  --brand-400: #4aa87a;
-  --brand-500: #1f8a5b;
-  --brand-600: #176f49;
-  --brand-700: #115639;
 
-  --warn-100: #fff1d6;
-  --warn-500: #e8871e;
-  --warn-600: #c56f10;
+/**
+ * h5 里没有 page 元素，所以变量和基础字色得同时挂在 page 和 :root 上，
+ * 否则浏览器里 var() 全失效：小程序里看着好好的，一预览就是白底白字。
+ */
+page,
+:root {
+  --brand-50: #{$brand-50};
+  --brand-100: #{$brand-100};
+  --brand-200: #{$brand-200};
+  --brand-400: #{$brand-400};
+  --brand-500: #{$brand-500};
+  --brand-600: #{$brand-600};
+  --brand-700: #{$brand-700};
 
-  --danger-100: #ffe4e0;
-  --danger-500: #d94f3d;
+  --warn-100: #{$warn-100};
+  --warn-500: #{$warn-500};
+  --warn-600: #{$warn-600};
 
-  --ink-900: #1b2320;
-  --ink-700: #3b4642;
-  --ink-500: #6b7671;
-  --ink-300: #b6bdb9;
+  --danger-100: #{$danger-100};
+  --danger-500: #{$danger-500};
 
-  --page-bg: #f4f6f4;
+  --ink-900: #{$ink-900};
+  --ink-700: #{$ink-700};
+  --ink-500: #{$ink-500};
+  --ink-300: #{$ink-300};
 
-  background: var(--page-bg);
-  color: var(--ink-900);
-  font-size: 34rpx;
+  --page-bg: #{$page-bg};
+
+  background: $page-bg;
+  color: $ink-900;
+  font-size: 17px;
+  /* 网页版 body 的 line-height 是 25.5px，即 1.5 */
+  line-height: 1.5;
   font-family: -apple-system, BlinkMacSystemFont, "HarmonyOS Sans SC",
     "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /**
- * h5 里没有 page 这个元素，变量得再挂一份到 :root，
- * 否则所有 var(--brand-500) 全部失效 —— 小程序里看着好好的，
- * 一到浏览器预览就是白底白字，排查起来很费劲。
- * 两段必须一模一样，改颜色记得两边都改。
+ * h5 运行时会把 html 的 font-size 改成 rem 基准（本机实测 20.8px），
+ * 那是给 rem 布局用的，可这一版全用 px。不拦住它，凡是没显式写字号的地方
+ * 都会继承 20.8 —— 行高跟着变大、整页往下挪十几像素，
+ * 而且是那种"说不上哪里不对"的错位。所以 body 上写死 17px / 1.5。
+ * 小程序里没有 body 元素，这条不生效，那边由 page 管。
  */
-:root {
-  --brand-50: #eef8f2;
-  --brand-100: #d6eddf;
-  --brand-200: #aedcc2;
-  --brand-400: #4aa87a;
-  --brand-500: #1f8a5b;
-  --brand-600: #176f49;
-  --brand-700: #115639;
-
-  --warn-100: #fff1d6;
-  --warn-500: #e8871e;
-  --warn-600: #c56f10;
-
-  --danger-100: #ffe4e0;
-  --danger-500: #d94f3d;
-
-  --ink-900: #1b2320;
-  --ink-700: #3b4642;
-  --ink-500: #6b7671;
-  --ink-300: #b6bdb9;
-
-  --page-bg: #f4f6f4;
+body {
+  font-size: 17px;
+  line-height: 1.5;
 }
 
 view,
@@ -73,60 +62,107 @@ button {
   box-sizing: border-box;
 }
 
-/* 卡片：白底、大圆角、很淡的投影 */
-.card {
-  background: #ffffff;
-  border-radius: 48rpx;
-  padding: 40rpx;
-  box-shadow: 0 4rpx 32rpx rgba(27, 35, 32, 0.06);
+/**
+ * Taro 把 <Text> 渲染成 inline 的 taro-text-core（小程序里是 <text>）。
+ * 网页版对应的 <p> 是块级，这里必须对齐 —— 不然后果很具体：
+ *
+ * inline 文字要参与父级的行盒。父级继承的是 17px/25.5px，而「当前体重」
+ * 那行是 15px/22.5px，行盒按 25.5 算，多出 3px 的行距把文字往下压，
+ * 卡片跟着高 4px，往下每一段都错开一点。这种 3px 的错位说不清哪里不对，
+ * 但并排一看就是"不像"。
+ *
+ * 句子里那几个加粗的词（嵌在 Text 里）保持 inline，不然会各占一行。
+ */
+taro-text-core,
+text {
+  display: block;
 }
 
-/* 主按钮 */
+taro-text-core taro-text-core,
+text text {
+  display: inline;
+}
+
+/* 网页版 .card：rounded-3xl bg-white p-5 shadow-[0_2px_16px_rgba(27,35,32,.06)] */
+.card {
+  background: #ffffff;
+  border-radius: tw(6); /* 25.5px */
+  padding: tw(5); /* 21.25px */
+  box-shadow: 0 2px 16px rgba(27, 35, 32, 0.06);
+}
+
+/* 网页版 .btn-primary：h-16 rounded-2xl bg-brand-500 text-[19px] font-semibold */
 .btn-primary {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 128rpx;
+  height: tw(16); /* 68px */
   width: 100%;
-  border-radius: 32rpx;
-  background: var(--brand-500);
+  border-radius: tw(4); /* 17px */
+  background: $brand-500;
   color: #ffffff;
-  font-size: 38rpx;
+  /* 网页版 .btn-primary 的 text-[19px]。以前网页上被一条全局 button 规则压成 17px，
+     那条规则已经删了，现在两边都是 19px */
+  font-size: 19px;
+  line-height: 1.5;
   font-weight: 600;
-  line-height: 1;
 }
 
 .btn-primary:active {
-  background: var(--brand-600);
+  background: $brand-600;
 }
 
 .btn-primary.is-disabled {
   opacity: 0.4;
 }
 
-/* 次要按钮 */
+/* 网页版 .btn-ghost：h-14 rounded-2xl border-ink-300/60 text-[18px] */
 .btn-ghost {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 112rpx;
+  height: tw(14); /* 59.5px */
   width: 100%;
-  border-radius: 32rpx;
-  border: 2rpx solid rgba(182, 189, 185, 0.6);
+  border-radius: tw(4);
+  border: 1px solid rgba(182, 189, 185, 0.6);
   background: #ffffff;
-  color: var(--ink-700);
-  font-size: 36rpx;
+  color: $ink-700;
+  font-size: 18px;
   font-weight: 500;
   line-height: 1;
 }
 
+/* 网页版 .opt：min-h-[60px] rounded-2xl border-2 bg-white px-5 text-[18px] */
+.opt {
+  display: flex;
+  min-height: 60px;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: tw(4);
+  border: 2px solid transparent;
+  background: #ffffff;
+  padding: 0 tw(5);
+  /* 网页版 .opt 的 text-[18px] */
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: $ink-900;
+  box-shadow: 0 2px 10px rgba(27, 35, 32, 0.05);
+}
+
+.opt-active {
+  border-color: $brand-500;
+  background: $brand-50;
+}
+
 .muted {
-  color: var(--ink-500);
+  color: $ink-500;
 }
 
 .tiny {
-  font-size: 26rpx;
-  color: var(--ink-300);
+  font-size: 13px;
+  color: $ink-300;
 }
 
 /* 去掉小程序 button 自带的边框和灰底 */
@@ -141,6 +177,58 @@ button::after {
   border: none;
 }
 
-.safe-bottom {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 24rpx);
+/**
+ * 页面骨架。两个页面共用，所以放全局 ——
+ * 各页自己写一份的话，改了一处忘了另一处，两页就会慢慢长歪。
+ */
+.page {
+  min-height: 100vh;
+  background: $page-bg;
+  font-size: 17px;
+  line-height: 1.5;
+  /* 网页版 pb-52：给底部悬浮按钮让位 */
+  padding-bottom: tw(52);
+}
+
+.sec {
+  padding: 0 tw(5);
+}
+
+.mt2 {
+  margin-top: tw(2);
+}
+.mt3 {
+  margin-top: tw(3);
+}
+.mt5 {
+  margin-top: tw(5);
+}
+.mt6 {
+  margin-top: tw(6);
+}
+
+/* 小标题：网页版 h2 的 text-[17px] font-bold mb-3 */
+.h2 {
+  display: block;
+  margin-bottom: tw(3);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* hoverClass 的落点。小程序没有 :active，只能靠这个 */
+.tap {
+  opacity: 0.7;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 单行省略。网页版是 .truncate —— 小程序里 Text 得先变成块级才吃这套 */
+.ellipsis {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

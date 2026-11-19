@@ -139,13 +139,14 @@ export default function CapturePage() {
     saveState(upsertMeal(s, meal));
 
     Taro.showToast({ title: "记下了", icon: "success" });
-    setTimeout(() => Taro.switchTab({ url: "/pages/index/index" }), 600);
+    // 没有原生 tabBar，switchTab 会失败
+    setTimeout(() => Taro.reLaunch({ url: "/pages/index/index" }), 600);
   };
 
   /* ---------- 选图 ---------- */
   if (step === "pick") {
     return (
-      <View className="page">
+      <View className="page cap">
         {!imgPath ? (
           <View className="pick">
             <Text className="pick-title">拍一张，不用自己算</Text>
@@ -195,7 +196,7 @@ export default function CapturePage() {
   /* ---------- 识别中 ---------- */
   if (step === "busy") {
     return (
-      <View className="page">
+      <View className="page cap">
         <View className="busy">
           <Image className="busy-img" src={imgPath} mode="aspectFill" />
           <View className="spinner" />
@@ -209,7 +210,7 @@ export default function CapturePage() {
   /* ---------- 结果 ---------- */
   const total = result?.nutrition.kcal ?? 0;
   return (
-    <View className="page">
+    <View className="page cap">
       <Image className="result-img" src={imgPath} mode="aspectFill" />
 
       <View className="card mealtype-card">

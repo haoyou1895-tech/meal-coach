@@ -1,101 +1,238 @@
-.page {
+@import "../../styles/var.scss";
+
+/**
+ * 引导页。数值对着 web/src/components/Onboarding.tsx 的 Tailwind 类：
+ *   px-5 pb-6 pt-4  → tw(5) / tw(6) / tw(4)
+ *   pt-8            → tw(8)
+ *   space-y-3       → 每项 margin-bottom tw(3)
+ *   h-10 w-10       → tw(10)
+ */
+
+.page.onb {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  padding: 32rpx 32rpx 60rpx;
-  background: var(--page-bg);
+  /* 盖掉 .page 给悬浮按钮留的那 221px —— 这一页没有悬浮按钮。
+     pt 写 0：网页版那层的 safe-top 覆盖掉了 pt-4，实测返回钮就贴着顶边；
+     小程序顶部有原生导航栏，不需要再让一次状态栏 */
+  padding: 0 tw(5) tw(6);
 }
 
-.lede {
+/* ---------- 顶部：返回 + 进度 ---------- */
+
+.onb-top {
+  display: flex;
+  align-items: center;
+  gap: tw(3);
+}
+
+.onb-back {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: tw(10); /* 42.5 */
+  height: tw(10);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(27, 35, 32, 0.05);
+}
+
+/* 占位：第 0 步没有上一页，但要让进度条左边缘跟后面几步对齐 */
+.onb-back.is-ghost {
+  background: transparent;
+  box-shadow: none;
+}
+
+.onb-progress {
+  flex: 1;
+}
+
+/* ---------- 题目 ---------- */
+
+.onb-body {
+  flex: 1;
+  padding-top: tw(8); /* 34 */
+}
+
+.q-title {
   display: block;
-  padding: 8rpx 8rpx 32rpx;
-  font-size: 32rpx;
-  line-height: 1.6;
-  color: var(--ink-700);
+  font-size: 27px;
+  font-weight: 700;
+  /* leading-snug = 1.375 */
+  line-height: 1.375;
+  letter-spacing: -0.675px;
+}
+
+.q-hint {
+  display: block;
+  margin-top: tw(2);
+  font-size: 16px;
+  color: $ink-500;
+}
+
+.q-opts {
+  margin-top: tw(7); /* 29.75 */
+}
+
+/* 网页版这里是 space-y-3：选项之间 12.75，不是贴在一起 */
+.opt + .opt {
+  margin-top: tw(3);
+}
+
+/* ---------- 选项卡片 ---------- */
+
+.opt-body {
+  display: flex;
+  flex-direction: column;
+  padding: tw(3) 0;
+  text-align: left;
+}
+
+.opt-title {
+  /* 跟着 .opt 的 18px 走 */
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+.opt-desc {
+  margin-top: tw(0.5);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: $ink-500;
+}
+
+/* 右侧那个圈/方块。单选是圆的，多选是方的 —— 形状本身在说"能选几个" */
+.opt-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: tw(7); /* 29.75 */
+  height: tw(7);
+  border-radius: 999px;
+  border: 2px solid $ink-300;
+  background: #ffffff;
+}
+
+.opt-mark.is-square {
+  border-radius: tw(2);
+}
+
+.opt-mark.is-on {
+  border-color: $brand-500;
+  background: $brand-500;
+}
+
+/* ---------- 底部按钮 ---------- */
+
+.onb-next {
+  margin-top: tw(6);
+}
+
+.onb-fine {
+  display: block;
+  margin-top: tw(4);
+  padding: 0 tw(2);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $ink-300;
+}
+
+/* ---------- 算完了 ---------- */
+
+.onb-result {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.onb-kicker {
+  font-size: 17px;
+  font-weight: 500;
+  color: $ink-500;
+}
+
+.onb-big {
+  display: block;
+  margin-top: tw(2);
+  font-size: 30px;
+  font-weight: 700;
+  /* leading-tight = 1.25 */
+  line-height: 1.25;
+  /* 文本里带 \n，要保留换行 */
   white-space: pre-line;
 }
 
-.field {
-  background: #ffffff;
-  border-radius: 32rpx;
-  padding: 28rpx 32rpx;
-  margin-bottom: 20rpx;
+.onb-big-num {
+  color: $brand-500;
 }
 
-.label {
-  display: block;
-  font-size: 27rpx;
-  color: var(--ink-500);
-  margin-bottom: 16rpx;
+.onb-card {
+  margin-top: tw(7);
 }
 
-.input {
-  height: 88rpx;
-  font-size: 40rpx;
+/* card 里每行间距 17（space-y-4）。每行自己带 margin-top，
+   第一行和分隔线不用 —— 分隔线下面那一行的 margin 就够了 */
+.onb-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: tw(4);
+}
+
+.onb-card .onb-row:first-child {
+  margin-top: 0;
+}
+
+.onb-row-l {
+  display: flex;
+  flex-direction: column;
+}
+
+.onb-row-label {
+  font-size: 16px;
+  color: $ink-700;
+}
+
+.onb-row-hint {
+  margin-top: tw(0.5);
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.onb-row-value {
+  font-size: 18px;
   font-weight: 600;
-  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
 }
 
-.row {
-  display: flex;
+.onb-hr {
+  height: 1px;
+  margin-top: tw(4);
+  background: rgba(0, 0, 0, 0.06);
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.chip {
-  min-width: 140rpx;
-  height: 76rpx;
-  padding: 0 28rpx;
-  margin: 0 16rpx 16rpx 0;
-  border-radius: 20rpx;
-  background: rgba(0, 0, 0, 0.04);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chip.is-on {
-  background: var(--brand-500);
-}
-
-.chip-text {
-  font-size: 30rpx;
-  color: var(--ink-700);
-}
-
-.chip.is-on .chip-text {
-  color: #ffffff;
-  font-weight: 600;
-}
-
-.submit {
-  margin-top: 20rpx;
-  height: 116rpx;
-  border-radius: 32rpx;
-  background: var(--brand-500);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 12rpx 32rpx rgba(31, 138, 91, 0.3);
-}
-
-.submit:active {
-  background: var(--brand-600);
-}
-
-.submit-text {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.fine {
+.onb-warn {
   display: block;
-  margin-top: 32rpx;
-  padding: 0 16rpx;
-  font-size: 24rpx;
+  margin-top: tw(4);
+  padding: tw(3) tw(4);
+  border-radius: tw(4);
+  background: $warn-100;
+  font-size: 15px;
   line-height: 1.6;
-  color: var(--ink-300);
-  text-align: center;
+  color: $warn-600;
+}
+
+.onb-note {
+  display: block;
+  margin-top: tw(5);
+  font-size: 15px;
+  line-height: 1.6;
+  color: $ink-500;
 }
