@@ -1,0 +1,323 @@
+.page {
+  min-height: 100vh;
+  padding: 24rpx 32rpx 40rpx;
+  background: var(--page-bg);
+}
+
+/* ---------- 选图 ---------- */
+.pick {
+  padding: 80rpx 16rpx 0;
+}
+
+.pick-title {
+  display: block;
+  font-size: 44rpx;
+  font-weight: 700;
+}
+
+.pick-sub {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 30rpx;
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+
+.pick-btn {
+  margin-top: 32rpx;
+  height: 116rpx;
+  border-radius: 32rpx;
+  background: var(--brand-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 32rpx rgba(31, 138, 91, 0.3);
+}
+
+.pick-btn:active {
+  background: var(--brand-600);
+}
+
+.pick-btn-text {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.pick-btn.ghost {
+  background: #ffffff;
+  border: 2rpx solid rgba(182, 189, 185, 0.7);
+  box-shadow: none;
+}
+
+.pick-btn.ghost:active {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.ghost-text {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* ---------- 预览 ---------- */
+.preview {
+  margin-top: 16rpx;
+}
+
+.preview-img {
+  width: 100%;
+  height: 460rpx;
+  border-radius: 40rpx;
+  background: #dfe5e1;
+}
+
+.preview-body {
+  margin-top: 32rpx;
+}
+
+.preview-label {
+  display: block;
+  font-size: 27rpx;
+  color: var(--ink-500);
+}
+
+.note-input {
+  margin-top: 16rpx;
+  height: 96rpx;
+  padding: 0 28rpx;
+  border-radius: 24rpx;
+  background: #ffffff;
+  font-size: 30rpx;
+}
+
+.err {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 27rpx;
+  line-height: 1.5;
+  color: #d94f3d;
+}
+
+/* ---------- 识别中 ---------- */
+.busy {
+  padding: 60rpx 16rpx 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.busy-img {
+  width: 360rpx;
+  height: 360rpx;
+  border-radius: 48rpx;
+  background: #dfe5e1;
+}
+
+.spinner {
+  width: 64rpx;
+  height: 64rpx;
+  margin-top: 48rpx;
+  border-radius: 50%;
+  border: 6rpx solid var(--brand-100);
+  border-top-color: var(--brand-500);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.busy-text {
+  margin-top: 28rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.busy-sub {
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: var(--ink-300);
+}
+
+/* ---------- 结果 ---------- */
+.result-img {
+  width: 100%;
+  height: 300rpx;
+  border-radius: 40rpx;
+  background: #dfe5e1;
+}
+
+.card {
+  margin-top: 24rpx;
+  padding: 32rpx;
+}
+
+.field-label {
+  font-size: 27rpx;
+  color: var(--ink-500);
+}
+
+.row {
+  display: flex;
+  margin-top: 16rpx;
+}
+
+.chip {
+  flex: 1;
+  height: 80rpx;
+  margin-right: 14rpx;
+  border-radius: 20rpx;
+  background: rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip:last-child {
+  margin-right: 0;
+}
+
+.chip.is-on {
+  background: var(--brand-500);
+}
+
+.chip-text {
+  font-size: 29rpx;
+  color: var(--ink-700);
+}
+
+.chip.is-on .chip-text {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.kcal-big {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.demo-tip {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #a9631a;
+}
+
+.empty-tip {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  margin-top: 24rpx;
+  padding-top: 24rpx;
+  border-top: 2rpx solid rgba(0, 0, 0, 0.05);
+}
+
+.item-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-name {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.item-portion {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 25rpx;
+  color: var(--ink-300);
+}
+
+.item-kcal {
+  margin-right: 20rpx;
+  font-size: 30rpx;
+  color: var(--ink-700);
+}
+
+.item-del {
+  width: 72rpx;
+  height: 56rpx;
+  border-radius: 16rpx;
+  background: rgba(217, 79, 61, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-del-text {
+  font-size: 26rpx;
+  color: #d94f3d;
+}
+
+.comment {
+  display: block;
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 2rpx solid rgba(0, 0, 0, 0.05);
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: var(--ink-700);
+}
+
+.macros {
+  display: flex;
+}
+
+.macro-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.macro-cell-value {
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.macro-cell-unit {
+  font-size: 22rpx;
+  font-weight: 400;
+  color: var(--ink-300);
+}
+
+.macro-cell-label {
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: var(--ink-300);
+}
+
+/* ---------- 底部按钮 ---------- */
+.bottom-space {
+  height: 260rpx;
+}
+
+.bottom {
+  position: fixed;
+  left: 32rpx;
+  right: 32rpx;
+  bottom: 24rpx;
+  padding-top: 20rpx;
+  background: linear-gradient(to top, var(--page-bg) 60%, rgba(244, 246, 244, 0));
+}
+
+.bottom .pick-btn {
+  margin-top: 16rpx;
+  height: 104rpx;
+}

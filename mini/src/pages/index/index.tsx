@@ -219,7 +219,7 @@ export default function HomePage() {
       <View className="fab">
         <View
           className="fab-btn"
-          onClick={() => Taro.showToast({ title: "拍照识别下一步接", icon: "none" })}
+          onClick={() => Taro.navigateTo({ url: "/pages/capture/index" })}
         >
           <Text className="fab-text">拍一张，记一餐</Text>
         </View>

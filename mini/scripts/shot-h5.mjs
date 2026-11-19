@@ -141,6 +141,7 @@ async function shot(name, page_, opts = {}) {
 await shot("home", null);
 await shot("setup", null, { inject: false });
 await shot("record", null, { path: "/pages/record/index" });
+await shot("capture", null, { path: "/pages/capture/index" });
 
 await browser.close();
 server.close();
