@@ -95,7 +95,8 @@ const KIND_ICON: Record<PartKind, IconName> = {
 function Dot({ color }: { color: string }) {
   return (
     <span
-      className="h-[7px] w-[7px] shrink-0 rounded-full"
+      /* 少了 block 就是个空的行内元素，宽高被忽略，圆点根本画不出来 */
+      className="block h-[7px] w-[7px] shrink-0 rounded-full"
       style={{ background: color }}
     />
   );
