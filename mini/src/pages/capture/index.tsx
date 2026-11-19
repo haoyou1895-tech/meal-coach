@@ -1,6 +1,7 @@
 import { Image, Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useMemo, useState } from "react";
+import Icon from "../../components/Icon";
 import { recognize } from "../../lib/api";
 import { compressPath, pathToDataUrl } from "../../lib/image";
 import { guessMealType, mealTypeLabel, round } from "../../lib/nutrition";
@@ -149,16 +150,38 @@ export default function CapturePage() {
       <View className="page cap">
         {!imgPath ? (
           <View className="pick">
-            <Text className="pick-title">拍一张，不用自己算</Text>
-            <Text className="pick-sub">
-              它会看清盘子里有什么、大概多少，然后告诉你这顿超没超。
-            </Text>
-            <View className="pick-btn" onClick={() => pick("camera")}>
-              <Text className="pick-btn-text">拍照</Text>
+            {/* 餐次先选好：拍完就不用再返回来改。
+                今天是哪一顿本来能猜，但猜错了要改，不如摆在那儿让他点 */}
+            <View className="mealtype-row">
+              {MEAL_TYPES.map((m) => (
+                <View
+                  key={m.key}
+                  className={`mealtype ${mealType === m.key ? "is-on" : ""}`}
+                  hoverClass="tap"
+                  onClick={() => setMealType(m.key)}
+                >
+                  <Text className="mealtype-text">{m.label}</Text>
+                </View>
+              ))}
             </View>
-            <View className="pick-btn ghost" onClick={() => pick("album")}>
-              <Text className="pick-btn-text ghost-text">从相册选</Text>
+
+            {/* 虚线大卡片：网页版的拍照入口就长这样，绿框里一个圆图标 */}
+            <View className="shot-box" hoverClass="tap" onClick={() => pick("camera")}>
+              <View className="shot-icon">
+                <Icon name="camera" size={30} color="#ffffff" />
+              </View>
+              <Text className="shot-title">拍一张照片</Text>
+              <Text className="shot-sub">我帮您算这顿有多少大卡</Text>
             </View>
+
+            <View className="album-btn" hoverClass="tap" onClick={() => pick("album")}>
+              <Text className="album-text">
+                从相册选
+                <Text className="album-hint">{" 可多选，一桌菜拍不完就选几张"}</Text>
+              </Text>
+            </View>
+
+            {!!err && <Text className="err">{err}</Text>}
           </View>
         ) : (
           <View className="preview">

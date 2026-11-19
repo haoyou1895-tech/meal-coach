@@ -15,23 +15,97 @@
 /* ---------- 选图 ---------- */
 
 .pick {
-  padding-top: tw(10);
+  padding-top: tw(1);
 }
 
-.pick-title {
-  display: block;
-  font-size: 27px;
-  font-weight: 700;
-  line-height: 1.375;
-  letter-spacing: -0.675px;
+/* 餐次四选一。网页版：h-12 flex-1 rounded-xl text-[16px]，选中是实心绿 */
+.mealtype-row {
+  display: flex;
+  gap: tw(2);
+  margin-bottom: tw(5);
 }
 
-.pick-sub {
-  display: block;
-  margin-top: tw(2);
+.mealtype {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: tw(12); /* 51 */
+  border-radius: tw(3); /* 12.75 */
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(27, 35, 32, 0.05);
+}
+
+.mealtype.is-on {
+  background: $brand-500;
+}
+
+.mealtype-text {
   font-size: 16px;
-  line-height: 1.6;
+  font-weight: 500;
+  color: $ink-700;
+}
+
+.mealtype.is-on .mealtype-text {
+  color: #ffffff;
+}
+
+/* 拍照入口：绿虚线大卡片，圆图标 + 两行字。网页版的 border-2 border-dashed */
+.shot-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: tw(2);
+  padding: tw(8) tw(6);
+  border: 2px dashed $brand-200;
+  border-radius: tw(6); /* 25.5 */
+  background: $brand-50;
+}
+
+.shot-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: tw(16); /* 68 */
+  height: tw(16);
+  border-radius: 999px;
+  background: $brand-500;
+}
+
+.shot-title {
+  font-size: 19px;
+  font-weight: 600;
+  color: $brand-600;
+}
+
+.shot-sub {
+  font-size: 15px;
   color: $ink-500;
+}
+
+/* 从相册选：白底一条，右边跟一句灰话 */
+.album-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: tw(2.5);
+  padding: tw(3.5) 0;
+  border-radius: tw(4);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(27, 35, 32, 0.05);
+}
+
+.album-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: $brand-600;
+}
+
+.album-hint {
+  margin-left: tw(1);
+  font-size: 14px;
+  font-weight: 400;
+  color: $ink-300;
 }
 
 /* 主按钮：跟网页版 .btn-primary 同一套（h-16 rounded-2xl text-[19px]） */
