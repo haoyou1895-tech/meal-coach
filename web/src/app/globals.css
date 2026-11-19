@@ -37,11 +37,13 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* 禁止输入框聚焦时 iOS 自动放大 */
+/* 禁止输入框聚焦时 iOS 自动放大。
+   这里**不能**带上 button：这条规则不在 @layer 里，优先级压过所有 Tailwind 类，
+   一带上按钮，text-[56px] 这类字号就全废 —— 年龄那个大数字会变成 17px。
+   按钮的字号交给各自的类去定。 */
 input,
 select,
-textarea,
-button {
+textarea {
   font-size: 17px;
   font-family: inherit;
 }
