@@ -619,12 +619,12 @@ export default function HomeView({
         要的是一个能点的东西，不是一段解释。
       */}
       <section className="mt-2 px-5">
-        <div className="flex items-center justify-between gap-2 py-1">
-          <button
-            type="button"
-            onClick={() => setShowHow((v) => !v)}
-            className="min-w-0 flex-1 text-left text-[13px] text-ink-400"
-          >
+        <button
+          type="button"
+          onClick={() => setShowHow((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 py-1 text-left"
+        >
+          <span className="min-w-0 text-[13px] text-ink-400">
             {atGoal ? (
               <>已经到 {profile.targetWeightKg} 公斤，接着稳住就行</>
             ) : profile.goalWeeks && plan.tooFast ? (
@@ -651,49 +651,50 @@ export default function HomeView({
                 公斤
               </>
             )}
-          </button>
+          </span>
 
           {/*
-            右侧原来写的是"怎么算的"四个字 —— 它只回答了"这里有没有东西"，
-            没回答"这东西能不能动"。用户不是不知道那行可以点，
-            是根本不知道速度可以改，所以那四个字等于没说。
+            右边原来写"怎么算的"—— 说的是"这里能点开"，
+            没说"这里能改速度"。用户要的不是解释，是定个计划。
 
-            换成三个点：亮着的那个就是现在这一档，其余两个暗着。
-            "有三个点、其中一个亮着"是通用的档位语言 ——
-            看到的人第一反应是"还有另外两档"。
+            所以先换成三个点：亮着的那个是现在这一档，
+            三个点摆在那儿，本身就说明还有别的档。
 
-            而且这三点本身就能点：点一下切到下一档，环里的预算当场变。
-            只做展示的点还是等于让人猜；能点的点，一次就教会了他。
+            但光有点还是太素 —— 三个点也可能被读成页码。
+            最后补上"定计划"三个字：点负责说"有几档"，
+            字负责说"这是干嘛的"，各管一半，谁都不多余。
+            整行都能点，点开就是三档卡片，选完环里的预算当场变。
           */}
           {atGoal ? (
             <span className="flex shrink-0 items-center text-[#4aa87a]">
               <Icon name="check" size={15} />
             </span>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                const next = speeds[(activeIdx + 1) % speeds.length];
-                if (next) onGoalWeeks(next.goalWeeks);
-              }}
-              aria-label={`切换减重速度，现在是${speeds[activeIdx]?.label ?? "照这个"}`}
-              className={`flex shrink-0 items-center gap-[8px] rounded-full px-2.5 py-2 transition-colors active:scale-95 ${
+            <span
+              className={`flex shrink-0 items-center gap-[8px] rounded-full px-2.5 py-1.5 transition-colors ${
                 showHow ? "bg-brand-50" : "bg-black/[0.055]"
               }`}
             >
+              <span
+                className={`text-[12px] leading-none ${
+                  showHow ? "text-brand-700" : "text-ink-500"
+                }`}
+              >
+                定计划
+              </span>
               {speeds.map((o, i) => (
                 <span
                   key={o.key}
                   className={`block rounded-full transition-all duration-200 ${
                     i === activeIdx
                       ? "h-[10px] w-[10px] bg-brand-500"
-                      : "h-[8px] w-[8px] bg-black/[0.2]"
+                      : "h-[8px] w-[8px] bg-black/[0.26]"
                   }`}
                 />
               ))}
-            </button>
+            </span>
           )}
-        </div>
+        </button>
 
         {showHow && (
           <div className="mt-2 space-y-2 rounded-2xl bg-black/[0.035] px-3.5 py-3 text-[13px] leading-relaxed text-ink-500">
