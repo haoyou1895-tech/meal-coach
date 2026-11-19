@@ -61,10 +61,23 @@ export default function Page() {
   const today = todayStr();
   const profile = state?.profile ?? null;
 
+  /**
+   * 预算按"最近一次称的体重"算，不是注册那天填的数。
+   * 他掉到 74 公斤之后，基础代谢比 78 公斤时低，
+   * 还按老体重给 1719，等于每天多吃了一百多大卡 —— 然后他会觉得"怎么减不动了"。
+   */
+  const currentWeightKg = useMemo(
+    () => (state && profile ? latestWeightKg(state.weights, profile.weightKg) : profile?.weightKg ?? 0),
+    [state, profile],
+  );
+
   const plan = useMemo(() => {
     if (!profile || !state) return null;
-    return buildPlan(profile, activityOfDate(state, today));
-  }, [profile, state, today]);
+    return buildPlan(
+      { ...profile, weightKg: currentWeightKg },
+      activityOfDate(state, today),
+    );
+  }, [profile, state, today, currentWeightKg]);
 
   const todayMeals = useMemo(
     () => (state ? state.meals.filter((m) => m.date === today) : []),
@@ -115,7 +128,14 @@ export default function Page() {
           plan={plan!}
           meals={state.meals}
           activity={activityOfDate(state, today)}
+          currentWeightKg={currentWeightKg}
           onActivity={(level) => update(withActivity(state, today, level))}
+          onGoalWeeks={(weeks) =>
+            update({
+              ...state,
+              profile: { ...profile, goalWeeks: weeks },
+            })
+          }
           onOpenSettings={() => setSettingsOpen(true)}
         />
       ) : (

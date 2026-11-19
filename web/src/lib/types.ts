@@ -27,6 +27,13 @@ export interface Profile {
   taste: Taste;
   mealRegular: MealRegular;
   createdAt: string;
+  /**
+   * 自己定的达成周数。不填就按每天 400 大卡的默认缺口走。
+   *
+   * 存周数而不是存日期：日期会过期（今天定"11 月 1 日前"，
+   * 过了这天这人还在减），周数永远指向"从现在起多久"。
+   */
+  goalWeeks?: number;
 }
 
 export interface NutritionPlan {
@@ -41,6 +48,16 @@ export interface NutritionPlan {
   clamped: boolean;
   /** 达到目标体重预计需要的周数 */
   weeksToGoal: number;
+  /** 每天留的热量缺口 */
+  deficit: number;
+  /** 按安全边界算，最快也要这么多周 */
+  fastestWeeks: number;
+  /** 用户自己定的周数，没定就是 null */
+  goalWeeks: number | null;
+  /** 用户定的比安全边界还快，已经被拦到最快那一档 */
+  tooFast: boolean;
+  /** 按现在的缺口，一周大约掉多少公斤 */
+  perWeekKg: number;
 }
 
 export interface FoodItem {

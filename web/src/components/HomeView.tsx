@@ -9,6 +9,7 @@ import type {
   Profile,
 } from "@/lib/types";
 import {
+  goalOptions,
   mealTypeLabel,
   snackLabel,
   round,
@@ -38,7 +39,7 @@ import {
   type RankedFood,
 } from "@/lib/ranking";
 import Icon, { type IconName } from "./Icon";
-import { CalorieRing } from "./ui";
+import { CalorieRing, MacroBar } from "./ui";
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
@@ -186,6 +187,8 @@ export default function HomeView({
   activity,
   onActivity,
   onOpenSettings,
+  onGoalWeeks,
+  currentWeightKg,
 }: {
   profile: Profile;
   plan: NutritionPlan;
@@ -193,6 +196,15 @@ export default function HomeView({
   activity: ActivityLevel;
   onActivity: (level: ActivityLevel) => void;
   onOpenSettings: () => void;
+  /**
+   * 最近一次称的体重。跟 profile.weightKg 不是一回事：
+   * profile 里存的是注册那天填的数，之后掉的那几公斤在 weights 里。
+   * 预算必须按现在的体重算 —— 人瘦了，消耗跟着降，
+   * 还按老数给额度，就是明明在减却越吃越超。
+   */
+  currentWeightKg: number;
+  /** 改"多久减到目标"，undefined = 回到默认的 400 大卡缺口 */
+  onGoalWeeks: (weeks: number | undefined) => void;
 }) {
   const today = todayStr();
   const todayMeals = meals.filter((m) => m.date === today);
@@ -210,6 +222,36 @@ export default function HomeView({
   // "预算怎么算的"默认折叠：九成日子他不需要看那三个数字，
   // 但想质疑的时候必须点得到 —— 藏在设置页里就等于没有
   const [showHow, setShowHow] = useState(false);
+
+  /*
+   * 三个速度档。每次渲染算一遍，不缓存 —— 它们依赖 profile 和当天活动量，
+   * 而已算过的档位跟着这两个值走，缓存反而容易跟预算对不上。
+   */
+  const atGoal = currentWeightKg <= profile.targetWeightKg;
+
+  /*
+   * 两处都得用"现在的体重"：
+   * 他 74 公斤时，最快是 4 周而不是 11 周 —— 传注册那天的 78，
+   * 上面写着"约 6 周"、下面三档却说"11/17/24 周"，自己跟自己打架。
+   */
+  const speeds = useMemo(() => {
+    const all = goalOptions(
+      { ...profile, weightKg: currentWeightKg },
+      activity,
+    );
+    // 差距很小时"快"和"稳"会算出同一个周数，摆两个一样的按钮只会让人犹豫
+    return all.filter(
+      (o, i) => all.findIndex((x) => x.weeks === o.weeks) === i,
+    );
+  }, [profile, activity, currentWeightKg]);
+  const activeSpeed =
+    speeds.find(
+      (o) => (o.goalWeeks ?? null) === (profile.goalWeeks ?? null),
+    )?.key ??
+    // 定过比安全线还快的目标：显示成"快"，并且上面那行会说明是被拦下来的
+    (profile.goalWeeks && profile.goalWeeks < plan.fastestWeeks
+      ? "fast"
+      : "steady");
 
   const left = plan.dailyBudgetKcal - totals.kcal;
   // 从历史记录里学这个人平时几点吃，用在提醒和"下一顿该吃哪顿"上
@@ -472,54 +514,91 @@ export default function HomeView({
         剩下的额度是背景信息，该干什么才是主线。
       */}
       <section className="mt-3 px-5">
-        <div className="flex items-center gap-3 rounded-3xl bg-white px-3.5 py-4">
-          <CalorieRing
-            used={totals.kcal}
-            budget={plan.dailyBudgetKcal}
-            tone={status.tone}
-            size={104}
-          />
-          <div className="min-w-0 flex-1 space-y-2">
-            {warnings.map((w) => (
-              <NoteRow
-                key={w.key}
-                dot={w.severe ? "#b23c2c" : "#a9631a"}
-                head={w.short}
-                headColor={w.severe ? "#b23c2c" : "#33413b"}
-                tail={w.tip}
-              />
-            ))}
-            {saltLevel && (
-              <NoteRow
-                dot={SALT_COLOR[saltLevel]}
-                head="盐"
-                headColor="#33413b"
-                tail={SALT_LABEL[saltLevel]}
-                tailColor={SALT_COLOR[saltLevel]}
-                tailBold
-              />
-            )}
-            {/* 只在超量时提。喝了多少、喝的什么，已经在"今天吃了"那顿里写着 */}
-            {alcoholG > 25 && (
-              <NoteRow
-                dot="#b23c2c"
-                head={`酒 ${alcoholG} 克`}
-                headColor="#b23c2c"
-                tail="今天到此"
-              />
-            )}
-            {showTip && (
-              <NoteRow dot="#1f8a5b" head={showTip.text} headColor="#42514a" />
-            )}
-            {/* 一条都没有的时候不能说空白：那时候"没什么事"本身就是好消息 */}
-            {warnings.length === 0 &&
-              !saltLevel &&
-              alcoholG <= 25 &&
-              !showTip && (
-                <p className="text-[15px] leading-snug text-ink-500">
-                  今天吃得稳，照这个来
-                </p>
+        <div className="rounded-3xl bg-white px-3.5 pb-3 pt-4">
+          <div className="flex items-center gap-3">
+            <CalorieRing
+              used={totals.kcal}
+              budget={plan.dailyBudgetKcal}
+              tone={status.tone}
+              size={104}
+            />
+            <div className="min-w-0 flex-1 space-y-2">
+              {warnings.map((w) => (
+                <NoteRow
+                  key={w.key}
+                  dot={w.severe ? "#b23c2c" : "#a9631a"}
+                  head={w.short}
+                  headColor={w.severe ? "#b23c2c" : "#33413b"}
+                  tail={w.tip}
+                />
+              ))}
+              {saltLevel && (
+                <NoteRow
+                  dot={SALT_COLOR[saltLevel]}
+                  head="盐"
+                  headColor="#33413b"
+                  tail={SALT_LABEL[saltLevel]}
+                  tailColor={SALT_COLOR[saltLevel]}
+                  tailBold
+                />
               )}
+              {/* 只在超量时提。喝了多少、喝的什么，已经在"今天吃了"那顿里写着 */}
+              {alcoholG > 25 && (
+                <NoteRow
+                  dot="#b23c2c"
+                  head={`酒 ${alcoholG} 克`}
+                  headColor="#b23c2c"
+                  tail="今天到此"
+                />
+              )}
+              {showTip && (
+                <NoteRow dot="#1f8a5b" head={showTip.text} headColor="#42514a" />
+              )}
+              {/* 一条都没有的时候不能说空白：那时候"没什么事"本身就是好消息 */}
+              {warnings.length === 0 &&
+                !saltLevel &&
+                alcoholG <= 25 &&
+                !showTip && (
+                  <p className="text-[15px] leading-snug text-ink-500">
+                    今天吃得稳，照这个来
+                  </p>
+                )}
+            </div>
+          </div>
+
+          {/*
+            三条营养素进度条回到环的下面。
+            之前删掉是因为"只报数字不说话"，但那是拿它跟提醒清单比；
+            它其实回答的是另一个问题：今天这三样各吃了多少、还差多少。
+            提醒只在出问题时出现，出问题前他看不到任何结构 ——
+            一个只有警告、没有刻度的仪表盘，是没法用来调方向的。
+            现在把它收进同一张白卡、环的正下方，跟热量是同一笔账。
+          */}
+          <div className="mt-3 flex gap-3 border-t border-black/[0.06] pt-3">
+            <MacroBar
+              icon="protein"
+              color="#a3563f"
+              label="蛋白质"
+              value={totals.protein}
+              target={plan.proteinTargetG}
+              unit="g"
+            />
+            <MacroBar
+              icon="carb"
+              color="#b0842c"
+              label="碳水"
+              value={totals.carb}
+              target={plan.carbTargetG}
+              unit="g"
+            />
+            <MacroBar
+              icon="fat"
+              color="#7d8b5e"
+              label="脂肪"
+              value={totals.fat}
+              target={plan.fatTargetG}
+              unit="g"
+            />
           </div>
         </div>
       </section>
@@ -527,8 +606,12 @@ export default function HomeView({
       {/*
         预算这个数字原来是凭空出现的：环里写着一个 1719，
         既没说它怎么来，也没说照这个吃多久能到目标体重。
-        所以这里拆成两件事：左边只给结果（几周到几公斤），
-        右边一个"怎么算的"，点开才是推导。默认收起。
+
+        现在这一行给结果，点开是两件事：
+        (1) 这个数怎么算的 —— 有人会怀疑，得让他查得到；
+        (2) 觉得慢了怎么办 —— 三档直接换，环里的数字当场跟着变。
+        第二条比第一条重要：他问"能不能快点"的时候，
+        要的是一个能点的东西，不是一段解释。
       */}
       <section className="mt-2 px-5">
         <button
@@ -537,22 +620,95 @@ export default function HomeView({
           className="flex w-full items-center justify-between gap-2 py-1 text-left"
         >
           <span className="text-[13px] text-ink-400">
-            照这个吃，约{" "}
-            <b className="font-semibold tabular-nums text-ink-700">
-              {plan.weeksToGoal}
-            </b>{" "}
-            周到{" "}
-            <b className="font-semibold tabular-nums text-ink-700">
-              {profile.targetWeightKg}
-            </b>{" "}
-            公斤
+            {atGoal ? (
+              <>已经到 {profile.targetWeightKg} 公斤，接着稳住就行</>
+            ) : profile.goalWeeks && plan.tooFast ? (
+              <>
+                <b className="font-semibold tabular-nums text-[#b23c2c]">
+                  {profile.goalWeeks}
+                </b>{" "}
+                周办不到，最快{" "}
+                <b className="font-semibold tabular-nums text-ink-700">
+                  {plan.fastestWeeks}
+                </b>{" "}
+                周
+              </>
+            ) : (
+              <>
+                约{" "}
+                <b className="font-semibold tabular-nums text-ink-700">
+                  {plan.weeksToGoal}
+                </b>{" "}
+                周到{" "}
+                <b className="font-semibold tabular-nums text-ink-700">
+                  {profile.targetWeightKg}
+                </b>{" "}
+                公斤
+              </>
+            )}
           </span>
           <span className="shrink-0 text-[13px] text-ink-300">
             {showHow ? "收起" : "怎么算的"}
           </span>
         </button>
+
         {showHow && (
           <div className="mt-2 space-y-2 rounded-2xl bg-black/[0.035] px-3.5 py-3 text-[13px] leading-relaxed text-ink-500">
+            {/*
+              三档速度。
+              不做滑块：滑块要他先理解"周数与每天克数的换算"，
+              而他脑子里只有一句"能不能快点"。三档把结果直接摆出来，
+              比一比就能选。快的那档是安全上界，不是随手加的数字。
+            */}
+            <div
+              className={
+                atGoal
+                  ? "hidden"
+                  : "border-b border-black/[0.07] pb-2.5"
+              }
+            >
+              <p className="text-ink-700">觉得慢，可以调</p>
+              <div className="mt-2 flex gap-1.5">
+                {speeds.map((o) => {
+                  const on = o.key === activeSpeed;
+                  return (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => onGoalWeeks(o.goalWeeks)}
+                      className={`flex-1 rounded-xl px-1 py-2 text-center transition ${
+                        on
+                          ? "bg-brand-500 text-white"
+                          : "bg-white text-ink-600 active:scale-[0.97]"
+                      }`}
+                    >
+                      <span
+                        className={`block text-[11px] leading-none ${
+                          on ? "text-white/75" : "text-ink-300"
+                        }`}
+                      >
+                        {o.label}
+                      </span>
+                      <span className="mt-1 block text-[16px] font-semibold leading-none tabular-nums">
+                        {o.weeks} 周
+                      </span>
+                      <span
+                        className={`mt-1 block text-[11px] leading-none tabular-nums ${
+                          on ? "text-white/75" : "text-ink-300"
+                        }`}
+                      >
+                        每天 {o.budget}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-ink-400">
+                最快就是 {plan.fastestWeeks || 1} 周。
+                再往前压，掉的就不再是脂肪 —— 是肌肉和水，
+                而且一恢复正常吃饭就会回来。
+              </p>
+            </div>
             <p>
               躺着不动，一天要花{" "}
               <b className="tabular-nums text-ink-700">{plan.bmr}</b> 大卡；
@@ -562,32 +718,41 @@ export default function HomeView({
               <b className="tabular-nums text-ink-700">{plan.tdee}</b> 大卡。
             </p>
             <p>
-              想瘦就得留缺口：每天少吃 400 大卡，剩下的{" "}
-              <b className="tabular-nums text-ink-700">{plan.dailyBudgetKcal}</b>{" "}
-              就是环里那个数。
+              {atGoal ? (
+                <>
+                  已经到目标了，环里那个数是维持体重用的 —— 吃到{" "}
+                  <b className="tabular-nums text-ink-700">
+                    {plan.dailyBudgetKcal}
+                  </b>{" "}
+                  大卡上下，体重就不动。
+                </>
+              ) : (
+                <>
+                  想瘦就得留缺口：每天少吃{" "}
+                  <b className="tabular-nums text-ink-700">{plan.deficit}</b>{" "}
+                  大卡，剩下的{" "}
+                  <b className="tabular-nums text-ink-700">
+                    {plan.dailyBudgetKcal}
+                  </b>{" "}
+                  就是环里那个数。
+                </>
+              )}
             </p>
+            {!atGoal && (
             <p>
-              一周大约掉 0.4 公斤。{profile.weightKg} 到 {profile.targetWeightKg}{" "}
-              公斤差{" "}
+              {currentWeightKg} 到 {profile.targetWeightKg} 公斤差{" "}
               <b className="tabular-nums text-ink-700">
-                {Math.max(0, Math.round((profile.weightKg - profile.targetWeightKg) * 10) / 10)}
+                {Math.max(0, Math.round((currentWeightKg - profile.targetWeightKg) * 10) / 10)}
               </b>{" "}
-              公斤，所以是 {plan.weeksToGoal} 周。
+              公斤，按一周掉{" "}
+              <b className="tabular-nums text-ink-700">{plan.perWeekKg}</b> 公斤算，
+              所以是 {plan.weeksToGoal} 周。
             </p>
-            <p className="text-ink-300">400 大卡，差不多是一碗米饭加一勺油。</p>
+            )}
+
           </div>
         )}
       </section>
-
-      {/*
-        三个营养素条原来常驻在环形图下面，删了。
-        理由不是"不好看"，是它在这个用户身上没有行动含义：
-        他关心的是"今天还能吃多少""酒和油超没超"，
-        "蛋白质 60/80 克"这个数字他看一眼不会因此改变晚饭。
-        而且它重复 —— 脂肪超、碳水超、蛋白不够这三件事，
-        下面那张"今天要注意的事"清单已经会说，还带一句该怎么做。
-        常驻条只报数字，清单说的是行动。留下会说的那个。
-      */}
 
       <section className="mt-5 px-5">
         <div className="mb-2.5 flex items-baseline justify-between">

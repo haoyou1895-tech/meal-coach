@@ -112,30 +112,37 @@ const P: Record<IconName, JSX.Element> = {
     </>
   ),
   /**
-   * 鸡腿。
+   * 猪。
    *
-   * 这一格废了十版。前九版都死在"骨架"上：
-   * 肉画成一个正圆、骨头竖直插在下面，21px 下就是一根棒棒糖；
-   * 肉只画半边弧，就成了"被啃过的残骸"。
+   * 鸡腿这一格废了十几版，最后认定问题不在画法，在"鸡腿"这个对象本身：
+   * 它的辨识度全靠肉和骨的比例，而这个比例在 21px 下可调节的余量只有一两个像素，
+   * 怎么调都在这条线上来回翻（一会儿棒棒糖，一会儿蘑菇）。
    *
-   * 表情包那个鸡腿能一眼认出来，靠的是三件事同时成立：
-   * (1) 肉是完整闭合的一大块，不是残弧 —— 所以这里用整椭圆；
-   * (2) 骨头和肉成 40° 斜角，形成"方向"，比竖直更容易读出"腿"；
-   * (3) 骨头要伸出去够长（露出约肉半径的 3/4），末端一颗圆节收尾。
-   * 少了第 (3) 条就还是棒棒糖 —— 前面几版骨头只露出十几个像素。
+   * 换成猪头就绕开了这个问题 —— 猪的辨识度不靠比例，靠三样结构：
+   * 头顶两只耳朵、中间一个圆鼻子、鼻子上两个孔。
+   * 这三样任意两样同时出现，21px 下也不会认错，而且比例怎么变都还是猪。
+   *
+   * 每个形状都要显式 stroke="none"：父级 svg 默认描边是 currentColor 1.7，
+   * 不关掉的话 21px 下会给每个色块镶一圈黑边，直接糊成一团。
    */
   meat: (
     <>
-      <ellipse cx="8.9" cy="9.2" rx="6.9" ry="6.3" fill="#b0543a" stroke="none" />
-      <path d="M12.4 13.4l5.8 5.2" stroke="#fdf7ec" strokeWidth="3" strokeLinecap="round" />
       <path
-        d="M12.4 13.4l5.8 5.2"
-        stroke="#c9b79b"
-        strokeWidth="0.55"
-        strokeLinecap="round"
-        fill="none"
+        d="M6.1 8.2 4.6 3.6c-.2-.7.5-1.3 1.2-1.1l3.8 1.4z"
+        fill="#e9899f"
+        stroke="none"
       />
-      <circle cx="19.6" cy="19.7" r="2.2" fill="#fdf7ec" stroke="#c9b79b" strokeWidth="0.8" />
+      <path
+        d="M17.9 8.2 19.4 3.6c.2-.7-.5-1.3-1.2-1.1l-3.8 1.4z"
+        fill="#e9899f"
+        stroke="none"
+      />
+      <ellipse cx="12" cy="13.4" rx="8.5" ry="7.4" fill="#f7bcc9" stroke="none" />
+      <circle cx="8.7" cy="11.8" r="1.15" fill="#5c2f39" stroke="none" />
+      <circle cx="15.3" cy="11.8" r="1.15" fill="#5c2f39" stroke="none" />
+      <ellipse cx="12" cy="16.4" rx="3.6" ry="2.8" fill="#e9899f" stroke="none" />
+      <ellipse cx="10.7" cy="16.4" rx="0.62" ry="0.95" fill="#7d3d4b" stroke="none" />
+      <ellipse cx="13.3" cy="16.4" rx="0.62" ry="0.95" fill="#7d3d4b" stroke="none" />
     </>
   ),
   edit: (

@@ -26,15 +26,62 @@ const DAILY_DEFICIT = 400;
 
 const SAFE_FLOOR = { male: 1500, female: 1200 };
 
+/**
+ * 一天最多能留多大的缺口。三条线同时卡，取最紧的那个：
+ *
+ * (1) 缺口不超过总消耗的三成 —— 再往上就轮不到脂肪了，先掉的是肌肉；
+ * (2) 一周掉的体重不超过体重的 1% —— 这条是通用的减重安全线；
+ * (3) 预算不低于安全下限 —— 低于这个数，营养再怎么配也配不齐。
+ *
+ * 三条里 (1) 和 (3) 对 46 岁 78 公斤的人几乎同时生效，所以最后落点
+ * 在 600 出头：一天 1500 大卡，一周掉 0.55 公斤。
+ */
+function maxSafeDeficit(p: Profile, tdee: number): number {
+  const floor = SAFE_FLOOR[p.gender];
+  return Math.max(
+    100,
+    Math.min(
+      tdee * 0.3,
+      (p.weightKg * 0.01 * 7700) / 7,
+      tdee - floor,
+    ),
+  );
+}
+
 export function buildPlan(
   p: Profile,
   activity: ActivityLevel = "normal",
 ): NutritionPlan {
   const bmr = calcBMR(p);
   const tdee = Math.round(bmr * ACTIVITY_FACTOR[activity]);
-  const raw = tdee - DAILY_DEFICIT;
   const floor = SAFE_FLOOR[p.gender];
-  const dailyBudgetKcal = Math.max(raw, floor);
+  const gapKg = Math.max(0, p.weightKg - p.targetWeightKg);
+  const maxDeficit = maxSafeDeficit(p, tdee);
+
+  // 1kg 脂肪 ≈ 7700 kcal
+  const fastestWeeks =
+    gapKg > 0 ? Math.ceil((gapKg * 7700) / (maxDeficit * 7)) : 0;
+
+  /*
+   * 用户自己定了周数，就反算每天要少吃多少。
+   * 但反算出来的数不许越过安全边界 —— 他想"一个月掉 6 公斤"，
+   * 系统只能给他最快的那一档，并且明说"这已经是最快"。
+   * 不是不听话，是那个要求本身办不到，硬办到的部分不是脂肪。
+   */
+  const goalWeeks =
+    p.goalWeeks && p.goalWeeks > 0 ? Math.round(p.goalWeeks) : null;
+  const wanted =
+    goalWeeks && gapKg > 0 ? (gapKg * 7700) / (goalWeeks * 7) : 0;
+  const tooFast = wanted > maxDeficit + 1;
+
+  const deficit = goalWeeks
+    ? Math.min(wanted, maxDeficit)
+    : gapKg > 0
+      ? DAILY_DEFICIT
+      : 0;
+
+  const raw = tdee - deficit;
+  const dailyBudgetKcal = Math.max(Math.round(raw), floor);
   const clamped = raw < floor;
 
   const proteinTargetG = Math.round(p.weightKg * 1.2);
@@ -46,12 +93,10 @@ export function buildPlan(
 
   const sodiumLimitMg = p.diseases.includes("hypertension") ? 2000 : 2500;
 
-  const gapKg = Math.max(0, p.weightKg - p.targetWeightKg);
-  // 1kg 脂肪 ≈ 7700 kcal
-  const weeksToGoal = Math.max(
-    1,
-    Math.round((gapKg * 7700) / (DAILY_DEFICIT * 7)),
-  );
+  const weeksToGoal =
+    gapKg > 0 && deficit > 0
+      ? Math.max(1, Math.round((gapKg * 7700) / (deficit * 7)))
+      : 0;
 
   return {
     bmr,
@@ -63,7 +108,75 @@ export function buildPlan(
     sodiumLimitMg,
     clamped,
     weeksToGoal,
+    deficit: Math.round(deficit),
+    fastestWeeks,
+    goalWeeks,
+    tooFast,
+    perWeekKg: Math.round(((deficit * 7) / 7700) * 100) / 100,
   };
+}
+
+export type GoalSpeed = "fast" | "steady" | "slow";
+
+export interface GoalOption {
+  key: GoalSpeed;
+  label: string;
+  weeks: number;
+  budget: number;
+  /** 这档一周掉多少公斤 */
+  perWeek: number;
+  /** 这档该存进 profile.goalWeeks 的值，稳的那档存 undefined */
+  goalWeeks: number | undefined;
+}
+
+/**
+ * 三个速度档，给"我觉得减太慢了"这个念头一个落点。
+ *
+ * 为什么是三个档而不是一个滑块：滑块要他先理解"周数和每天克数的换算"，
+ * 而他要的只是"能不能快点"。三档各自把结果直接写出来（几周、每天多少），
+ * 他比一比就选了，不需要换算。
+ *
+ * 快的那档取安全上界，不是随便加速度 —— 谁都能把数字调好看，
+ * 代价是肌肉和水，那种"快"两周就反弹回来。
+ */
+export function goalOptions(
+  p: Profile,
+  activity: ActivityLevel = "normal",
+): GoalOption[] {
+  const steady = buildPlan({ ...p, goalWeeks: undefined }, activity);
+  const fast = buildPlan(
+    { ...p, goalWeeks: steady.fastestWeeks || 1 },
+    activity,
+  );
+  const slow = buildPlan(
+    { ...p, goalWeeks: Math.ceil(steady.weeksToGoal * 1.4) },
+    activity,
+  );
+
+  const shape = (
+    key: GoalSpeed,
+    label: string,
+    plan: NutritionPlan,
+    goalWeeks: number | undefined,
+  ): GoalOption => ({
+    key,
+    label,
+    weeks: plan.weeksToGoal,
+    budget: plan.dailyBudgetKcal,
+    perWeek: plan.perWeekKg,
+    goalWeeks,
+  });
+
+  return [
+    shape("fast", "快一点", fast, steady.fastestWeeks || undefined),
+    shape("steady", "照这个", steady, undefined),
+    shape(
+      "slow",
+      "慢一点",
+      slow,
+      Math.ceil(steady.weeksToGoal * 1.4),
+    ),
+  ];
 }
 
 export const EMPTY_NUTRITION: Nutrition = {
@@ -175,9 +288,8 @@ export function dayBudget(
   p: Profile,
   level: ActivityLevel = "normal",
 ): number {
-  const bmr = calcBMR(p);
-  const raw = Math.round(bmr * ACTIVITY_FACTOR[level]) - DAILY_DEFICIT;
-  return Math.max(raw, SAFE_FLOOR[p.gender]);
+  // 跟首页共用一套算法：他要是把目标改成"11 周"，记录页的预算线也得跟着降
+  return buildPlan(p, level).dailyBudgetKcal;
 }
 
 /** 疾病 → 中文 */

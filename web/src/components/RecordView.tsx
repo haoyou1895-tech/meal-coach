@@ -372,8 +372,11 @@ export default function RecordView({
   const budgets = useMemo(() => {
     const level = new Map<string, ActivityLevel>();
     for (const a of activities) level.set(a.date, a.level);
-    return last7.map((d) => dayBudget(profile, level.get(d) ?? "normal"));
-  }, [last7, activities, profile]);
+    // 按最近一次称的体重算，跟首页一致 —— 掉了两公斤之后，
+    // 那两条线还挂在 78 公斤的高度上，图会骗人
+    const now = { ...profile, weightKg: latest };
+    return last7.map((d) => dayBudget(now, level.get(d) ?? "normal"));
+  }, [last7, activities, profile, latest]);
 
   const maxKcal = Math.max(
     ...budgets.map((b) => b * 1.2),
