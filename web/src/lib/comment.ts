@@ -89,9 +89,12 @@ export function ruleVerdict(
   const { next } = nextMeal(mealType);
   const slot = slotRange(mealType, budget);
 
+  // 说"盐多"不说"咸"：一桌菜吃着正好、一碗汤下去钠就超了，
+  // 味觉和钠量经常不同步，讲量才是这一行该讲的事
+
   // P0 —— 与疾病冲突
   if (diseases.includes("hypertension") && n.sodium > 800) {
-    return { tone: "warn", icon: "salt", short: "有点咸", tip: "下回少放半勺盐" };
+    return { tone: "warn", icon: "salt", short: "盐有点多", tip: "下回少放半勺盐" };
   }
   if (diseases.includes("diabetes") && n.carb > 80) {
     return { tone: "warn", icon: "carb", short: "主食偏多", tip: `${next}少半碗饭` };
@@ -113,7 +116,7 @@ export function ruleVerdict(
 
   // P0.5 —— 通用钠超标（不依赖是否有高血压）
   if (n.sodium > 1500) {
-    return { tone: "warn", icon: "salt", short: "偏咸", tip: "汤少喝点，盐少半勺" };
+    return { tone: "warn", icon: "salt", short: "盐偏多", tip: "汤少喝点，盐少半勺" };
   }
 
   // P1 —— 这一顿的份量，对照的是它自己的标准，不是全天预算

@@ -80,7 +80,7 @@ export default function WeightTrend({
         verdict = "在慢慢往下走，稳着来就行";
       }
     } else if (delta >= 0.3) {
-      verdict = "最近在往上走，看看是不是菜太咸，或者这几天动得少了";
+      verdict = "最近在往上走，看看是不是菜里盐太多，或者这几天动得少了";
     } else {
       verdict = "体重基本没动。没动不等于没效果，先看腰围和精力";
     }

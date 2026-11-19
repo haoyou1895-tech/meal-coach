@@ -252,6 +252,11 @@ export default function HomeView({
     (profile.goalWeeks && profile.goalWeeks < plan.fastestWeeks
       ? "fast"
       : "steady");
+  /** 圆点该停在哪一格 */
+  const activeIdx = Math.max(
+    0,
+    speeds.findIndex((o) => o.key === activeSpeed),
+  );
 
   const left = plan.dailyBudgetKcal - totals.kcal;
   // 从历史记录里学这个人平时几点吃，用在提醒和"下一顿该吃哪顿"上
@@ -614,12 +619,12 @@ export default function HomeView({
         要的是一个能点的东西，不是一段解释。
       */}
       <section className="mt-2 px-5">
-        <button
-          type="button"
-          onClick={() => setShowHow((v) => !v)}
-          className="flex w-full items-center justify-between gap-2 py-1 text-left"
-        >
-          <span className="text-[13px] text-ink-400">
+        <div className="flex items-center justify-between gap-2 py-1">
+          <button
+            type="button"
+            onClick={() => setShowHow((v) => !v)}
+            className="min-w-0 flex-1 text-left text-[13px] text-ink-400"
+          >
             {atGoal ? (
               <>已经到 {profile.targetWeightKg} 公斤，接着稳住就行</>
             ) : profile.goalWeeks && plan.tooFast ? (
@@ -646,11 +651,49 @@ export default function HomeView({
                 公斤
               </>
             )}
-          </span>
-          <span className="shrink-0 text-[13px] text-ink-300">
-            {showHow ? "收起" : "怎么算的"}
-          </span>
-        </button>
+          </button>
+
+          {/*
+            右侧原来写的是"怎么算的"四个字 —— 它只回答了"这里有没有东西"，
+            没回答"这东西能不能动"。用户不是不知道那行可以点，
+            是根本不知道速度可以改，所以那四个字等于没说。
+
+            换成三个点：亮着的那个就是现在这一档，其余两个暗着。
+            "有三个点、其中一个亮着"是通用的档位语言 ——
+            看到的人第一反应是"还有另外两档"。
+
+            而且这三点本身就能点：点一下切到下一档，环里的预算当场变。
+            只做展示的点还是等于让人猜；能点的点，一次就教会了他。
+          */}
+          {atGoal ? (
+            <span className="flex shrink-0 items-center text-[#4aa87a]">
+              <Icon name="check" size={15} />
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                const next = speeds[(activeIdx + 1) % speeds.length];
+                if (next) onGoalWeeks(next.goalWeeks);
+              }}
+              aria-label={`切换减重速度，现在是${speeds[activeIdx]?.label ?? "照这个"}`}
+              className={`flex shrink-0 items-center gap-[8px] rounded-full px-2.5 py-2 transition-colors active:scale-95 ${
+                showHow ? "bg-brand-50" : "bg-black/[0.055]"
+              }`}
+            >
+              {speeds.map((o, i) => (
+                <span
+                  key={o.key}
+                  className={`block rounded-full transition-all duration-200 ${
+                    i === activeIdx
+                      ? "h-[10px] w-[10px] bg-brand-500"
+                      : "h-[8px] w-[8px] bg-black/[0.2]"
+                  }`}
+                />
+              ))}
+            </button>
+          )}
+        </div>
 
         {showHow && (
           <div className="mt-2 space-y-2 rounded-2xl bg-black/[0.035] px-3.5 py-3 text-[13px] leading-relaxed text-ink-500">
@@ -667,8 +710,13 @@ export default function HomeView({
                   : "border-b border-black/[0.07] pb-2.5"
               }
             >
-              <p className="text-ink-700">觉得慢，可以调</p>
-              <div className="mt-2 flex gap-1.5">
+              {/*
+                这里原来有一句"觉得慢，可以调"。
+                删了 —— 三张卡各自写着"快一点 / 照这个 / 慢一点"，
+                一个绿底选中，这本身就是完整的一句话；
+                再配一行说明，等于先承认界面没讲清。
+              */}
+              <div className="flex gap-1.5">
                 {speeds.map((o) => {
                   const on = o.key === activeSpeed;
                   return (

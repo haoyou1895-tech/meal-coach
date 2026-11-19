@@ -104,10 +104,19 @@ export function saltGram(mg: number): number {
 
 export type SaltLevel = "light" | "medium" | "heavy";
 
+/**
+ * 盐的说法。
+ *
+ * 原来写的是"偏咸/很咸"——说的是舌头尝到的味道。
+ * 可这一行关心的是血压：炒菜放了两勺酱油、喝了一碗汤，
+ * 吃起来一点不咸，钠早就超了。"咸"和"钠多"经常不是一回事，
+ * 用味觉词会把一个量的问题讲成品味的问题。
+ * 所以一律说"多"，跟左边那个"盐"字连起来读就是"盐多了"。
+ */
 export const SALT_LABEL: Record<SaltLevel, string> = {
-  light: "清淡",
-  medium: "偏咸",
-  heavy: "很咸",
+  light: "不多",
+  medium: "有点多",
+  heavy: "太多了",
 };
 
 export const SALT_COLOR: Record<SaltLevel, string> = {
