@@ -3,6 +3,7 @@ import Taro, { useDidShow } from "@tarojs/taro";
 import { useEffect, useMemo, useState } from "react";
 import BottomNav from "../../components/BottomNav";
 import Icon, { type IconName } from "../../components/Icon";
+import Splash from "../../components/Splash";
 import { habitTimes, macroWarnings, mealReminder, nextMealAdvice } from "../../lib/advice";
 import { dayStatusText, ruleVerdict, type Verdict } from "../../lib/comment";
 import {
@@ -43,6 +44,13 @@ import "./index.scss";
  */
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+/**
+ * 开屏每次冷启动只放一次。
+ * 放模块级而不是 state：页面被 redirect 或重新进入时不会再挡一遍，
+ * 但整个小程序被杀掉重开时会重新来 —— 这才是"每次打开"的意思。
+ */
+let splashShown = false;
 
 const ACTIVITY_OPTIONS: { level: ActivityLevel; label: string }[] = [
   { level: "low", label: "没动" },
@@ -118,6 +126,7 @@ export default function HomePage() {
   const [view, setView] = useState<"meal" | "food">("meal");
   const [logOpen, setLogOpen] = useState(false);
   const [rankOpen, setRankOpen] = useState(false);
+  const [splash, setSplash] = useState(!splashShown);
 
   useDidShow(() => {
     const s = loadState();
@@ -243,7 +252,7 @@ export default function HomePage() {
     };
   }, [state, today, now]);
 
-  const openSettings = () => Taro.navigateTo({ url: "/pages/setup/index" });
+  const openSettings = () => Taro.navigateTo({ url: "/pages/settings/index" });
 
   const setGoalWeeks = (weeks?: number) => {
     if (!state?.profile) return;
@@ -258,6 +267,17 @@ export default function HomePage() {
     saveState(next);
     setState(next);
   };
+
+  if (splash) {
+    return (
+      <Splash
+        onDone={() => {
+          splashShown = true;
+          setSplash(false);
+        }}
+      />
+    );
+  }
 
   if (!vm) return <View className="page" />;
 

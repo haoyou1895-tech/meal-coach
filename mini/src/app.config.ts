@@ -4,6 +4,7 @@ export default defineAppConfig({
     "pages/record/index",
     "pages/setup/index",
     "pages/capture/index",
+    "pages/settings/index",
   ],
   window: {
     backgroundTextStyle: "dark",

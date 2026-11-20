@@ -1,15 +1,142 @@
 @import "../../styles/var.scss";
 
 /**
- * 拍照记录页。数值对着 web/src/components/CameraSheet.tsx。
+ * 记一餐。数值对着 web/src/components/CameraSheet.tsx。
  *
- * 上一版这里全用 rpx —— 小程序里 rpx 合法，但 h5 产物里 rpx 原样输出，
- * 浏览器不认这个单位，整条规则被丢弃，于是预览时这一页完全没样式。
- * 现在跟其他页一样用 px + tw()，两端同一套数。
+ * 网页版这里是个底部弹层（Sheet），小程序做成整页 ——
+ * 因为整页才能拿到原生返回键，弹层里没有返回，用户容易困在里面。
+ * 内部排版按弹层的 px 值照搬，左右各 tw(5)。
  */
 
 .page.cap {
   padding: tw(4) tw(5) tw(6);
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.b {
+  font-weight: 600;
+  color: $ink-700;
+}
+
+/* ---------- 通用按钮 ---------- */
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: tw(16); /* 68 */
+  width: 100%;
+  border-radius: tw(4); /* 17 */
+  background: $brand-500;
+  transition: transform 0.12s;
+
+  &.is-busy {
+    opacity: 0.4;
+  }
+
+  &:active {
+    transform: scale(0.98);
+    background: $brand-600;
+  }
+}
+
+.btn-primary-text {
+  font-size: 19px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: tw(14); /* 59.5 */
+  width: 100%;
+  border-radius: tw(4);
+  border: 1px solid rgba(182, 189, 185, 0.6);
+  background: #ffffff;
+
+  &:active {
+    background: rgba(0, 0, 0, 0.03);
+  }
+}
+
+.btn-ghost-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: $ink-700;
+  line-height: 1;
+}
+
+/* 并排两个：h-11 圆角，实心 / 白底描边 */
+.two-btns {
+  display: flex;
+  gap: tw(2);
+  margin-top: tw(3);
+}
+
+.btn-solid,
+.btn-outline {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: tw(11); /* 46.75 */
+  border-radius: tw(3);
+}
+
+.btn-solid.danger {
+  background: #b23c2c;
+}
+
+.btn-solid.warn {
+  background: #a9631a;
+}
+
+.btn-solid-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.btn-outline {
+  background: #ffffff;
+}
+
+.btn-outline.danger .btn-outline-text {
+  color: #b23c2c;
+}
+
+.btn-outline.warn .btn-outline-text {
+  color: #a9631a;
+}
+
+.btn-outline-text {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.err {
+  display: block;
+  margin-top: tw(3);
+  font-size: 14px;
+  line-height: 1.6;
+  color: #b23c2c;
+  text-align: center;
 }
 
 /* ---------- 选图 ---------- */
@@ -18,7 +145,6 @@
   padding-top: tw(1);
 }
 
-/* 餐次四选一。网页版：h-12 flex-1 rounded-xl text-[16px]，选中是实心绿 */
 .mealtype-row {
   display: flex;
   gap: tw(2);
@@ -26,18 +152,27 @@
 }
 
 .mealtype {
+  position: relative;
   display: flex;
   flex: 1;
   align-items: center;
   justify-content: center;
   height: tw(12); /* 51 */
-  border-radius: tw(3); /* 12.75 */
+  border-radius: tw(3);
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(27, 35, 32, 0.05);
 }
 
 .mealtype.is-on {
   background: $brand-500;
+}
+
+.mealtype-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.15;
 }
 
 .mealtype-text {
@@ -50,7 +185,123 @@
   color: #ffffff;
 }
 
-/* 拍照入口：绿虚线大卡片，圆图标 + 两行字。网页版的 border-2 border-dashed */
+.mealtype-sub {
+  font-size: 10px;
+  font-weight: 400;
+  color: $ink-300;
+}
+
+.mealtype-sub.is-on {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mealtype-rec {
+  position: absolute;
+  right: tw(1.5);
+  bottom: tw(0.5);
+  font-size: 10px;
+  color: rgba(23, 111, 73, 0.7);
+}
+
+.mealtype-rec.is-on {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* 已记提示卡 */
+.existing {
+  margin-bottom: tw(4);
+  padding: tw(3) tw(4);
+  border-radius: tw(4);
+  background: $brand-50;
+}
+
+.existing-head {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+}
+
+.existing-title {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+  color: $brand-700;
+}
+
+.existing-edit {
+  display: flex;
+  align-items: center;
+  gap: tw(1);
+  padding: tw(1.5) tw(2.5);
+  border-radius: tw(2);
+  background: #ffffff;
+}
+
+.existing-edit-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: $brand-600;
+  line-height: 1;
+}
+
+.existing-items {
+  display: block;
+  margin-top: tw(1.5);
+  font-size: 15px;
+  line-height: 1.35;
+  color: $brand-700;
+  opacity: 0.85;
+}
+
+.existing-hint {
+  display: block;
+  margin-top: tw(1);
+  font-size: 13px;
+  color: $ink-500;
+}
+
+/* 描述框 */
+.note-wrap {
+  margin-bottom: tw(4);
+}
+
+.note-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: tw(1.5);
+}
+
+.note-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-700;
+}
+
+.note-count {
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.note-area {
+  display: block;
+  width: 100%;
+  height: tw(17);
+  padding: tw(3) tw(4);
+  box-sizing: border-box;
+  border-radius: tw(3);
+  background: #ffffff;
+  font-size: 17px;
+  line-height: 1.5;
+  color: $ink-700;
+  resize: none;
+}
+
+.note-ph {
+  color: $ink-300;
+}
+
+/* 虚线大卡片 */
 .shot-box {
   display: flex;
   flex-direction: column;
@@ -60,6 +311,10 @@
   border: 2px dashed $brand-200;
   border-radius: tw(6); /* 25.5 */
   background: $brand-50;
+
+  &:active {
+    transform: scale(0.99);
+  }
 }
 
 .shot-icon {
@@ -68,7 +323,7 @@
   justify-content: center;
   width: tw(16); /* 68 */
   height: tw(16);
-  border-radius: 999px;
+  border-radius: 50%;
   background: $brand-500;
 }
 
@@ -83,7 +338,6 @@
   color: $ink-500;
 }
 
-/* 从相册选：白底一条，右边跟一句灰话 */
 .album-btn {
   display: flex;
   align-items: center;
@@ -92,7 +346,11 @@
   padding: tw(3.5) 0;
   border-radius: tw(4);
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(27, 35, 32, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  &:active {
+    transform: scale(0.99);
+  }
 }
 
 .album-text {
@@ -102,85 +360,9 @@
 }
 
 .album-hint {
-  margin-left: tw(1);
   font-size: 14px;
   font-weight: 400;
   color: $ink-300;
-}
-
-/* 主按钮：跟网页版 .btn-primary 同一套（h-16 rounded-2xl text-[19px]） */
-.pick-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: tw(7);
-  height: tw(16); /* 68 */
-  border-radius: tw(4); /* 17 */
-  background: $brand-500;
-  box-shadow: 0 8px 24px rgba(31, 138, 91, 0.28);
-}
-
-.pick-btn.is-down {
-  background: $brand-600;
-}
-
-.pick-btn-text {
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1;
-  color: #ffffff;
-}
-
-/* 次按钮：白底、虚线边，跟网页版的「从相册选」一致 */
-.pick-btn.ghost {
-  margin-top: tw(2.5);
-  background: #ffffff;
-  border: 1px solid rgba(182, 189, 185, 0.6);
-  box-shadow: none;
-}
-
-.pick-btn.ghost .pick-btn-text {
-  color: $brand-600;
-  font-weight: 500;
-  font-size: 17px;
-}
-
-/* ---------- 预览 ---------- */
-
-.preview-img {
-  width: 100%;
-  height: 260px;
-  margin-top: tw(5);
-  border-radius: tw(6); /* 25.5 */
-  background: #dfe5e1;
-}
-
-.preview-label {
-  display: block;
-  margin-top: tw(5);
-  font-size: 15px;
-  font-weight: 500;
-  color: $ink-700;
-}
-
-.note-input {
-  width: 100%;
-  height: 64px;
-  margin-top: tw(2);
-  padding: tw(3) tw(4);
-  border-radius: tw(4);
-  background: #ffffff;
-  font-size: 17px;
-  line-height: 1.5;
-  color: $ink-700;
-}
-
-.err {
-  display: block;
-  margin-top: tw(3);
-  font-size: 15px;
-  line-height: 1.5;
-  color: #b23c2c;
 }
 
 /* ---------- 识别中 ---------- */
@@ -189,29 +371,61 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: tw(12);
+  padding-top: tw(8);
 }
 
 .busy-img {
-  width: 176px;
-  height: 176px;
+  width: tw(44);
+  height: tw(44);
   border-radius: tw(4);
-  background: #dfe5e1;
 }
 
-.spinner {
-  width: 32px;
-  height: 32px;
+.busy-shots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: tw(2);
+  width: 100%;
+}
+
+.busy-thumb {
+  width: tw(24);
+  height: tw(24);
+  border-radius: tw(3);
+}
+
+.busy-dots {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
   margin-top: tw(6);
-  border-radius: 50%;
-  border: 3px solid $brand-100;
-  border-top-color: $brand-500;
-  animation: spin 0.9s linear infinite;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+.busy-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: $brand-500;
+  animation: busyBounce 1s ease-in-out infinite;
+
+  &:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  &:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+
+@keyframes busyBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateY(-6px);
+    opacity: 1;
   }
 }
 
@@ -228,103 +442,246 @@
   color: $ink-300;
 }
 
+/* ---------- 出错 ---------- */
+
+.err-wrap {
+  padding-top: tw(6);
+}
+
+.err-title {
+  display: block;
+  font-size: 17px;
+  line-height: 1.5;
+  color: $ink-700;
+  text-align: center;
+}
+
+.err-btns {
+  display: flex;
+  flex-direction: column;
+  gap: tw(3);
+  margin-top: tw(6);
+}
+
 /* ---------- 结果 ---------- */
 
-.result-img {
+.res-top {
+  display: flex;
+  align-items: flex-start;
+  gap: tw(3);
+}
+
+.res-thumb {
+  position: relative;
+  width: tw(20); /* 85 */
+  height: tw(20);
+  flex-shrink: 0;
+  border-radius: tw(4);
+  overflow: hidden;
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.res-thumb-img {
   width: 100%;
-  height: 150px;
-  border-radius: tw(6);
-  background: #dfe5e1;
+  height: 100%;
 }
 
-.card.mealtype-card {
-  margin-top: tw(4);
+.res-thumb-count {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+  line-height: 16px;
+  color: #ffffff;
+  text-align: center;
 }
 
-.field-label {
+.res-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.res-label {
   display: block;
   font-size: 15px;
+  color: $ink-500;
+}
+
+.res-kcal {
+  display: flex;
+  align-items: baseline;
+}
+
+.res-kcal-num {
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: $ink-900;
+}
+
+.res-kcal-unit {
+  margin-left: 4px;
+  font-size: 16px;
   font-weight: 500;
   color: $ink-500;
 }
 
-/* 餐次四个按钮：网页版是 h-12 rounded-xl text-[16px]，选中的绿底白字 */
-.row {
-  display: flex;
-  gap: tw(2);
-  margin-top: tw(2.5);
-}
-
-.chip {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  height: tw(12); /* 51 */
-  border-radius: tw(3); /* 12.75 */
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.chip.is-on {
-  background: $brand-500;
-}
-
-.chip-text {
-  font-size: 16px;
-  font-weight: 500;
-  color: $ink-700;
-}
-
-.chip.is-on .chip-text {
-  color: #ffffff;
-  font-weight: 600;
-}
-
-.card-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.kcal-big {
-  font-size: 28px;
+.res-demo {
+  font-size: 34px;
   font-weight: 700;
   line-height: 1.2;
-  font-variant-numeric: tabular-nums;
+  color: $warn-500;
 }
 
+.res-retake {
+  flex-shrink: 0;
+  padding: tw(1.5) tw(3);
+  border-radius: tw(2);
+  background: rgba(0, 0, 0, 0.04);
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.res-retake-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: $brand-600;
+  line-height: 1;
+}
+
+/* 示例数据提示 */
 .demo-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: tw(2);
+  margin-top: tw(3);
+  padding: tw(3);
+  border-radius: tw(3);
+  background: $warn-100;
+}
+
+.demo-tip-text {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.6;
+  color: $warn-600;
+}
+
+/* 冲突 / 待确认 */
+.conflict,
+.pending {
+  margin-top: tw(3);
+  padding: tw(3.5) tw(4);
+  border-radius: tw(4);
+}
+
+.conflict {
+  background: #fdecea;
+}
+
+.pending {
+  background: #fff4e5;
+}
+
+.conflict-head {
+  display: flex;
+  align-items: flex-start;
+  gap: tw(2.5);
+}
+
+.conflict-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.conflict-title,
+.pending-title {
   display: block;
-  margin-top: tw(2);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.conflict-title {
+  color: #b23c2c;
+}
+
+.pending-title {
+  color: #a9631a;
+}
+
+.conflict-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(178, 60, 44, 0.75);
+}
+
+.pending-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(169, 99, 26, 0.75);
+}
+
+.res-ok {
+  display: block;
+  margin-top: tw(3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: $ink-300;
+}
+
+.merge-tip {
+  margin-top: tw(4);
+  padding: tw(3) tw(3.5);
+  border-radius: tw(3);
+  background: $warn-100;
+}
+
+.merge-tip-text {
   font-size: 13px;
   line-height: 1.5;
   color: $warn-600;
 }
 
-.empty-tip {
-  display: block;
-  margin-top: tw(3);
-  font-size: 15px;
-  line-height: 1.6;
-  color: $ink-500;
+/* 菜品列表 */
+.dishes {
+  margin-top: tw(5);
 }
 
-/* 一道菜一行：白底圆角块，跟网页版结果列表同构 */
-.item-row {
+.dish {
   display: flex;
   align-items: center;
-  margin-top: tw(2);
+  justify-content: space-between;
+  margin-bottom: tw(2);
   padding: tw(3) tw(4);
   border-radius: tw(4);
-  background: rgba(0, 0, 0, 0.025);
+  background: #ffffff;
+
+  &.is-off {
+    border: 1px dashed #d8b98e;
+    background: #fffaf2;
+  }
 }
 
-.item-left {
-  flex: 1;
+.dish-left {
   min-width: 0;
+  flex: 1;
 }
 
-.item-name {
+.dish-name {
   display: block;
   font-size: 17px;
   font-weight: 500;
@@ -332,108 +689,350 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+
+  &.is-off {
+    color: $ink-300;
+  }
 }
 
-.item-portion {
+.dish-sub {
   display: block;
-  margin-top: tw(0.5);
   font-size: 13px;
   color: $ink-300;
 }
 
-.item-kcal {
-  margin-right: tw(3);
-  font-size: 15px;
-  font-weight: 600;
-  color: $ink-700;
-  font-variant-numeric: tabular-nums;
+.dish-add {
+  flex-shrink: 0;
+  padding: tw(2) tw(3);
+  border-radius: tw(2);
+  background: #a9631a;
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
-.item-del {
+.dish-add-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+}
+
+/* 份量三档 */
+.steps {
+  display: flex;
+  flex-shrink: 0;
+  gap: tw(1);
+}
+
+.step-chip {
+  height: tw(8); /* 34 */
+  padding: 0 tw(2);
+  border-radius: tw(2);
+  background: rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &.is-on {
+    background: $brand-500;
+  }
+}
+
+.step-chip-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: $ink-500;
+  line-height: 1;
+}
+
+.step-chip.is-on .step-chip-text {
+  color: #ffffff;
+}
+
+/* 酒的加减 */
+.counter {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: tw(1);
+}
+
+.counter-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: tw(9);
   height: tw(9);
   border-radius: tw(2);
-  background: rgba(217, 79, 61, 0.08);
+  background: rgba(0, 0, 0, 0.05);
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
-.item-del-text {
-  font-size: 13px;
-  color: $danger-500;
+.counter-sign {
+  font-size: 18px;
+  font-weight: 700;
+  color: $ink-700;
+  line-height: 1;
 }
 
-.comment {
-  display: block;
-  margin-top: tw(4);
-  padding-top: tw(3.5);
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
+.counter-val {
+  width: tw(12);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: $ink-900;
+}
+
+.drink-panel {
+  padding: tw(3);
+  border-radius: tw(4);
+  background: #ffffff;
+}
+
+.drink-kinds {
+  display: flex;
+  gap: tw(2);
+}
+
+.drink-kind {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: tw(11);
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.04);
+
+  &.is-on {
+    background: #fdecea;
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.drink-kind-text {
   font-size: 15px;
-  line-height: 1.6;
+  font-weight: 500;
   color: $ink-700;
 }
 
-/* 营养四格：网页版是 rounded-xl bg-white py-2.5 的小卡 */
-.card.macros {
+.drink-kind.is-on .drink-kind-text {
+  color: #b23c2c;
+}
+
+.drink-fold {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: tw(9);
+  margin-top: tw(2);
+}
+
+.drink-fold-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: $ink-300;
+}
+
+.drink-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: tw(1.5);
+  padding: tw(3) 0;
+  border: 1px dashed rgba(182, 189, 185, 0.4);
+  border-radius: tw(4);
+
+  &:active {
+    transform: scale(0.99);
+  }
+}
+
+.drink-open-text {
+  font-size: 15px;
+  color: $ink-500;
+}
+
+/* 这顿怎样 */
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+  margin-top: tw(4);
+  padding: tw(3.5) tw(4);
+  border-radius: tw(4);
+  background: $brand-50;
+}
+
+.verdict-short {
+  font-size: 17px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.verdict-tip {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: $ink-500;
+}
+
+/* 三样营养素 */
+.macros3 {
   display: flex;
   gap: tw(2);
   margin-top: tw(3);
-  padding: tw(3);
 }
 
-.macro-cell {
-  display: flex;
+.macro3 {
   flex: 1;
-  flex-direction: column;
-  align-items: center;
   padding: tw(2.5) 0;
   border-radius: tw(3);
-  background: rgba(0, 0, 0, 0.025);
+  background: #ffffff;
 }
 
-.macro-cell-value {
+.macro3-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: tw(1);
+}
+
+.macro3-name {
+  font-size: 13px;
+  color: $ink-500;
+}
+
+.macro3-val {
+  display: block;
+  margin-top: tw(1);
   font-size: 18px;
   font-weight: 600;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
+  color: $ink-900;
+  text-align: center;
+  line-height: 1.1;
 }
 
-.macro-cell-unit {
+.macro3-unit {
+  margin-left: 2px;
   font-size: 11px;
   font-weight: 400;
   color: $ink-300;
 }
 
-.macro-cell-label {
+.low-conf {
+  display: block;
+  margin-top: tw(3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: $ink-300;
+}
+
+/* 盐 */
+.salt-card {
+  margin-top: tw(3);
+  padding: tw(4);
+  border-radius: tw(4);
+  background: #ffffff;
+}
+
+.salt-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.salt-title-row {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+}
+
+.salt-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: $ink-700;
+}
+
+.salt-limit {
+  font-size: 12px;
+  color: $ink-300;
+}
+
+.salt-hint {
+  display: block;
   margin-top: tw(1);
   font-size: 13px;
+  line-height: 1.5;
   color: $ink-500;
 }
 
-/* ---------- 底部按钮 ---------- */
+.salt-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: tw(2);
+  margin-top: tw(2.5);
+}
+
+.salt-tag {
+  display: flex;
+  flex: 1;
+  min-width: 30%;
+  align-items: center;
+  justify-content: center;
+  height: tw(11);
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.04);
+
+  &.is-on {
+    background: $brand-500;
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.salt-tag-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: $ink-700;
+}
+
+.salt-tag.is-on .salt-tag-text {
+  color: #ffffff;
+}
+
+.salt-why {
+  display: block;
+  margin-top: tw(2.5);
+  font-size: 13px;
+  line-height: 1.5;
+  color: $ink-500;
+}
+
+.save-wrap {
+  margin-top: tw(6);
+}
+
+.save-preview {
+  display: block;
+  margin-top: tw(2);
+  font-size: 12px;
+  color: $ink-300;
+  text-align: center;
+}
 
 .bottom-space {
-  height: 160px;
-}
-
-.bottom {
-  position: fixed;
-  left: tw(5);
-  right: tw(5);
-  bottom: 0;
-  padding: tw(4) 0 calc(env(safe-area-inset-bottom) + 12px);
-  background: linear-gradient(
-    to top,
-    $page-bg 55%,
-    rgba(244, 246, 244, 0)
-  );
-}
-
-.bottom .pick-btn {
-  margin-top: 0;
-}
-
-.bottom .pick-btn.ghost {
-  margin-top: tw(2);
+  height: tw(8);
 }

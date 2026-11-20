@@ -1,328 +1,821 @@
-import { Image, Input, Text, View } from "@tarojs/components";
+import { Image, Text, Textarea, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { useMemo, useState } from "react";
-import Icon from "../../components/Icon";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Icon, { type IconName } from "../../components/Icon";
+import VoiceInput from "../../components/VoiceInput";
 import { recognize } from "../../lib/api";
+import { ruleComment, ruleVerdict } from "../../lib/comment";
+import { DRINK_CFG, DRINK_KINDS, drinkKcal } from "../../lib/drinks";
 import { compressPath, pathToDataUrl } from "../../lib/image";
-import { guessMealType, mealTypeLabel, round } from "../../lib/nutrition";
+import { TAG_CFG, TAG_LIST, saltGram, sodiumWithTags } from "../../lib/mealTags";
+import {
+  buildPlan,
+  guessMealType,
+  mealTypeLabel,
+  sumMeals,
+  todayStr,
+} from "../../lib/nutrition";
 import { putPhoto } from "../../lib/photos";
-import { loadState, saveState, upsertMeal } from "../../lib/store";
-import type { FoodItem, Meal, MealType, RecognizeResult } from "../../lib/types";
+import { activityOfDate, latestWeightKg, loadState, saveState, upsertMeal } from "../../lib/store";
+import type {
+  Drink,
+  DrinkKind,
+  FoodItem,
+  Meal,
+  MealTag,
+  MealType,
+  Nutrition,
+  NoteCheck,
+  RecognizeResult,
+} from "../../lib/types";
 import "./index.scss";
 
-const MEAL_TYPES: { key: MealType; label: string }[] = [
-  { key: "breakfast", label: "早饭" },
-  { key: "lunch", label: "午饭" },
-  { key: "dinner", label: "晚饭" },
-  { key: "snack", label: "加餐" },
-];
+/**
+ * 记一餐。这一版是照 web/src/components/CameraSheet.tsx 整段搬的。
+ *
+ * 上一版只做了"拍一张 → 列出菜 → 存"，砍掉了网页版里一半的东西：
+ * 多张照片、语音、酒、盐标签、份量三档、"照片里没看见"的确认、
+ * 这顿已经记过时的合并提示。这个页面的价值全在这些枝节里 ——
+ * 舅舅的饭局是圆桌，一张照片拍不全；他喝半斤白酒，照片里看不出来。
+ * 砍掉的那些，正好是这家人的真实情况。
+ */
 
-const pad = (n: number) => String(n).padStart(2, "0");
+type Phase = "idle" | "working" | "result" | "error";
+
+const VTONE = { good: "#1f8a5b", warn: "#a9631a", over: "#b23c2c" } as const;
+
+const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+
+/** 一次最多几张：四张够拍完一桌菜，再多模型也看不过来 */
+const MAX_SHOTS = 4;
+
+/**
+ * 份量三档，用词不用数。
+ * 人在饭桌上想的是"还剩半盘""我就夹了两筷子"，不是"我吃了 0.5 份"。
+ */
+const PORTION_STEPS = [
+  { v: 0.25, label: "几口" },
+  { v: 0.5, label: "一半" },
+  { v: 1, label: "全吃了" },
+] as const;
 
 export default function CapturePage() {
-  const [step, setStep] = useState<"pick" | "busy" | "result">("pick");
-  const [imgPath, setImgPath] = useState("");
-  const [dataUrl, setDataUrl] = useState("");
-  const [note, setNote] = useState("");
-  const [result, setResult] = useState<RecognizeResult | null>(null);
+  const [phase, setPhase] = useState<Phase>("idle");
+  /** 压缩后的本地路径，多张时第一张当预览 */
+  const [shots, setShots] = useState<string[]>([]);
+  const [mealType, setMealType] = useState<MealType>("breakfast");
+  const [hour, setHour] = useState<number>(new Date().getHours());
   const [items, setItems] = useState<FoodItem[]>([]);
-  const [err, setErr] = useState("");
+  const [base, setBase] = useState<Nutrition | null>(null);
+  const [factors, setFactors] = useState<number[]>([]);
+  const [confidence, setConfidence] = useState(0);
+  const [demo, setDemo] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+  const [note, setNote] = useState("");
+  const [confirmed, setConfirmed] = useState<boolean[]>([]);
+  const [noteCheck, setNoteCheck] = useState<NoteCheck | null>(null);
+  const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [drinkOpen, setDrinkOpen] = useState(false);
+  const [tags, setTags] = useState<MealTag[]>([]);
   const [saving, setSaving] = useState(false);
+  /** 写照片是异步的，连点两下会存两份 */
+  const busyRef = useRef(false);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // 进页面读一次就够：这个页面不回头改数据，存完就退回首页
+  const [state] = useState(() => loadState());
+  const today = todayStr();
+  const profile = state.profile;
+  const plan = useMemo(() => {
+    if (!profile) return null;
+    const w = latestWeightKg(state.weights, profile.weightKg);
+    return buildPlan({ ...profile, weightKg: w }, activityOfDate(state, today));
+  }, [state, today]);
+
+  const todayMeals = state.meals.filter((m) => m.date === today);
+  const dayKcalBefore = sumMeals(todayMeals).kcal;
+
+  /** 这个餐次今天是否已经记过；记过就只能往这顿里加 */
+  const existing = todayMeals.find((m) => m.mealType === mealType);
+  const existingKcal = existing ? existing.nutrition.kcal + drinkKcal(existing.drinks) : 0;
+
+  // 进来先按时间猜一顿，猜错了他自己点一下就行
+  useEffect(() => {
+    const now = new Date();
+    setMealType(guessMealType(now, todayMeals.map((m) => m.mealType)));
+    setHour(now.getHours());
+    // 只在进页面那一刻猜一次；放依赖里会把他手动改的又改回去
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [mealType, setMealType] = useState<MealType>(() => {
-    const s = loadState();
-    const recorded = s.meals.filter((m) => m.date === today).map((m) => m.mealType);
-    return guessMealType(new Date(), recorded);
-  });
+  // 标题跟着阶段变：网页版的弹层标题也是这么换的
+  useEffect(() => {
+    Taro.setNavigationBarTitle({
+      title: phase === "result" ? "这一餐" : phase === "working" ? "正在看照片" : "记一餐",
+    });
+  }, [phase]);
 
-  /** 拍照或从相册选。选完先压再转 base64，识别时直接用 */
+  const preview = shots[0] ?? "";
+
+  const reset = () => {
+    setPhase("idle");
+    setShots([]);
+    setItems([]);
+    setBase(null);
+    setFactors([]);
+    setErrMsg("");
+    setDemo(false);
+    setNote("");
+    setDrinks([]);
+    setDrinkOpen(false);
+    setTags([]);
+    setConfirmed([]);
+    setNoteCheck(null);
+  };
+
+  /** 拍照（一张）或从相册选（可多选） */
   const pick = async (source: "camera" | "album") => {
     try {
       const res = await Taro.chooseMedia({
-        count: 1,
+        count: source === "camera" ? 1 : MAX_SHOTS,
         mediaType: ["image"],
         sourceType: [source],
         sizeType: ["compressed"],
       });
-      const temp = res.tempFiles?.[0]?.tempFilePath;
-      if (!temp) return;
-      setErr("");
-
-      /*
-        预览和存盘都用压缩后的那张，不是原图。
-        手机原图三四兆，存十张就二十几兆，而列表里显示的还只是个小方块 ——
-        压到 720px 肉眼分不出区别，省下的空间是实打实的。
-      */
-      const small = await compressPath(temp);
-      setImgPath(small);
-
-      const url = await pathToDataUrl(small);
-      if (!url) {
-        setErr("这张图读不出来，换一张试试");
+      const files = (res.tempFiles ?? []).slice(0, MAX_SHOTS);
+      if (!files.length) return;
+      setPhase("working");
+      setErrMsg("");
+      // 一桌菜拍不完，就一次选几张一起认。
+      // 多张走同一次请求，不是拍一张等一次：一次十秒，三张就是三十秒
+      const paths: string[] = [];
+      const urls: string[] = [];
+      for (const f of files) {
+        const small = await compressPath(f.tempFilePath);
+        paths.push(small);
+        const url = await pathToDataUrl(small);
+        if (url) urls.push(url);
+      }
+      if (!urls.length) {
+        setPhase("error");
+        setErrMsg("这几张图读不出来，换一张试试");
         return;
       }
-      setDataUrl(url);
+      setShots(paths);
+      await run(urls, note);
     } catch (e) {
-      // 用户自己点了取消，不用报错
       const msg = (e as { errMsg?: string })?.errMsg ?? "";
-      if (!/cancel/i.test(msg)) {
-        setErr("没能打开相机，检查下微信的相机权限");
+      // 用户自己点了取消，不用报错
+      if (/cancel/i.test(msg)) {
+        setPhase("idle");
+        return;
       }
+      setPhase("error");
+      setErrMsg("没能打开相机，检查下微信的相机权限");
     }
   };
 
-  const run = async () => {
-    if (!dataUrl) return;
-    setStep("busy");
-    setErr("");
-    const r = await recognize([dataUrl], note.trim());
-    if (r.error && !r.items?.length) {
-      setStep("pick");
-      setErr(r.error);
+  const run = async (urls: string[], text: string) => {
+    setPhase("working");
+    setErrMsg("");
+    const data: RecognizeResult = await recognize(urls, text.trim());
+    if (!data.items || data.items.length === 0) {
+      setErrMsg(data.error || "这张没看清，能再拍一张吗");
+      setPhase("error");
       return;
     }
-    setResult(r);
-    setItems(r.items ?? []);
-    setStep("result");
+    setItems(data.items);
+    setFactors(data.items.map(() => 1));
+    // 照片里看不到的那几项先挂起，等用户点头再算热量
+    setConfirmed(data.items.map((it) => it.seen !== false));
+    if (data.drinks?.length) setDrinks(data.drinks);
+    setNoteCheck(data.noteCheck ?? null);
+    setBase(data.nutrition);
+    setConfidence(data.confidence ?? 0.6);
+    setDemo(!!data.demo);
+    if (data.error) setErrMsg(data.error);
+    setPhase("result");
   };
 
-  /** 删掉认错的那一项，营养按剩下的热量比例缩 —— 不重算，但不会离谱 */
-  const removeItem = (index: number) => {
-    if (!result) return;
-    const next = items.filter((_, i) => i !== index);
-    const before = items.reduce((n, i) => n + i.kcal, 0);
-    const after = next.reduce((n, i) => n + i.kcal, 0);
-    const k = before > 0 ? after / before : 0;
-    setItems(next);
-    setResult({
-      ...result,
-      nutrition: {
-        kcal: round(result.nutrition.kcal * k),
-        protein: round(result.nutrition.protein * k, 1),
-        carb: round(result.nutrition.carb * k, 1),
-        fat: round(result.nutrition.fat * k, 1),
-        sodium: round(result.nutrition.sodium * k),
-      },
+  /* ---------- 账怎么算 ---------- */
+
+  /** 没确认的那几项按 0 算：他说了但我没看见的东西，没资格进这本账 */
+  const factorOf = (i: number) => (confirmed[i] === false ? 0 : (factors[i] ?? 1));
+
+  const computed: Nutrition = useMemo(() => {
+    const empty = { kcal: 0, protein: 0, carb: 0, fat: 0, sodium: 0 };
+    if (!base || !items.length) return empty;
+    const scaledKcal = items.reduce((s, it, i) => s + it.kcal * factorOf(i), 0);
+    const ratio = base.kcal > 0 ? scaledKcal / base.kcal : 1;
+    const r = (n: number) => Math.round(n * ratio);
+    return {
+      kcal: Math.round(scaledKcal),
+      protein: r(base.protein),
+      carb: r(base.carb),
+      fat: r(base.fat),
+      sodium: r(base.sodium),
+    };
+  }, [base, items, factors, confirmed]);
+
+  const pending = items.map((it, i) => ({ it, i })).filter(({ i }) => confirmed[i] === false);
+
+  /** 冲突时列表里只留照片里看得到的，别让他替系统一条条否掉 */
+  const visible = items
+    .map((it, i) => ({ it, i }))
+    .filter(({ i }) => noteCheck?.verdict !== "conflict" || confirmed[i] !== false);
+
+  const pendingKcal = pending.reduce((s, { it, i }) => s + Math.round(it.kcal * (factors[i] ?? 1)), 0);
+
+  const orphanUnseen = (noteCheck?.unseen ?? []).filter(
+    (n) => !items.some((it) => it.seen === false && (it.name.includes(n) || n.includes(it.name))),
+  );
+
+  /** 酒也是这顿的一部分：半斤白酒七百多大卡，漏了它"这顿合适"就是假话 */
+  const withDrinks: Nutrition = { ...computed, kcal: computed.kcal + drinkKcal(drinks) };
+
+  const saltMg = sodiumWithTags(computed.sodium, tags);
+  const saltG = saltGram(saltMg);
+  const saltLimitMg = plan?.sodiumLimitMg ?? 2000;
+  const saltTone = saltMg > saltLimitMg ? "#b23c2c" : saltMg > saltLimitMg * 0.6 ? "#a9631a" : "#4a7d63";
+
+  const verdict =
+    profile && plan
+      ? ruleVerdict(withDrinks, profile, plan, dayKcalBefore, mealType, new Date())
+      : null;
+
+  const setFactor = (i: number, v: number) =>
+    setFactors((prev) => prev.map((f, idx) => (idx === i ? v : f)));
+
+  const dropPending = () => {
+    const keep = items.map((_, i) => confirmed[i] !== false);
+    setItems(items.filter((_, i) => keep[i]));
+    setFactors(factors.filter((_, i) => keep[i]));
+    setConfirmed(confirmed.filter((_, i) => keep[i]));
+    setNoteCheck(null);
+  };
+
+  const addDrink = (kind: DrinkKind) => {
+    setDrinks((prev) => {
+      const i = prev.findIndex((d) => d.kind === kind);
+      if (i < 0) return [...prev, { kind, count: 1 }];
+      const next = [...prev];
+      next[i] = { ...next[i], count: next[i].count + 1 };
+      return next;
     });
   };
 
-  const save = async () => {
-    if (saving || !result) return;
-    setSaving(true);
-    const id = `m${Date.now()}`;
-
-    // 照片先落到本地文件系统，记录里只存 id。
-    // 临时文件会被微信清掉，不落盘的话过两天列表里的图就是空的
-    const ok = await putPhoto(id, imgPath);
-
-    const now = new Date().toISOString();
-    const meal: Meal = {
-      id,
-      date: today,
-      mealType,
-      items,
-      nutrition: result.nutrition,
-      comment: result.comment || "",
-      adjusted: false,
-      confidence: result.confidence ?? 0,
-      createdAt: now,
-      eatenAt: now,
-      photoIds: ok ? [id] : [],
-      drinks: result.drinks,
-    };
-
-    const s = loadState();
-    saveState(upsertMeal(s, meal));
-
-    Taro.showToast({ title: "记下了", icon: "success" });
-    // 没有原生 tabBar，switchTab 会失败
-    setTimeout(() => Taro.reLaunch({ url: "/pages/index/index" }), 600);
+  const changeDrink = (kind: DrinkKind, delta: number) => {
+    setDrinks((prev) =>
+      prev.map((d) => (d.kind === kind ? { ...d, count: d.count + delta } : d)).filter((d) => d.count > 0),
+    );
   };
 
-  /* ---------- 选图 ---------- */
-  if (step === "pick") {
-    return (
-      <View className="page cap">
-        {!imgPath ? (
-          <View className="pick">
-            {/* 餐次先选好：拍完就不用再返回来改。
-                今天是哪一顿本来能猜，但猜错了要改，不如摆在那儿让他点 */}
-            <View className="mealtype-row">
-              {MEAL_TYPES.map((m) => (
-                <View
-                  key={m.key}
-                  className={`mealtype ${mealType === m.key ? "is-on" : ""}`}
-                  hoverClass="tap"
-                  onClick={() => setMealType(m.key)}
-                >
-                  <Text className="mealtype-text">{m.label}</Text>
-                </View>
-              ))}
-            </View>
+  const toggleTag = (t: MealTag) => {
+    setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+  };
 
-            {/* 虚线大卡片：网页版的拍照入口就长这样，绿框里一个圆图标 */}
-            <View className="shot-box" hoverClass="tap" onClick={() => pick("camera")}>
-              <View className="shot-icon">
-                <Icon name="camera" size={30} color="#ffffff" />
-              </View>
-              <Text className="shot-title">拍一张照片</Text>
-              <Text className="shot-sub">我帮您算这顿有多少大卡</Text>
-            </View>
+  const save = async () => {
+    if (busyRef.current) return;
+    if (!items.some((_, i) => confirmed[i] !== false)) {
+      setErrMsg("一道菜都没算上，先点「算了」或者重拍一张");
+      return;
+    }
+    busyRef.current = true;
+    setSaving(true);
+    try {
+      const id = `m${Date.now()}`;
+      // 照片先落到本地文件系统，记录里只存 id。
+      // 临时文件会被微信清掉，不落盘的话过两天列表里就是空的
+      const photoIds: string[] = [];
+      for (let i = 0; i < shots.length; i++) {
+        const pid = i === 0 ? id : `${id}-${i}`;
+        const ok = await putPhoto(pid, shots[i]);
+        if (ok) photoIds.push(pid);
+      }
 
-            <View className="album-btn" hoverClass="tap" onClick={() => pick("album")}>
-              <Text className="album-text">
-                从相册选
-                <Text className="album-hint">{" 可多选，一桌菜拍不完就选几张"}</Text>
-              </Text>
-            </View>
+      const now = new Date().toISOString();
+      const meal: Meal = {
+        id,
+        date: today,
+        mealType,
+        // 只记他确认过的：说了但没算数的那几项不进账本
+        items: items
+          .map((it, i) => ({ it, i }))
+          .filter(({ i }) => confirmed[i] !== false)
+          .map(({ it, i }) => ({
+            name: it.name,
+            portion: it.portion,
+            kcal: Math.round(it.kcal * (factors[i] ?? 1)),
+          })),
+        nutrition: { ...computed, sodium: saltMg },
+        comment:
+          profile && plan
+            ? ruleComment(withDrinks, profile, plan, dayKcalBefore, mealType, new Date())
+            : "",
+        adjusted: factors.some((f) => f !== 1),
+        confidence,
+        createdAt: now,
+        eatenAt: now,
+        photoIds: photoIds.length ? photoIds : undefined,
+        drinks: drinks.length ? drinks : undefined,
+        tags: tags.length ? tags : undefined,
+      };
 
-            {!!err && <Text className="err">{err}</Text>}
-          </View>
-        ) : (
-          <View className="preview">
-            <Image className="preview-img" src={imgPath} mode="aspectFill" />
-            <View className="preview-body">
-              <Text className="preview-label">还吃了什么没拍到的？（可不填）</Text>
-              <Input
-                className="note-input"
-                placeholder="比如：还喝了碗汤、吃了半碗饭"
-                value={note}
-                maxlength={30}
-                onInput={(e) => setNote(e.detail.value)}
-              />
-              {!!err && <Text className="err">{err}</Text>}
-              <View className="pick-btn" onClick={run}>
-                <Text className="pick-btn-text">看看吃了啥</Text>
-              </View>
-              <View
-                className="pick-btn ghost"
-                onClick={() => {
-                  setImgPath("");
-                  setDataUrl("");
-                  setErr("");
-                }}
-              >
-                <Text className="pick-btn-text ghost-text">重拍</Text>
-              </View>
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  }
+      saveState(upsertMeal(loadState(), meal));
+      busyRef.current = false;
+      setSaving(false);
+      Taro.showToast({ title: existing ? "加进这一顿了" : "记下了", icon: "success" });
+      setTimeout(() => Taro.navigateBack({ delta: 1 }), 600);
+    } catch {
+      busyRef.current = false;
+      setSaving(false);
+      setErrMsg("没存上，再点一次");
+    }
+  };
 
-  /* ---------- 识别中 ---------- */
-  if (step === "busy") {
+  /* ---------- 界面 ---------- */
+
+  if (phase === "working") {
     return (
       <View className="page cap">
         <View className="busy">
-          <Image className="busy-img" src={imgPath} mode="aspectFill" />
-          <View className="spinner" />
-          <Text className="busy-text">正在看这张照片…</Text>
-          <Text className="busy-sub">一般要 4 到 8 秒，别退出</Text>
+          {shots.length > 1 ? (
+            <View className="busy-shots">
+              {shots.map((s, i) => (
+                <Image key={i} className="busy-thumb" src={s} mode="aspectFill" />
+              ))}
+            </View>
+          ) : (
+            !!preview && <Image className="busy-img" src={preview} mode="aspectFill" />
+          )}
+          <View className="busy-dots">
+            <View className="busy-dot" />
+            <View className="busy-dot" />
+            <View className="busy-dot" />
+          </View>
+          <Text className="busy-text">
+            {shots.length > 1 ? `正在看这 ${shots.length} 张` : "正在看这些菜…"}
+          </Text>
+          <Text className="busy-sub">一般 5–10 秒</Text>
         </View>
       </View>
     );
   }
 
-  /* ---------- 结果 ---------- */
-  const total = result?.nutrition.kcal ?? 0;
+  if (phase === "error") {
+    return (
+      <View className="page cap">
+        <View className="err-wrap">
+          <Text className="err-title">{errMsg || "这张没看清，能再拍一张吗"}</Text>
+          <View className="err-btns">
+            <View className="btn-primary" hoverClass="tap" onClick={() => pick("camera")}>
+              <Text className="btn-primary-text">重拍一张</Text>
+            </View>
+            <View className="btn-ghost" hoverClass="tap" onClick={reset}>
+              <Text className="btn-ghost-text">换个方式</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (phase === "result") {
+    return (
+      <View className="page cap">
+        {/* 顶部：缩略图 + 大数字 + 重拍 */}
+        <View className="res-top">
+          {!!preview && (
+            <View
+              className="res-thumb"
+              hoverClass="tap"
+              onClick={() => Taro.previewImage({ urls: shots, current: preview })}
+            >
+              <Image className="res-thumb-img" src={preview} mode="aspectFill" />
+              {shots.length > 1 && <Text className="res-thumb-count">{shots.length}</Text>}
+            </View>
+          )}
+          <View className="res-main">
+            <Text className="res-label">{mealTypeLabel(mealType)} · 大约</Text>
+            {demo ? (
+              <Text className="res-demo">示例数据</Text>
+            ) : (
+              <View className="res-kcal">
+                <Text className="res-kcal-num tabular">{withDrinks.kcal}</Text>
+                <Text className="res-kcal-unit">大卡</Text>
+              </View>
+            )}
+          </View>
+          <View className="res-retake" hoverClass="tap" onClick={() => pick("camera")}>
+            <Text className="res-retake-text">重拍</Text>
+          </View>
+        </View>
+
+        {demo && (
+          <View className="demo-tip">
+            <Icon name="alert" size={16} color="#c56f10" />
+            <Text className="demo-tip-text">
+              <Text className="b">未接识别服务。</Text>
+              下面这些菜名和热量是固定示例，不是从这张照片认出来的。
+              {errMsg ? `\n${errMsg}` : ""}
+            </Text>
+          </View>
+        )}
+
+        {/* 他说了、照片里没有 */}
+        {noteCheck?.verdict === "conflict" && (
+          <View className="conflict">
+            <View className="conflict-head">
+              <Icon name="alert" size={18} color="#b23c2c" />
+              <View className="conflict-body">
+                <Text className="conflict-title">这照片和您说的对不上</Text>
+                <Text className="conflict-sub">
+                  下面只按照片里的算。
+                  {noteCheck.unseen.length > 0 ? `「${noteCheck.unseen.join("、")}」没算进去。` : ""}
+                </Text>
+              </View>
+            </View>
+            <View className="two-btns">
+              <View className="btn-solid danger" hoverClass="tap" onClick={dropPending}>
+                <Text className="btn-solid-text">就按照片记</Text>
+              </View>
+              <View className="btn-outline danger" hoverClass="tap" onClick={() => pick("camera")}>
+                <Text className="btn-outline-text">重拍</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {noteCheck?.verdict !== "conflict" && (pending.length > 0 || orphanUnseen.length > 0) && (
+          <View className="pending">
+            <View className="conflict-head">
+              <Icon name="eyeOff" size={18} color="#a9631a" />
+              <View className="conflict-body">
+                <Text className="pending-title">
+                  照片里没看见
+                  {(pending.length > 0 ? pending.map((p) => p.it.name) : orphanUnseen).join("、")}
+                </Text>
+                <Text className="pending-sub">
+                  {pending.length === 0
+                    ? "这顿先不算，您看要不要重拍一张把它拍进去"
+                    : pendingKcal > 0
+                      ? `算上的话，这顿多 ${pendingKcal} 大卡`
+                      : "要算上吗？"}
+                </Text>
+              </View>
+            </View>
+            <View className="two-btns">
+              {pending.length > 0 ? (
+                <>
+                  <View
+                    className="btn-solid warn"
+                    hoverClass="tap"
+                    onClick={() => setConfirmed(items.map(() => true))}
+                  >
+                    <Text className="btn-solid-text">我确实吃了</Text>
+                  </View>
+                  <View className="btn-outline warn" hoverClass="tap" onClick={dropPending}>
+                    <Text className="btn-outline-text">不算</Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View className="btn-solid warn" hoverClass="tap" onClick={() => pick("camera")}>
+                    <Text className="btn-solid-text">重拍一张</Text>
+                  </View>
+                  <View
+                    className="btn-outline warn"
+                    hoverClass="tap"
+                    onClick={() => setNoteCheck(null)}
+                  >
+                    <Text className="btn-outline-text">就这样记</Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        )}
+
+        {noteCheck?.verdict !== "conflict" && pending.length === 0 && orphanUnseen.length === 0 && (
+          <Text className="res-ok">
+            {noteCheck && noteCheck.extraInPhoto.length > 0
+              ? `照片里还有${noteCheck.extraInPhoto.join("、")}，也一起算上了`
+              : "描述和照片对得上"}
+          </Text>
+        )}
+
+        {existing && (
+          <View className="merge-tip">
+            <Text className="merge-tip-text">
+              {mealTypeLabel(mealType)}已记 {existingKcal} 大卡，这次会
+              <Text className="b">加进那一顿</Text>
+            </Text>
+          </View>
+        )}
+
+        {/* 菜品：份量三档 */}
+        <View className="dishes">
+          {visible.map(({ it, i }) => {
+            const off = confirmed[i] === false;
+            return (
+              <View key={`${it.name}-${i}`} className={`dish ${off ? "is-off" : ""}`}>
+                <View className="dish-left">
+                  <Text className={`dish-name ${off ? "is-off" : ""}`}>{it.name}</Text>
+                  <Text className="dish-sub">
+                    {off
+                      ? "照片里没看见"
+                      : (factors[i] ?? 1) === 1
+                        ? `${it.portion} · 约 ${Math.round(it.kcal)} 大卡`
+                        : `约 ${Math.round(it.kcal * (factors[i] ?? 1))} 大卡`}
+                  </Text>
+                </View>
+                {off ? (
+                  <View
+                    className="dish-add"
+                    hoverClass="tap"
+                    onClick={() => setConfirmed((prev) => prev.map((v, idx) => (idx === i ? true : v)))}
+                  >
+                    <Text className="dish-add-text">算上</Text>
+                  </View>
+                ) : (
+                  <View className="steps">
+                    {PORTION_STEPS.map((s) => (
+                      <View
+                        key={s.v}
+                        className={`step-chip ${(factors[i] ?? 1) === s.v ? "is-on" : ""}`}
+                        hoverClass="tap"
+                        onClick={() => setFactor(i, s.v)}
+                      >
+                        <Text className="step-chip-text">{s.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
+          {/* 酒跟菜一样，就是列表里的一条 */}
+          {drinks.map((d) => {
+            const cfg = DRINK_CFG[d.kind];
+            return (
+              <View key={d.kind} className="dish">
+                <View className="dish-left">
+                  <Text className="dish-name">{cfg.label}</Text>
+                  <Text className="dish-sub">
+                    {d.count} {cfg.unit} · 约 {cfg.kcalPerUnit * d.count} 大卡
+                  </Text>
+                </View>
+                <View className="counter">
+                  <View className="counter-btn" hoverClass="tap" onClick={() => changeDrink(d.kind, -1)}>
+                    <Text className="counter-sign">−</Text>
+                  </View>
+                  <Text className="counter-val tabular">
+                    {d.count} {cfg.unit}
+                  </Text>
+                  <View className="counter-btn" hoverClass="tap" onClick={() => changeDrink(d.kind, 1)}>
+                    <Text className="counter-sign">+</Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+
+          {drinkOpen ? (
+            <View className="drink-panel">
+              <View className="drink-kinds">
+                {DRINK_KINDS.map((k) => {
+                  const on = drinks.some((d) => d.kind === k);
+                  return (
+                    <View
+                      key={k}
+                      className={`drink-kind ${on ? "is-on" : ""}`}
+                      hoverClass="tap"
+                      onClick={() => addDrink(k)}
+                    >
+                      <Text className="drink-kind-text">{DRINK_CFG[k].label}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <View className="drink-fold" hoverClass="tap" onClick={() => setDrinkOpen(false)}>
+                <Text className="drink-fold-text">收起</Text>
+              </View>
+            </View>
+          ) : (
+            <View className="drink-open" hoverClass="tap" onClick={() => setDrinkOpen(true)}>
+              <Icon name="alcohol" size={16} color="#6b7671" />
+              <Text className="drink-open-text">{drinks.length > 0 ? "再加一种" : "加了酒"}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* 这顿怎么样 */}
+        {verdict && (
+          <View className="verdict">
+            <Icon
+              name={verdict.icon as IconName}
+              size={18}
+              color={VTONE[verdict.tone]}
+            />
+            <Text className="verdict-short" style={{ color: VTONE[verdict.tone] }}>
+              {verdict.short}
+            </Text>
+            <Text className="verdict-tip ellipsis">{verdict.tip}</Text>
+          </View>
+        )}
+
+        {/* 三样营养素 */}
+        <View className="macros3">
+          <MacroCell icon="protein" name="蛋白质" value={computed.protein} color="#a3563f" />
+          <MacroCell icon="carb" name="碳水" value={computed.carb} color="#b0842c" />
+          <MacroCell icon="fat" name="脂肪" value={computed.fat} color="#7d8b5e" />
+        </View>
+
+        {confidence > 0 && confidence < 0.5 && (
+          <Text className="low-conf">看不太清，数字是估的 — 点份量改一下</Text>
+        )}
+
+        {/* 这顿的盐 */}
+        <View className="salt-card">
+          <View className="salt-head">
+            <View className="salt-title-row">
+              <Icon name="salt" size={17} color={saltTone} />
+              <Text className="salt-title">
+                这顿盐 <Text className="tabular">{saltG}</Text> 克
+              </Text>
+            </View>
+            <Text className="salt-limit">一天最多 5 克</Text>
+          </View>
+          <Text className="salt-hint">按照片估的。下面这些没拍到的话，勾上会往上加。</Text>
+          <View className="salt-tags">
+            {TAG_LIST.map((t) => {
+              const on = tags.includes(t);
+              return (
+                <View
+                  key={t}
+                  className={`salt-tag ${on ? "is-on" : ""}`}
+                  hoverClass="tap"
+                  onClick={() => toggleTag(t)}
+                >
+                  <Text className="salt-tag-text">{TAG_CFG[t].label}</Text>
+                </View>
+              );
+            })}
+          </View>
+          {tags.length > 0 && (
+            <Text className="salt-why">{tags.map((t) => TAG_CFG[t].why).join("；")}</Text>
+          )}
+        </View>
+
+        {!!errMsg && <Text className="err">{errMsg}</Text>}
+
+        <View className="save-wrap">
+          <View
+            className={`btn-primary ${saving ? "is-busy" : ""}`}
+            hoverClass="tap"
+            onClick={save}
+          >
+            <Text className="btn-primary-text">
+              {saving
+                ? "存…"
+                : existing
+                  ? `加进${mealTypeLabel(mealType)}`
+                  : demo
+                    ? "仍然记下（示例）"
+                    : "记上了"}
+            </Text>
+          </View>
+          {existing && (
+            <Text className="save-preview tabular">
+              {existingKcal} → {existingKcal + withDrinks.kcal} 大卡
+            </Text>
+          )}
+        </View>
+
+        <View className="bottom-space" />
+      </View>
+    );
+  }
+
+  /* ---------- 选图（idle） ---------- */
   return (
     <View className="page cap">
-      <Image className="result-img" src={imgPath} mode="aspectFill" />
+      <View className="pick">
+        {/* 餐次四选一：拍完就不用再返回来改 */}
+        <View className="mealtype-row">
+          {MEAL_TYPES.map((t) => {
+            const recorded = todayMeals.some((m) => m.mealType === t);
+            const on = mealType === t;
+            return (
+              <View
+                key={t}
+                className={`mealtype ${on ? "is-on" : ""}`}
+                hoverClass="tap"
+                onClick={() => setMealType(t)}
+              >
+                <View className="mealtype-inner">
+                  <Text className="mealtype-text">{mealTypeLabel(t)}</Text>
+                  {/* "加餐"是分类词，不是人话：下午三点是下午茶，十一点是宵夜 */}
+                  {t === "snack" && (
+                    <Text className={`mealtype-sub ${on ? "is-on" : ""}`}>
+                      {hour >= 17 || hour < 3 ? "宵夜" : "下午茶"}
+                    </Text>
+                  )}
+                </View>
+                {recorded && <Text className={`mealtype-rec ${on ? "is-on" : ""}`}>已记</Text>}
+              </View>
+            );
+          })}
+        </View>
 
-      <View className="card mealtype-card">
-        <Text className="field-label">这是哪一顿</Text>
-        <View className="row">
-          {MEAL_TYPES.map((m) => (
-            <View
-              key={m.key}
-              className={`chip ${mealType === m.key ? "is-on" : ""}`}
-              onClick={() => setMealType(m.key)}
-            >
-              <Text className="chip-text">{m.label}</Text>
+        {/* 这顿已经记过：把之前填的摊出来，别让他对着白纸以为没存上 */}
+        {existing ? (
+          <View className="existing">
+            <View className="existing-head">
+              <Icon name="check" size={16} color="#176f49" />
+              <Text className="existing-title">
+                {mealTypeLabel(mealType)}已记 {existingKcal} 大卡
+              </Text>
+              <View
+                className="existing-edit"
+                hoverClass="tap"
+                onClick={() =>
+                  Taro.redirectTo({
+                    url: `/pages/record/index?editId=${existing.id}`,
+                  })
+                }
+              >
+                <Icon name="edit" size={13} color="#176f49" />
+                <Text className="existing-edit-text">改</Text>
+              </View>
             </View>
-          ))}
+            <Text className="existing-items">{existing.items.map((i) => i.name).join("、")}</Text>
+            <Text className="existing-hint">下面拍的会加进这一顿</Text>
+          </View>
+        ) : null}
+
+        {/* 这顿吃了啥 */}
+        <View className="note-wrap">
+          <View className="note-head">
+            <Text className="note-label">这顿吃了啥？</Text>
+            <Text className="note-count tabular">{note.length > 0 ? `${note.length}/60` : ""}</Text>
+          </View>
+          <Textarea
+            className="note-area"
+            value={note}
+            maxlength={60}
+            placeholder="比如：一碗米饭、红烧肉、炒青菜"
+            placeholderClass="note-ph"
+            onInput={(e) => setNote(e.detail.value)}
+            autoHeight={false}
+          />
+          <VoiceInput onText={(t) => setNote((prev) => (prev ? `${prev}、${t}` : t).slice(0, 60))} />
         </View>
-      </View>
 
-      <View className="card">
-        <View className="card-head">
-          <Text className="field-label">看出来的东西</Text>
-          <Text className="kcal-big">{Math.round(total)} 大卡</Text>
+        {/* 虚线大卡片：网页版的拍照入口就长这样 */}
+        <View className="shot-box" hoverClass="tap" onClick={() => pick("camera")}>
+          <View className="shot-icon">
+            <Icon name="camera" size={30} color="#ffffff" />
+          </View>
+          <Text className="shot-title">拍一张照片</Text>
+          <Text className="shot-sub">我帮您算这顿有多少大卡</Text>
         </View>
 
-        {result?.demo && (
-          <Text className="demo-tip">这是演示数据：服务端没配模型 Key</Text>
-        )}
-
-        {items.length === 0 ? (
-          <Text className="empty-tip">
-            这张照片里没认出吃的。要是拍清楚了还是这样，就自己补一句"吃了什么"再试。
+        <View className="album-btn" hoverClass="tap" onClick={() => pick("album")}>
+          <Text className="album-text">
+            从相册选
+            <Text className="album-hint"> 可多选，一桌菜拍不完就选几张</Text>
           </Text>
-        ) : (
-          items.map((it, i) => (
-            <View key={`${it.name}-${i}`} className="item-row">
-              <View className="item-left">
-                <Text className="item-name">{it.name}</Text>
-                <Text className="item-portion">{it.portion}</Text>
-              </View>
-              <Text className="item-kcal">{Math.round(it.kcal)}</Text>
-              <View className="item-del" onClick={() => removeItem(i)}>
-                <Text className="item-del-text">删</Text>
-              </View>
-            </View>
-          ))
-        )}
-
-        {!!result?.comment && <Text className="comment">{result.comment}</Text>}
-      </View>
-
-      {!!result && items.length > 0 && (
-        <View className="card macros">
-          <MacroCell label="蛋白质" value={result.nutrition.protein} />
-          <MacroCell label="碳水" value={result.nutrition.carb} />
-          <MacroCell label="脂肪" value={result.nutrition.fat} />
-          <MacroCell label="钠" value={result.nutrition.sodium} unit="毫克" />
         </View>
-      )}
 
-      {!!err && <Text className="err">{err}</Text>}
-
-      <View className="bottom-space" />
-      <View className="bottom">
-        <View className="pick-btn" onClick={save}>
-          <Text className="pick-btn-text">{saving ? "存…" : `存进${mealTypeLabel(mealType)}`}</Text>
-        </View>
-        <View className="pick-btn ghost" onClick={() => Taro.navigateBack()}>
-          <Text className="pick-btn-text ghost-text">算了，不记了</Text>
-        </View>
+        {!!errMsg && <Text className="err">{errMsg}</Text>}
       </View>
     </View>
   );
 }
 
+/** 三个营养素的小卡：名字必须写全，一个字加一个数字读的人得先猜 */
 function MacroCell({
-  label,
+  icon,
+  name,
   value,
-  unit = "克",
+  color,
 }: {
-  label: string;
+  icon: IconName;
+  name: string;
   value: number;
-  unit?: string;
+  color: string;
 }) {
   return (
-    <View className="macro-cell">
-      <Text className="macro-cell-value">
-        {Math.round(value)}
-        <Text className="macro-cell-unit"> {unit}</Text>
+    <View className="macro3">
+      <View className="macro3-head">
+        <Icon name={icon} size={17} color={color} />
+        <Text className="macro3-name">{name}</Text>
+      </View>
+      <Text className="macro3-val tabular">
+        {value}
+        <Text className="macro3-unit">g</Text>
       </Text>
-      <Text className="macro-cell-label">{label}</Text>
     </View>
   );
 }

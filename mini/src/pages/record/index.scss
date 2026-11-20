@@ -539,3 +539,365 @@
   font-size: 19px;
   font-weight: 600;
 }
+
+/* ---------- 改记录弹层 ---------- */
+
+/* 这一层比记体重长得多，必须能滚，否则底部的保存按钮永远够不到 */
+.edit-sheet {
+  max-height: 92vh;
+  overflow-y: auto;
+  padding-bottom: tw(8);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: tw(3);
+}
+
+.sheet-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: tw(10);
+  height: tw(10);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: $shadow-sm;
+}
+
+.edit-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: tw(3);
+}
+
+.edit-date {
+  font-size: 14px;
+  color: $ink-500;
+}
+
+.edit-kcal {
+  display: flex;
+  align-items: baseline;
+}
+
+.edit-kcal-num {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  color: $ink-900;
+}
+
+.edit-kcal-unit {
+  margin-left: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: $ink-500;
+}
+
+/* 照片行 */
+.edit-photos {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+  margin-top: tw(2);
+}
+
+.edit-photo {
+  position: relative;
+  width: tw(17); /* 72 */
+  height: tw(17);
+  flex-shrink: 0;
+}
+
+.edit-photo-img {
+  width: 100%;
+  height: 100%;
+  border-radius: tw(3);
+  overflow: hidden;
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.edit-photo-img-in {
+  width: 100%;
+  height: 100%;
+}
+
+/* 删除角标要压在缩略图右上角外面一点，所以容器不能 overflow */
+.edit-photo-del {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+
+  &:active {
+    transform: scale(0.9);
+  }
+}
+
+.edit-photo-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: tw(17);
+  height: tw(17);
+  flex-shrink: 0;
+  border: 2px dashed rgba(0, 0, 0, 0.1);
+  border-radius: tw(3);
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.edit-photo-add-text {
+  font-size: 11px;
+  line-height: 1;
+  color: $ink-300;
+}
+
+.edit-recalc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: tw(1.5);
+}
+
+.edit-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: $brand-600;
+}
+
+.edit-tip {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $ink-300;
+}
+
+.edit-err {
+  font-size: 12px;
+  color: #b23c2c;
+}
+
+.edit-label {
+  display: block;
+  margin: tw(5) 0 tw(2);
+  font-size: 14px;
+  font-weight: 500;
+  color: $ink-700;
+}
+
+/* 餐次 */
+.edit-types {
+  display: flex;
+  gap: tw(2);
+}
+
+.edit-type {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: tw(11);
+  border-radius: tw(3);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(27, 35, 32, 0.05);
+
+  &.is-on {
+    background: $brand-500;
+  }
+}
+
+.edit-type-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-700;
+}
+
+.edit-type.is-on .edit-type-text {
+  color: #ffffff;
+}
+
+.edit-items-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.edit-count {
+  font-size: 13px;
+  color: $ink-300;
+}
+
+/* 菜品 */
+.edit-items {
+  display: flex;
+  flex-direction: column;
+  gap: tw(2);
+  margin-top: tw(2);
+}
+
+.edit-item {
+  padding: tw(3) tw(4);
+  border-radius: tw(4);
+  background: #ffffff;
+}
+
+.edit-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: tw(3);
+}
+
+.edit-item-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-item-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: $ink-900;
+}
+
+.edit-item-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.edit-item-del {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: tw(8);
+  height: tw(8);
+  border-radius: tw(2);
+  background: rgba(0, 0, 0, 0.04);
+
+  &.is-off {
+    opacity: 0.2;
+  }
+}
+
+.edit-item-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: tw(2.5);
+  padding-top: tw(2.5);
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.edit-item-portion {
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.edit-portion-btns {
+  display: flex;
+  align-items: center;
+  gap: tw(1);
+}
+
+.edit-portion-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: tw(8);
+  height: tw(8);
+  border-radius: tw(2);
+  background: rgba(0, 0, 0, 0.05);
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.edit-portion-sign {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  color: $ink-700;
+}
+
+.edit-portion-val {
+  width: tw(11);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: $ink-900;
+}
+
+.edit-acts {
+  display: flex;
+  flex-direction: column;
+  gap: tw(2);
+  margin-top: tw(6);
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: tw(16);
+  width: 100%;
+  border-radius: tw(4);
+  background: $brand-500;
+
+  &:active {
+    transform: scale(0.98);
+    background: $brand-600;
+  }
+}
+
+.btn-primary-text {
+  font-size: 19px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: tw(14);
+  width: 100%;
+  border-radius: tw(4);
+  border: 1px solid rgba(182, 189, 185, 0.6);
+  background: #ffffff;
+
+  &:active {
+    background: rgba(0, 0, 0, 0.03);
+  }
+}
+
+.btn-ghost-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: $ink-700;
+  line-height: 1;
+}

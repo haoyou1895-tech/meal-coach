@@ -1,0 +1,212 @@
+@import "../../styles/var.scss";
+
+/**
+ * 设置页。数值对着网页版设置弹层。
+ * 弹层里没有导航栏，这里靠原生返回箭头出去，所以顶部只留 tw(4) 的空白。
+ */
+
+.page.set {
+  padding: tw(4) tw(5) tw(6);
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.sec.mt3 {
+  margin-top: tw(3);
+}
+
+.card {
+  border-radius: tw(6); /* 25.5 */
+  background: #ffffff;
+  padding: tw(4);
+  box-shadow: 0 2px 16px rgba(27, 35, 32, 0.06);
+}
+
+/* 一行信息 */
+.info-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: tw(4);
+  padding: tw(1.5) 0;
+}
+
+.info-label {
+  flex-shrink: 0;
+  font-size: 15px;
+  color: $ink-500;
+}
+
+.info-value {
+  flex: 1;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+/* 通用按钮 */
+.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: tw(14); /* 59.5 */
+  width: 100%;
+  border-radius: tw(4);
+  border: 1px solid rgba(182, 189, 185, 0.6);
+  background: #ffffff;
+
+  &:active {
+    background: rgba(0, 0, 0, 0.03);
+  }
+}
+
+.btn-ghost-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: $ink-700;
+  line-height: 1;
+}
+
+.btn-ghost-text.danger,
+.btn-ghost.danger .btn-ghost-text {
+  color: $danger-500;
+}
+
+/* 搬家 */
+.move-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: tw(3);
+}
+
+.move-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+.move-sub {
+  font-size: 13px;
+  color: $ink-300;
+}
+
+.move-btns {
+  display: flex;
+  gap: tw(2);
+}
+
+.move-btn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: tw(11); /* 46.75 */
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.05);
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.move-btn-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: $brand-600;
+  line-height: 1;
+}
+
+.move-hint {
+  display: block;
+  margin-top: tw(3);
+  font-size: 13px;
+  line-height: 1.6;
+  color: $ink-500;
+}
+
+/* 备份码面板 */
+.panel-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+.panel-area {
+  display: block;
+  width: 100%;
+  height: tw(32);
+  margin-top: tw(3);
+  padding: tw(2.5) tw(3);
+  box-sizing: border-box;
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 13px;
+  line-height: 1.6;
+  color: $ink-700;
+  resize: none;
+}
+
+.panel-btns {
+  display: flex;
+  gap: tw(2);
+  margin-top: tw(3);
+}
+
+.panel-btn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: tw(11);
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.05);
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &.primary {
+    background: $brand-500;
+  }
+}
+
+.panel-btn-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-500;
+  line-height: 1;
+
+  &.primary {
+    color: #ffffff;
+  }
+}
+
+.notice {
+  display: block;
+  margin-top: tw(3);
+  font-size: 14px;
+  font-weight: 500;
+  color: $brand-600;
+  text-align: center;
+}
+
+/* 页脚 */
+.foot {
+  margin-top: tw(6);
+  padding: 0 tw(6);
+}
+
+.foot-text {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  color: $ink-300;
+  text-align: center;
+}
+
+.safe-bottom {
+  height: tw(4);
+}

@@ -50,6 +50,45 @@ export async function recognize(
   }
 }
 
+/**
+ * 语音转文字。
+ *
+ * 网页版用 MediaRecorder + Blob，小程序没有这套：录音走 RecorderManager，
+ * 落下来是一个本地文件（mp3），读成 base64 再拼 data URI。
+ * 服务端只认 data:audio 开头，所以 mime 得跟着录音格式写对。
+ */
+export async function transcribe(filePath: string): Promise<{ text?: string; error?: string }> {
+  let b64 = "";
+  try {
+    b64 = String(Taro.getFileSystemManager().readFileSync(filePath, "base64"));
+  } catch {
+    return { error: "录音读不出来，再试一次" };
+  }
+  if (!b64) return { error: "没录上，再试一次" };
+
+  try {
+    const res = await Taro.request<{ text?: string; error?: string }>({
+      url: `${BASE}/api/transcribe`,
+      method: "POST",
+      timeout: 30000,
+      header: { "Content-Type": "application/json" },
+      // 录音固定用 mp3。微信只给 aac / mp3，qwen3-asr 认 mp3 最稳
+      data: { audio: `data:audio/mpeg;base64,${b64}` },
+    });
+    if (res.statusCode >= 400) {
+      return { error: res.data?.error || "没听清，再说一次" };
+    }
+    return { text: res.data?.text ?? "" };
+  } catch (e) {
+    const msg = (e as { errMsg?: string })?.errMsg ?? "";
+    if (/domain list/i.test(msg)) {
+      return { error: "这个域名还没加进小程序白名单" };
+    }
+    if (/timeout/i.test(msg)) return { error: "网络有点慢，再试一次" };
+    return { error: "语音转文字失败了" };
+  }
+}
+
 const EMPTY: RecognizeResult = {
   items: [],
   nutrition: { kcal: 0, protein: 0, carb: 0, fat: 0, sodium: 0 },

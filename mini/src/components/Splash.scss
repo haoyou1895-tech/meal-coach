@@ -1,0 +1,71 @@
+@import "../styles/var.scss";
+
+/* 开屏：全屏渐变，1.4 秒后淡出 */
+
+.splash {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(165deg, #22935f 0%, #14663f 100%);
+  transition: opacity 0.4s ease;
+  opacity: 1;
+}
+
+.splash.is-leaving {
+  opacity: 0;
+}
+
+.splash-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 tw(10);
+}
+
+.splash-bowl {
+  width: 76px;
+  height: 76px;
+  background-repeat: no-repeat;
+  background-size: 76px 76px;
+}
+
+.splash-name {
+  margin-top: tw(5);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  /* 字距把最后一个字也推开了，补回来才真居中 */
+  padding-left: 0.18em;
+  color: #ffffff;
+}
+
+.splash-hr {
+  width: 32px;
+  height: 1px;
+  margin-top: tw(4);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.splash-line {
+  margin-top: tw(4);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+}
+
+.splash-foot {
+  position: absolute;
+  bottom: tw(12);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.35);
+}

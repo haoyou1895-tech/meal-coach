@@ -1,0 +1,86 @@
+@import "../styles/var.scss";
+
+/* 语音按钮：对应网页版 VoiceInput 的那颗 h-11 圆角按钮 */
+
+.voice {
+  display: flex;
+  align-items: center;
+  gap: tw(2.5); /* 10.6 */
+  margin-top: tw(2); /* 8.5 */
+}
+
+.voice-btn {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+  height: tw(11); /* 46.75 */
+  padding: 0 tw(4);
+  border-radius: tw(3); /* 12.75 */
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.voice-btn.is-rec {
+  background: #d94f3d;
+}
+
+.voice-btn.is-busy {
+  opacity: 0.5;
+}
+
+.voice-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #176f49;
+  line-height: 1;
+}
+
+.voice-btn.is-rec .voice-label {
+  color: #ffffff;
+}
+
+/* 录音中的白点 */
+.voice-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  animation: voicePulse 1s ease-in-out infinite;
+}
+
+@keyframes voicePulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* 转文字时的转圈 */
+.voice-spin {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(31, 138, 91, 0.3);
+  border-top-color: #1f8a5b;
+  animation: voiceSpin 0.7s linear infinite;
+}
+
+@keyframes voiceSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.voice-msg {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #c56f10;
+}
+
+.voice-hint {
+  font-size: 13px;
+  color: #b6bdb9;
+}
