@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
-  ActivityLevel,
-  ActivityLog,
+  ExerciseLog,
   FoodItem,
   Meal,
   MealType,
@@ -19,6 +18,7 @@ import {
   sumMeals,
   todayStr,
 } from "@/lib/nutrition";
+import { avgBurnEndingOn, shiftDate } from "@/lib/exercise";
 import { dateList, latestWeightKg } from "@/lib/store";
 import { drinkKcal, drinksLabel } from "@/lib/drinks";
 import { deletePhoto, getPhoto, photoIdsOf, putPhoto } from "@/lib/photos";
@@ -71,14 +71,14 @@ export default function RecordView({
   onUpdateMeal,
   autoEditId,
   onAutoEditDone,
-  activities,
+  exercises,
 }: {
   profile: Profile;
   plan: NutritionPlan;
   meals: Meal[];
   weights: WeightLog[];
   /** 每天的活动量。柱状图的预算线要靠它 —— 走一天和坐一天不是同一个额度 */
-  activities: ActivityLog[];
+  exercises: ExerciseLog[];
   onWeight: (kg: number) => void;
   onDeleteMeal: (id: string) => void;
   onUpdateMeal: (m: Meal) => void;
@@ -416,19 +416,20 @@ export default function RecordView({
   /**
    * 每一天各自的预算。
    *
-   * 以前图上只有一根水平虚线（全周同一个额度），但预算本来就不是固定值：
-   * 走一天工地和坐一天办公室差两百多大卡。首页那三个「没动 / 走动 / 锻炼」
-   * 就是当天的活动系数，柱子上方的额度必须跟着它走，否则锻炼那天
-   * 明明没吃多，也会显得快贴到线。
+   * 每天一根线，不是一个固定值：走一天工地和坐一天办公室差两百多大卡。
+   * 额度按「那天之前一周的实际运动」算，跟首页同一个算法，
+   * 否则图上那天明明没吃多，也会显得快贴到线。
    */
   const budgets = useMemo(() => {
-    const level = new Map<string, ActivityLevel>();
-    for (const a of activities) level.set(a.date, a.level);
     // 按最近一次称的体重算，跟首页一致 —— 掉了两公斤之后，
     // 那两条线还挂在 78 公斤的高度上，图会骗人
     const now = { ...profile, weightKg: latest };
-    return last7.map((d) => dayBudget(now, level.get(d) ?? "normal"));
-  }, [last7, activities, profile, latest]);
+    return last7.map((d) =>
+      // 那天用的预算 = 那天之前 7 天的运动均值，跟首页同一套规则。
+      // 不用那天的实际运动：当晚跑了步当晚额度就涨，是"运动换饭"。
+      dayBudget(now, avgBurnEndingOn(exercises, shiftDate(d, -1), latest)),
+    );
+  }, [last7, exercises, profile, latest]);
 
   const maxKcal = Math.max(
     ...budgets.map((b) => b * 1.2),

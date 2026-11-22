@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type {
-  ActivityLevel,
+  ExerciseLog,
   Meal,
   MealType,
   NutritionPlan,
@@ -40,20 +40,10 @@ import {
   type RankedFood,
 } from "@/lib/ranking";
 import Icon, { type IconName } from "./Icon";
+import { DaySummaryBar } from "./DaySummary";
 import { CalorieRing, MacroBar } from "./ui";
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-
-/**
- * 活动量不做精确记录，只让用户点一下三选一。
- * 记不清"走了多少步"，但一定知道"今天出没出汗"。
- */
-const ACTIVITY_OPTIONS: { level: ActivityLevel; label: string; icon: IconName }[] =
-  [
-    { level: "low", label: "没动", icon: "sit" },
-    { level: "normal", label: "走动", icon: "walk" },
-    { level: "high", label: "锻炼", icon: "dumbbell" },
-  ];
 
 const SLOT_ICON: Record<MealType, IconName> = {
   breakfast: "sunrise",
@@ -186,8 +176,12 @@ export default function HomeView({
   profile,
   plan,
   meals,
-  activity,
-  onActivity,
+  exercises,
+  closed,
+  kcalToday,
+  planTomorrowLabel,
+  todayPlanLabel,
+  onOpenSummary,
   onOpenSettings,
   onGoalWeeks,
   currentWeightKg,
@@ -195,8 +189,16 @@ export default function HomeView({
   profile: Profile;
   plan: NutritionPlan;
   meals: Meal[];
-  activity: ActivityLevel;
-  onActivity: (level: ActivityLevel) => void;
+  /** 今天已经记下的运动 */
+  exercises: ExerciseLog[];
+  /** 今天是不是已经"收工"了 */
+  closed: boolean;
+  kcalToday: number;
+  /** 明天定下的运动计划，没有就是 null */
+  planTomorrowLabel: string | null;
+  /** 昨天定给今天的运动计划 */
+  todayPlanLabel: string | null;
+  onOpenSummary: () => void;
   onOpenSettings: () => void;
   /**
    * 最近一次称的体重。跟 profile.weightKg 不是一回事：
@@ -237,15 +239,18 @@ export default function HomeView({
    * 上面写着"约 6 周"、下面三档却说"11/17/24 周"，自己跟自己打架。
    */
   const speeds = useMemo(() => {
+    // 传 plan.exerciseKcal 而不是重新算一遍：
+    // 上面那个预算用的就是它，三档要是另算一次，就会出现
+    // "预算 1647，但选'照这个'变成 1520"这种自相矛盾
     const all = goalOptions(
       { ...profile, weightKg: currentWeightKg },
-      activity,
+      plan.exerciseKcal,
     );
     // 差距很小时"快"和"稳"会算出同一个周数，摆两个一样的按钮只会让人犹豫
     return all.filter(
       (o, i) => all.findIndex((x) => x.weeks === o.weeks) === i,
     );
-  }, [profile, activity, currentWeightKg]);
+  }, [profile, plan.exerciseKcal, currentWeightKg]);
   const activeSpeed =
     speeds.find(
       (o) => (o.goalWeeks ?? null) === (profile.goalWeeks ?? null),
@@ -528,6 +533,7 @@ export default function HomeView({
               budget={plan.dailyBudgetKcal}
               tone={status.tone}
               size={104}
+              mode={closed ? "done" : "remain"}
             />
             <div className="min-w-0 flex-1 space-y-2">
               {warnings.map((w) => (
@@ -777,14 +783,30 @@ export default function HomeView({
                 而且一恢复正常吃饭就会回来。
               </p>
             </div>
+            {/*
+              以前这里写的是「按『走动』算，约 2143 大卡」。
+              那个 1.3 是把一整天糊成一个倍数，用户没法验证。
+              现在拆成三段，每段都能对上他的生活：
+              躺着多少、日常多少、他上周真动了多少。
+            */}
             <p>
               躺着不动，一天要花{" "}
               <b className="tabular-nums text-ink-700">{plan.bmr}</b> 大卡；
-              按「
-              {ACTIVITY_OPTIONS.find((o) => o.level === activity)?.label ?? "走动"}
-              」算，加上走路说话，约{" "}
+              起床走路说话，再加{" "}
+              <b className="tabular-nums text-ink-700">
+                {plan.neatKcal - plan.bmr}
+              </b>
+              ；最近一周你的运动平均每天{" "}
+              <b className="tabular-nums text-ink-700">{plan.exerciseKcal}</b>{" "}
+              大卡。三样加起来是{" "}
               <b className="tabular-nums text-ink-700">{plan.tdee}</b> 大卡。
             </p>
+            {plan.exerciseKcal === 0 && (
+              <p className="text-ink-300!">
+                运动那项现在是 0 —— 不是算错了，是还没记过。
+                在「今天的账」里记一次，明天开始预算就会跟着你的实际情况走。
+              </p>
+            )}
             <p>
               {atGoal ? (
                 <>
@@ -1033,32 +1055,20 @@ export default function HomeView({
       </section>
 
       {/*
-        运动量降权，但不删。
-        它只改"预算"这一个数字，却原来占着一张白卡 + 三个 44px 大按钮，
-        视觉上跟"今天吃了"平起平坐 —— 那是一天里最重的事吗？不是。
-        现在压成一行 13px 小字，位置还在原地：想改的人扫一眼就找到，
-        不想改的人直接滑过去，不占视线。
+        原来是「今天动了多少：没动 / 走动 / 锻炼」三选一。
+        它只改预算一个数字，却要求用户先把自己的生活折成一档 ——
+        而他折的那一下，跟真实的消耗没关系。
+        现在这一行是收工的入口：一天结束时算一笔，顺手把真做了的运动记上。
       */}
       <section className="mt-3 px-5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[13px] text-ink-300">今天动了多少</span>
-          <div className="flex gap-1">
-            {ACTIVITY_OPTIONS.map((o) => (
-              <button
-                key={o.level}
-                type="button"
-                onClick={() => onActivity(o.level)}
-                className={`h-8 rounded-lg px-3 text-[13px] font-medium transition ${
-                  activity === o.level
-                    ? "bg-brand-50 text-brand-700"
-                    : "text-ink-300 active:bg-black/[0.03]"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <DaySummaryBar
+          closed={closed}
+          kcal={kcalToday}
+          budget={plan.dailyBudgetKcal}
+          planLabel={planTomorrowLabel}
+          todayPlanLabel={todayPlanLabel}
+          onClick={onOpenSummary}
+        />
       </section>
 
       <InstallHint />

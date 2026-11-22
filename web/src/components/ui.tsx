@@ -270,12 +270,21 @@ export function CalorieRing({
   budget,
   tone,
   size = 232,
+  mode = "remain",
 }: {
   used: number;
   budget: number;
   tone: "good" | "warn" | "over";
   /** 边长。默认 232 是独占一屏时的尺寸；和提醒并排时传小值 */
   size?: number;
+  /**
+   * remain = 还差多少可吃（白天用）
+   * done   = 今天收工了，改成回顾：吃了多少、预算是多少
+   *
+   * 收工之后还挂着"还能吃 620"，那个数字整晚都在勾他 ——
+   * 他刚对自己的今天说过"就这些了"，界面不该立刻拆台。
+   */
+  mode?: "remain" | "done";
 }) {
   const stroke = Math.max(8, Math.round(size * 0.078));
   const r = (size - stroke) / 2;
@@ -284,6 +293,7 @@ export function CalorieRing({
   const color =
     tone === "over" ? "#d94f3d" : tone === "warn" ? "#e8871e" : "#1f8a5b";
   const left = Math.max(0, budget - used);
+  const done = mode === "done";
   // 字号跟着尺寸走：大图上 58px，小图上按比例缩，不写两套
   // 字号跟着尺寸走，但要设下限 —— 等比例缩到 116 时标签只剩 6px，
   // 那不是小字，那是噪点。缩到看得清就停。
@@ -321,13 +331,20 @@ export function CalorieRing({
           className="font-medium text-ink-400"
           style={{ fontSize: fLabel }}
         >
-          {tone === "over" ? "超出" : "还能吃"}
+          {done ? "今天吃了" : tone === "over" ? "超出" : "还能吃"}
         </span>
         <span
           className="mt-0.5 font-bold leading-none tabular-nums tracking-tight"
-          style={{ color, fontSize: fNum }}
+          style={{
+            color: done ? (tone === "over" ? "#b23c2c" : "#33413b") : color,
+            fontSize: fNum,
+          }}
         >
-          {tone === "over" ? Math.round(used - budget) : Math.round(left)}
+          {done
+            ? Math.round(used)
+            : tone === "over"
+              ? Math.round(used - budget)
+              : Math.round(left)}
         </span>
         {/*
           原来这里写的是 "/ 1719"。

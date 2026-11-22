@@ -111,7 +111,8 @@ export default function CapturePage() {
   const plan = useMemo(() => {
     if (!profile) return null;
     const w = latestWeightKg(state.weights, profile.weightKg);
-    return buildPlan({ ...profile, weightKg: w }, activityOfDate(state, today));
+    // 运动消耗这端还没接，按纯日常活动算（跟首页、记录页同一口径）
+    return buildPlan({ ...profile, weightKg: w }, 0);
   }, [state, today]);
 
   const todayMeals = state.meals.filter((m) => m.date === today);

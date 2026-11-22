@@ -25,14 +25,12 @@ import {
 } from "../../lib/nutrition";
 import { foodRanking, rankSummary, type RankedFood } from "../../lib/ranking";
 import {
-  activityOfDate,
   latestWeightKg,
   loadState,
   saveState,
-  withActivity,
   type AppState,
 } from "../../lib/store";
-import type { ActivityLevel, MealType, Profile } from "../../lib/types";
+import type { MealType, Profile } from "../../lib/types";
 import "./index.scss";
 
 /**
@@ -51,12 +49,6 @@ const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "�
  * 但整个小程序被杀掉重开时会重新来 —— 这才是"每次打开"的意思。
  */
 let splashShown = false;
-
-const ACTIVITY_OPTIONS: { level: ActivityLevel; label: string }[] = [
-  { level: "low", label: "没动" },
-  { level: "normal", label: "走动" },
-  { level: "high", label: "锻炼" },
-];
 
 const SLOT_ICON: Record<MealType, IconName> = {
   breakfast: "sunrise",
@@ -151,15 +143,21 @@ export default function HomePage() {
     const profile = state.profile;
     // 预算按最近一次称的体重算：人瘦了消耗降，还按老体重给额度就是越吃越超
     const currentWeightKg = latestWeightKg(state.weights, profile.weightKg);
-    const activity = activityOfDate(state, today);
-    const plan = buildPlan({ ...profile, weightKg: currentWeightKg }, activity);
+    /*
+     * 运动消耗暂时按 0：网页版已经换成"按实际运动记 MET"，
+     * 小程序这端的「今日收工」面板还没搬过来，所以没有数据可算。
+     * 0 的意思是"只有日常活动"，不是"没动"—— 基础代谢里那 1.2 倍还在。
+     * 等面板搬过来，这里换成 avgBurnEndingOn(state.exercises, 昨天, 体重)。
+     */
+    const extraBurn = 0;
+    const plan = buildPlan({ ...profile, weightKg: currentWeightKg }, extraBurn);
     const todayMeals = state.meals.filter((m) => m.date === today);
     const totals = sumMeals(todayMeals);
     const status = dayStatusText(totals.kcal, plan.dailyBudgetKcal);
     const left = plan.dailyBudgetKcal - totals.kcal;
 
     const atGoal = currentWeightKg <= profile.targetWeightKg;
-    const all = goalOptions({ ...profile, weightKg: currentWeightKg }, activity);
+    const all = goalOptions({ ...profile, weightKg: currentWeightKg }, extraBurn);
     // 差距很小时"快"和"稳"会算出同一个周数，两个一样的按钮只会让人犹豫
     const speeds = all.filter((o, i) => all.findIndex((x) => x.weeks === o.weeks) === i);
     const activeSpeed =
@@ -227,7 +225,6 @@ export default function HomePage() {
       profile,
       plan,
       currentWeightKg,
-      activity,
       todayMeals,
       totals,
       status,
@@ -262,13 +259,6 @@ export default function HomePage() {
     setState(next);
   };
 
-  const setActivity = (level: ActivityLevel) => {
-    if (!state) return;
-    const next = withActivity(state, today, level);
-    saveState(next);
-    setState(next);
-  };
-
   if (splash) {
     return (
       <Splash
@@ -286,7 +276,6 @@ export default function HomePage() {
     profile,
     plan,
     currentWeightKg,
-    activity,
     todayMeals,
     totals,
     status,
@@ -516,9 +505,9 @@ export default function HomePage() {
               </View>
             )}
             <Text className="plan-p">
-              躺着不动，一天要花 <Text className="b">{plan.bmr}</Text> 大卡；按「
-              {ACTIVITY_OPTIONS.find((o) => o.level === activity)?.label ?? "走动"}
-              」算，加上走路说话，约 <Text className="b">{plan.tdee}</Text> 大卡。
+              躺着不动，一天要花 <Text className="b">{plan.bmr}</Text> 大卡；
+              起床走路说话，再加 <Text className="b">{plan.neatKcal - plan.bmr}</Text>；
+              三样加起来约 <Text className="b">{plan.tdee}</Text> 大卡。
             </Text>
             <Text className="plan-p">
               {atGoal ? (
@@ -682,25 +671,6 @@ export default function HomePage() {
             )}
           </View>
         )}
-      </View>
-
-      {/* 运动量：压成一行小字，位置留在原地 */}
-      <View className="sec mt3">
-        <View className="act-row">
-          <Text className="act-label">今天动了多少</Text>
-          <View className="act-btns">
-            {ACTIVITY_OPTIONS.map((o) => (
-              <View
-                key={o.level}
-                className={`act-btn ${activity === o.level ? "is-on" : ""}`}
-                hoverClass="tap"
-                onClick={() => setActivity(o.level)}
-              >
-                <Text className="act-text">{o.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
       </View>
 
       <View className="bottom-space" />

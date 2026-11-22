@@ -2,23 +2,35 @@
 
 import { useEffect, useMemo, useState } from "react";
 import CameraSheet from "@/components/CameraSheet";
+import DaySummary from "@/components/DaySummary";
 import HomeView from "@/components/HomeView";
 import Onboarding from "@/components/Onboarding";
 import RecordView from "@/components/RecordView";
 import Splash from "@/components/Splash";
 import { Sheet } from "@/components/ui";
+import { avgBurnEndingOn, exerciseDef, shiftDate } from "@/lib/exercise";
 import { DISEASE_LABEL, buildPlan, sumMeals, todayStr } from "@/lib/nutrition";
 import {
-  activityOfDate,
+  closedOf,
+  dateList,
+  exercisesOfDate,
+  isClosed,
   latestWeightKg,
   loadState,
   migratePhotos,
+  openDay,
+  planOfDate,
   resetState,
   saveState,
+  setExerciseMinutes,
   updateMeal,
   upsertMeal,
-  withActivity,
+  withDayClose,
+  withExercise,
+  withExercisePlan,
   withWeight,
+  withoutExercise,
+  withoutExercisePlan,
   withoutMeal,
   type AppState,
 } from "@/lib/store";
@@ -40,6 +52,7 @@ export default function Page() {
   const [dataPanel, setDataPanel] = useState<null | "export" | "import">(null);
   const [dump, setDump] = useState("");
   const [notice, setNotice] = useState("");
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   useEffect(() => {
     const loaded = loadState();
@@ -71,13 +84,39 @@ export default function Page() {
     [state, profile],
   );
 
+  /**
+   * 今天的预算吃的是「截至昨天」的 7 天运动均值，不是今天的实际运动。
+   *
+   * 这一条是刻意的：今晚跑了 40 分钟，今晚的额度不该立刻涨。
+   * 一涨，运动就变成了换饭吃的筹码，而这个回路一旦建立，
+   * 他会开始为了多吃去运动 —— 那刚好和减重的目标反着走。
+   */
   const plan = useMemo(() => {
     if (!profile || !state) return null;
-    return buildPlan(
-      { ...profile, weightKg: currentWeightKg },
-      activityOfDate(state, today),
-    );
+    const yesterday = dateList(2)[1];
+    const extra = avgBurnEndingOn(state.exercises, yesterday, currentWeightKg);
+    return buildPlan({ ...profile, weightKg: currentWeightKg }, extra);
+  }, [profile, state, currentWeightKg]);
+
+  /** 明天的预算用「截至今天」的均值 —— 今天动的，明天才算数 */
+  const tomorrowBudget = useMemo(() => {
+    if (!profile || !state) return 0;
+    const extra = avgBurnEndingOn(state.exercises, today, currentWeightKg);
+    return buildPlan({ ...profile, weightKg: currentWeightKg }, extra)
+      .dailyBudgetKcal;
   }, [profile, state, today, currentWeightKg]);
+
+  const dayExercises = useMemo(
+    () => (state ? exercisesOfDate(state, today) : []),
+    [state, today],
+  );
+
+  const closed = state ? isClosed(state, today) : false;
+  const closedInfo = state ? closedOf(state, today) : null;
+  const tomorrow = shiftDate(today, 1);
+  const planTomorrow = state ? planOfDate(state, tomorrow) : null;
+  /** 昨天定给今天的那个计划 */
+  const planToday = state ? planOfDate(state, today) : null;
 
   const todayMeals = useMemo(
     () => (state ? state.meals.filter((m) => m.date === today) : []),
@@ -127,9 +166,21 @@ export default function Page() {
           profile={profile}
           plan={plan!}
           meals={state.meals}
-          activity={activityOfDate(state, today)}
+          exercises={dayExercises}
+          closed={closed}
+          kcalToday={dayKcal}
+          planTomorrowLabel={
+            planTomorrow
+              ? `${exerciseDef(planTomorrow.kind).label} ${planTomorrow.minutes} 分钟`
+              : null
+          }
+          todayPlanLabel={
+            planToday
+              ? `${exerciseDef(planToday.kind).label} ${planToday.minutes} 分钟`
+              : null
+          }
+          onOpenSummary={() => setSummaryOpen(true)}
           currentWeightKg={currentWeightKg}
-          onActivity={(level) => update(withActivity(state, today, level))}
           onGoalWeeks={(weeks) =>
             update({
               ...state,
@@ -144,7 +195,7 @@ export default function Page() {
           plan={plan!}
           meals={state.meals}
           weights={state.weights}
-          activities={state.activities}
+          exercises={state.exercises}
           onWeight={(kg) =>
             update(withWeight(state, { date: today, weightKg: kg }))
           }
@@ -166,9 +217,20 @@ export default function Page() {
           {tab === "home" && (
             <button
               onClick={() => setCameraOpen(true)}
-              className="mb-2.5 flex h-16 w-full items-center justify-center gap-2.5 rounded-2xl bg-brand-500 text-[20px] font-bold text-white shadow-[0_8px_24px_rgba(31,138,91,0.35)] transition active:scale-[0.98] active:bg-brand-600"
+              className={
+                closed
+                  ? // 已经收工，按钮不再是"快来记"的绿块，改成一条低调的补记入口。
+                    // 不是不让他记，是不催他 —— 这个区别决定收工有没有意义。
+                    "mb-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#d9ded9] bg-white/70 text-[15px] font-medium text-ink-500 transition active:scale-[0.98]"
+                  : "mb-2.5 flex h-16 w-full items-center justify-center gap-2.5 rounded-2xl bg-brand-500 text-[20px] font-bold text-white shadow-[0_8px_24px_rgba(31,138,91,0.35)] transition active:scale-[0.98] active:bg-brand-600"
+              }
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <svg
+                width={closed ? 18 : 24}
+                height={closed ? 18 : 24}
+                viewBox="0 0 24 24"
+                fill="none"
+              >
                 <path
                   d="M3 8.5A2.5 2.5 0 015.5 6h1.2a2 2 0 001.7-1l.4-.7a1 1 0 01.9-.5h5.6a1 1 0 01.9.5l.4.7a2 2 0 001.7 1h1.2A2.5 2.5 0 0121 8.5v9A2.5 2.5 0 0118.5 20h-13A2.5 2.5 0 013 17.5v-9z"
                   stroke="currentColor"
@@ -182,7 +244,7 @@ export default function Page() {
                   strokeWidth="1.8"
                 />
               </svg>
-              拍一张，记一餐
+              {closed ? "再记一顿" : "拍一张，记一餐"}
             </button>
           )}
 
@@ -219,6 +281,48 @@ export default function Page() {
         <div className="safe-bottom bg-[#f4f6f4]" />
       </div>
 
+      <DaySummary
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        profile={profile}
+        plan={plan!}
+        meals={todayMeals}
+        exercises={dayExercises}
+        weightKg={currentWeightKg}
+        tomorrowBudget={tomorrowBudget}
+        planTomorrow={planTomorrow}
+        closed={closed}
+        closedAtLabel={
+          closedInfo
+            ? new Date(closedInfo.closedAt).toLocaleTimeString("zh-CN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : null
+        }
+        onExercise={(kind, minutes) =>
+          update(
+            withExercise(state, {
+              id:
+                typeof crypto !== "undefined" && crypto.randomUUID
+                  ? crypto.randomUUID()
+                  : String(Date.now()),
+              date: today,
+              kind,
+              minutes,
+            }),
+          )
+        }
+        onRemoveExercise={(id) => update(withoutExercise(state, id))}
+        onMinutes={(id, minutes) => update(setExerciseMinutes(state, id, minutes))}
+        onCloseDay={() => update(withDayClose(state, today, dayKcal))}
+        onReopenDay={() => update(openDay(state, today))}
+        onPlan={(kind, minutes) =>
+          update(withExercisePlan(state, { date: tomorrow, kind, minutes }))
+        }
+        onUnplan={() => update(withoutExercisePlan(state, tomorrow))}
+      />
+
       <CameraSheet
         open={cameraOpen}
         onClose={() => setCameraOpen(false)}
@@ -226,7 +330,11 @@ export default function Page() {
         plan={plan!}
         dayKcalBefore={dayKcal}
         todayMeals={todayMeals}
-        onSave={(m: Meal) => update(upsertMeal(state, m))}
+        onSave={(m: Meal) =>
+          // 已经收工又补记一顿，收工状态自动解除 ——
+          // 否则记录里多了一顿、界面上还写着"今天已收工"，自己打自己的脸
+          update(openDay(upsertMeal(state, m), m.date))
+        }
         onEditMeal={(id) => {
           setCameraOpen(false);
           setPendingEditId(id);
@@ -347,7 +455,10 @@ export default function Page() {
                         }
                         resetState();
                         void clearPhotos();
+                        // 用 loadState 那套归一化，别在这里手抄字段 ——
+                        // 每加一个新字段就要改一次，漏了就是静默丢数据
                         update({
+                          ...parsed,
                           profile: parsed.profile ?? null,
                           meals: parsed.meals,
                           weights: Array.isArray(parsed.weights)
@@ -355,6 +466,15 @@ export default function Page() {
                             : [],
                           activities: Array.isArray(parsed.activities)
                             ? parsed.activities
+                            : [],
+                          exercises: Array.isArray(parsed.exercises)
+                            ? parsed.exercises
+                            : [],
+                          closedDays: Array.isArray(parsed.closedDays)
+                            ? parsed.closedDays
+                            : [],
+                          exercisePlans: Array.isArray(parsed.exercisePlans)
+                            ? parsed.exercisePlans
                             : [],
                           onboarded: !!parsed.onboarded,
                         });

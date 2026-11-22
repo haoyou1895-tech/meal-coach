@@ -1,6 +1,5 @@
 /* 自动同步自 web/src/lib/nutrition.ts，不要在这里改，改 web 那份再跑 npm run sync */
 import type {
-  ActivityLevel,
   Disease,
   Meal,
   Nutrition,
@@ -15,12 +14,18 @@ export function calcBMR(p: Pick<Profile, "gender" | "age" | "heightCm" | "weight
   return Math.round(p.gender === "male" ? base + 5 : base - 161);
 }
 
-/** 活动系数：长辈按轻度活动保守取 1.3 */
-const ACTIVITY_FACTOR: Record<ActivityLevel, number> = {
-  low: 1.2,
-  normal: 1.3,
-  high: 1.45,
-};
+/**
+ * 日常生活本身的那部分消耗，取基础代谢的 1.2 倍。
+ *
+ * 这是 NEAT（非运动性产热）：起床、走路、说话、搬东西。
+ * 以前这里是三个系数 1.2 / 1.3 / 1.45，让用户选自己"算哪档" ——
+ * 问题是没人知道自己算哪档，选了也验证不了。
+ *
+ * 现在固定 1.2，代表"人是会动的"这个默认事实；
+ * 真正的运动另外按 MET 精确加上去（见 lib/exercise.ts）。
+ * 于是 tdee = bmr × 1.2 + 今天的运动消耗，每一项都说得清。
+ */
+const NEAT_FACTOR = 1.2;
 
 /** 每日缺口：目标 0.3–0.5kg/周，取 400kcal/天 */
 const DAILY_DEFICIT = 400;
@@ -49,12 +54,16 @@ function maxSafeDeficit(p: Profile, tdee: number): number {
   );
 }
 
-export function buildPlan(
-  p: Profile,
-  activity: ActivityLevel = "normal",
-): NutritionPlan {
+export function buildPlan(p: Profile, extraBurnKcal = 0): NutritionPlan {
   const bmr = calcBMR(p);
-  const tdee = Math.round(bmr * ACTIVITY_FACTOR[activity]);
+  /*
+   * 运动消耗按"过去 7 天日均"传进来，不是今天的实际值。
+   * 传今天会出两个问题：今晚跑了步，今晚的额度就涨，等于运动换饭；
+   * 明天不跑了，额度又掉回去，他会觉得系统在乱跳。
+   */
+  const exerciseKcal = Math.max(0, Math.round(extraBurnKcal));
+  const neatKcal = Math.round(bmr * NEAT_FACTOR);
+  const tdee = neatKcal + exerciseKcal;
   const floor = SAFE_FLOOR[p.gender];
   const gapKg = Math.max(0, p.weightKg - p.targetWeightKg);
   const maxDeficit = maxSafeDeficit(p, tdee);
@@ -102,6 +111,8 @@ export function buildPlan(
   return {
     bmr,
     tdee,
+    neatKcal,
+    exerciseKcal,
     dailyBudgetKcal,
     proteinTargetG,
     fatTargetG,
@@ -140,18 +151,15 @@ export interface GoalOption {
  * 快的那档取安全上界，不是随便加速度 —— 谁都能把数字调好看，
  * 代价是肌肉和水，那种"快"两周就反弹回来。
  */
-export function goalOptions(
-  p: Profile,
-  activity: ActivityLevel = "normal",
-): GoalOption[] {
-  const steady = buildPlan({ ...p, goalWeeks: undefined }, activity);
+export function goalOptions(p: Profile, extraBurnKcal = 0): GoalOption[] {
+  const steady = buildPlan({ ...p, goalWeeks: undefined }, extraBurnKcal);
   const fast = buildPlan(
     { ...p, goalWeeks: steady.fastestWeeks || 1 },
-    activity,
+    extraBurnKcal,
   );
   const slow = buildPlan(
     { ...p, goalWeeks: Math.ceil(steady.weeksToGoal * 1.4) },
-    activity,
+    extraBurnKcal,
   );
 
   const shape = (
@@ -284,17 +292,13 @@ export function guessMealType(
 /**
  * 这一天的预算。
  *
- * 预算不该是一个固定数字：走一天工地和坐一天办公室，差两百多大卡。
- * 每天在首页点的那三个「没动 / 走动 / 锻炼」，就是这一天的活动系数。
- * 没有记录的那天按"走动"算 —— 这是默认值，不是"没动"，
- * 否则没点过的日子会全部显得超标。
+ * extraBurnKcal 是「那天之前 7 天的日均运动消耗」，不是那天的实际运动。
+ * 理由见 buildPlan 里的注释：预算得稳，而且不能随当天运动实时膨胀。
+ * 传 0 就是纯 NEAT 基线 —— 从没记过运动的人，一开始就是这个数。
  */
-export function dayBudget(
-  p: Profile,
-  level: ActivityLevel = "normal",
-): number {
+export function dayBudget(p: Profile, extraBurnKcal = 0): number {
   // 跟首页共用一套算法：他要是把目标改成"11 周"，记录页的预算线也得跟着降
-  return buildPlan(p, level).dailyBudgetKcal;
+  return buildPlan(p, extraBurnKcal).dailyBudgetKcal;
 }
 
 /** 疾病 → 中文 */

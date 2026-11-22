@@ -40,7 +40,7 @@ export default function SettingsPage() {
     const profile = state.profile;
     // 预算按最近一次称的体重算，跟首页一致
     const weight = latestWeightKg(state.weights, profile.weightKg);
-    const plan = buildPlan({ ...profile, weightKg: weight }, activityOfDate(state, today));
+    const plan = buildPlan({ ...profile, weightKg: weight }, 0);
     return { profile, plan, weight };
   }, [state, today]);
 
@@ -82,6 +82,11 @@ export default function SettingsPage() {
         meals: parsed.meals,
         weights: Array.isArray(parsed.weights) ? parsed.weights : [],
         activities: Array.isArray(parsed.activities) ? parsed.activities : [],
+        exercises: Array.isArray(parsed.exercises) ? parsed.exercises : [],
+        closedDays: Array.isArray(parsed.closedDays) ? parsed.closedDays : [],
+        exercisePlans: Array.isArray(parsed.exercisePlans)
+          ? parsed.exercisePlans
+          : [],
         onboarded: !!parsed.onboarded,
       };
       saveState(next);

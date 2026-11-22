@@ -3,8 +3,11 @@
 import type {
   ActivityLevel,
   ActivityLog,
+  DayClose,
   Drink,
   DrinkKind,
+  ExerciseLog,
+  ExercisePlan,
   Meal,
   MealTag,
   Profile,
@@ -19,7 +22,17 @@ export interface AppState {
   profile: Profile | null;
   meals: Meal[];
   weights: WeightLog[];
+  /**
+   * 老版本的「活动量三选一」。不再参与任何计算，只为兼容旧备份码，
+   * 读进来原样带着，不报错。
+   */
   activities: ActivityLog[];
+  /** 具体做了什么运动：一天可以有好几条 */
+  exercises: ExerciseLog[];
+  /** 已经"收工"的日子 */
+  closedDays: DayClose[];
+  /** 给某一天定下的运动计划 */
+  exercisePlans: ExercisePlan[];
   /** 是否已完成首次引导 */
   onboarded: boolean;
 }
@@ -29,6 +42,9 @@ const EMPTY: AppState = {
   meals: [],
   weights: [],
   activities: [],
+  exercises: [],
+  closedDays: [],
+  exercisePlans: [],
   onboarded: false,
 };
 
@@ -42,6 +58,11 @@ export function loadState(): AppState {
       meals: Array.isArray(parsed.meals) ? parsed.meals : [],
       weights: Array.isArray(parsed.weights) ? parsed.weights : [],
       activities: Array.isArray(parsed.activities) ? parsed.activities : [],
+      exercises: Array.isArray(parsed.exercises) ? parsed.exercises : [],
+      closedDays: Array.isArray(parsed.closedDays) ? parsed.closedDays : [],
+      exercisePlans: Array.isArray(parsed.exercisePlans)
+        ? parsed.exercisePlans
+        : [],
       onboarded: !!parsed.onboarded,
     };
   } catch {
@@ -213,6 +234,82 @@ export function mealsOfDate(s: AppState, date: string) {
 
 export function activityOfDate(s: AppState, date: string): ActivityLevel {
   return s.activities.find((a) => a.date === date)?.level ?? "normal";
+}
+
+/* ---------- 运动记录 ---------- */
+
+export function exercisesOfDate(s: AppState, date: string): ExerciseLog[] {
+  return s.exercises.filter((e) => e.date === date);
+}
+
+/**
+ * 加一条运动。
+ * 同一项做两次（上午走一趟、晚上又走一趟）就是两条，不合并 ——
+ * 合并了他会以为系统把第二次吞了，然后不再记。
+ */
+export function withExercise(s: AppState, log: ExerciseLog): AppState {
+  return { ...s, exercises: [...s.exercises, log] };
+}
+
+export function withoutExercise(s: AppState, id: string): AppState {
+  return { ...s, exercises: s.exercises.filter((e) => e.id !== id) };
+}
+
+export function setExerciseMinutes(
+  s: AppState,
+  id: string,
+  minutes: number,
+): AppState {
+  return {
+    ...s,
+    exercises: s.exercises.map((e) =>
+      e.id === id ? { ...e, minutes: Math.max(5, Math.min(300, minutes)) } : e,
+    ),
+  };
+}
+
+/* ---------- 明天练什么 ---------- */
+
+export function planOfDate(s: AppState, date: string): ExercisePlan | null {
+  return s.exercisePlans.find((p) => p.date === date) ?? null;
+}
+
+/** 一天只留一个计划：他改主意就换掉，不叠在一起 */
+export function withExercisePlan(s: AppState, plan: ExercisePlan): AppState {
+  return {
+    ...s,
+    exercisePlans: [plan, ...s.exercisePlans.filter((p) => p.date !== plan.date)],
+  };
+}
+
+export function withoutExercisePlan(s: AppState, date: string): AppState {
+  return { ...s, exercisePlans: s.exercisePlans.filter((p) => p.date !== date) };
+}
+
+/* ---------- 今日收工 ---------- */
+
+export function isClosed(s: AppState, date: string): boolean {
+  return s.closedDays.some((d) => d.date === date);
+}
+
+export function closedOf(s: AppState, date: string): DayClose | null {
+  return s.closedDays.find((d) => d.date === date) ?? null;
+}
+
+export function withDayClose(s: AppState, date: string, kcal: number): AppState {
+  const rest = s.closedDays.filter((d) => d.date !== date);
+  return {
+    ...s,
+    closedDays: [
+      { date, closedAt: new Date().toISOString(), kcalAtClose: Math.round(kcal) },
+      ...rest,
+    ],
+  };
+}
+
+/** 点错了、还想再记一顿 —— 随时能撤回，收工不是上锁 */
+export function openDay(s: AppState, date: string): AppState {
+  return { ...s, closedDays: s.closedDays.filter((d) => d.date !== date) };
 }
 
 export function latestWeight(s: AppState): number | null {

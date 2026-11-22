@@ -140,10 +140,10 @@ export default function RecordPage() {
 
   const budgets = useMemo(() => {
     if (!state?.profile) return [];
-    const level = new Map<string, ActivityLevel>();
-    for (const a of state.activities) level.set(a.date, a.level);
     const now = { ...state.profile, weightKg: latest };
-    return last7.map((d) => dayBudget(now, level.get(d) ?? "normal"));
+    // 运动消耗这端还没接（等"今日收工"面板搬过来），先按纯日常活动算。
+    // 跟首页同一个口径，两处不能各算各的。
+    return last7.map(() => dayBudget(now, 0));
   }, [last7, state, latest]);
 
   const maxKcal = Math.max(
@@ -211,10 +211,7 @@ export default function RecordPage() {
   const profile = state.profile;
   const lost = round(profile.weightKg - latest, 1);
   /** 改记录后要重算点评，规则跟首页同一套，所以要同一份 plan */
-  const planForComment = buildPlan(
-    { ...profile, weightKg: latest },
-    activityOfDate(state, todayStr()),
-  );
+  const planForComment = buildPlan({ ...profile, weightKg: latest }, 0);
 
   /** 打开编辑弹层。照片是异步读的，先摆出结构再填图 */
   async function openEditor(m: Meal) {

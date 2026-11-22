@@ -39,7 +39,17 @@ export interface Profile {
 
 export interface NutritionPlan {
   bmr: number;
+  /**
+   * 一天总消耗 = 基础代谢 + 日常生活 + 运动。
+   * 拆成三段是为了能对用户解释：他问"凭什么是 2071"，
+   * 能答"躺着 1649 + 日常走动 330 + 你最近的运动平均 92"。
+   * 一个连自己怎么来的都说不清的数字，用户凭什么信。
+   */
   tdee: number;
+  /** 基础代谢 × 1.2，日常生活那部分 */
+  neatKcal: number;
+  /** 计入的运动消耗：7 天平均，不是今天的 */
+  exerciseKcal: number;
   dailyBudgetKcal: number;
   proteinTargetG: number;
   fatTargetG: number;
@@ -59,6 +69,20 @@ export interface NutritionPlan {
   tooFast: boolean;
   /** 按现在的缺口，一周大约掉多少公斤 */
   perWeekKg: number;
+}
+
+/**
+ * 明天的运动计划。
+ *
+ * 为什么要把"挑一个"存下来：建议列表如果只是看着好看，明天到了他还是不会动。
+ * 存下来之后，第二天打开就有"昨天你选了快走 35 分钟" ——
+ * 这是他自己做的承诺，不是系统派的活。人对自己说过的话，比对系统的提醒认真。
+ */
+export interface ExercisePlan {
+  /** 计划做的那天 */
+  date: string;
+  kind: ExerciseKind;
+  minutes: number;
 }
 
 export interface FoodItem {
@@ -161,9 +185,56 @@ export interface WeightLog {
   weightKg: number;
 }
 
+/**
+ * 老版本的「活动量三选一」。
+ * 已经不用它算预算了（换成 MET 的 ExerciseLog），
+ * 但备份码里还带着这个字段，读进来不能崩，所以留着。
+ */
 export interface ActivityLog {
   date: string;
   level: ActivityLevel;
+}
+
+/**
+ * 具体做了什么运动。
+ *
+ * 跟 ActivityLog 的区别就是这一次替换的全部意义：
+ * 「中等活动 1.3 倍」是一个没人能验证的倍数，
+ * 「快走 40 分钟」是他自己记得、也改得动的事实。
+ */
+export type ExerciseKind =
+  | "walk"
+  | "stroll"
+  | "jog"
+  | "bike"
+  | "swim"
+  | "stairs"
+  | "taiji"
+  | "dance"
+  | "badminton"
+  | "strength"
+  | "chore";
+
+export interface ExerciseLog {
+  /** 前端生成的唯一 id，同一天可以有好几条 */
+  id: string;
+  date: string;
+  kind: ExerciseKind;
+  minutes: number;
+}
+
+/**
+ * 一天吃完了、收工。
+ *
+ * 这不只是打个勾：他按下这个按钮，等于对今天说"就这些了"。
+ * 深夜十点还想开一袋薯片的时候，那个已经收工的界面比任何提醒都有用 ——
+ * 因为它记录的是他自己的决定，不是系统拦他。
+ */
+export interface DayClose {
+  date: string;
+  closedAt: string;
+  /** 收工那一刻吃了多少，事后回看用 */
+  kcalAtClose: number;
 }
 
 export interface DayTotals extends Nutrition {
