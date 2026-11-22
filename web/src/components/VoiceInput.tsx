@@ -201,6 +201,12 @@ export default function VoiceInput({
     }
   }
 
+  /**
+   * 空闲时不写字。
+   * "说一句"这三个字摆在输入框下面，等于先教他一遍怎么用 ——
+   * 一个话筒图标，谁都认得，而且省下的这行高度够放拍照那张大卡。
+   * 录音、转写、出错三种状态必须写：那三个时刻他需要知道发生了什么。
+   */
   const label =
     status === "recording"
       ? `正在听 ${seconds}s`
@@ -208,9 +214,10 @@ export default function VoiceInput({
         ? "转文字…"
         : status === "error"
           ? "再说一次"
-          : "说一句";
+          : "";
 
   const busy = disabled || status === "uploading";
+  const bare = label === "";
 
   return (
     <div className="mt-2 flex items-center gap-2.5">
@@ -222,7 +229,9 @@ export default function VoiceInput({
           if (status === "recording") stop();
           else void start();
         }}
-        className={`flex h-11 items-center gap-2 rounded-xl px-4 text-[15px] font-medium transition active:scale-[0.97] disabled:opacity-50 ${
+        className={`flex h-11 items-center gap-2 rounded-xl text-[15px] font-medium transition active:scale-[0.97] disabled:opacity-50 ${
+          bare ? "w-11 justify-center px-0" : "px-4"
+        } ${
           status === "recording"
             ? "bg-[#d94f3d] text-white"
             : "bg-black/[0.05] text-brand-600"

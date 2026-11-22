@@ -31,6 +31,7 @@ import {
   SALT_LABEL,
   TAG_CFG,
   daySalt,
+  saltGram,
   saltLevelOf,
 } from "@/lib/mealTags";
 import {
@@ -604,6 +605,23 @@ export default function HomeView({
               value={totals.fat}
               target={plan.fatTargetG}
               unit="g"
+            />
+            {/*
+              盐单独占一条，跟三条营养素并排。
+              原来盐只有右边一行"盐 有点多"——只说了结论，没有刻度，
+              他不知道自己离 5 克还差多少、是今天超了还是这顿超了。
+              高血压的人天天要回答的正是这个问题，所以给它一根条：
+              左边是已经吃进去的克数，右边是 5 克的上限。
+              图标用盐罐，跟旁边三个（蛋、碗、油滴）是一套。
+            */}
+            <MacroBar
+              icon="salt"
+              color="#6b7c8c"
+              label="盐"
+              value={saltGram(salt.mg)}
+              target={saltGram(plan.sodiumLimitMg)}
+              unit="g"
+              digits={1}
             />
           </div>
         </div>

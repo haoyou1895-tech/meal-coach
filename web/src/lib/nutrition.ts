@@ -251,8 +251,12 @@ export function snackLabel(m: Pick<Meal, "mealType" | "eatenAt" | "createdAt">) 
   const raw = m.eatenAt ?? m.createdAt;
   const d = raw ? new Date(raw) : new Date();
   const h = Number.isNaN(d.getTime()) ? new Date().getHours() : d.getHours();
-  if (h >= 20 || h < 3) return "宵夜";
-  if (h >= 13) return "下午茶";
+  if (h >= 20 || h < 5) return "宵夜";
+  // 只有真正的下午才叫下午茶。以前 13 点以后一律算下午茶，
+  // 于是上午十一点的加餐也被写成"下午茶"，跟还没吃的午饭撞在一起。
+  if (h >= 13 && h < 17) return "下午茶";
+  if (h >= 5 && h < 12) return "上午";
+  // 两餐正中间说不清是哪一顿，就别硬编一个词
   return "加餐";
 }
 

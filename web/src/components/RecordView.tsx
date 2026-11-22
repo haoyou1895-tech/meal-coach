@@ -22,6 +22,7 @@ import {
 import { dateList, latestWeightKg } from "@/lib/store";
 import { drinkKcal, drinksLabel } from "@/lib/drinks";
 import { deletePhoto, getPhoto, photoIdsOf, putPhoto } from "@/lib/photos";
+import { PORTION_STEPS, nearestStep } from "@/lib/portion";
 import { compress } from "@/lib/image";
 import { sodiumWithTags } from "@/lib/mealTags";
 import type { Nutrition } from "@/lib/types";
@@ -975,42 +976,45 @@ export default function RecordView({
                       <Icon name="trash" size={15} />
                     </button>
                   </div>
+                  {/*
+                    份量改成「几口 / 一半 / 全吃了」。
+                    原来是「− 1 份 +」，逼着人把"还剩小半盘"翻译成 0.5 份。
+                    拍照确认页早就换成这三个词了，改记录页却还留着加减号 ——
+                    同一件事两套交互，用户学一遍不够，还得学第二遍。
+                  */}
                   <div className="mt-2.5 flex items-center justify-between border-t border-black/[0.04] pt-2.5">
-                    <span className="text-[13px] text-ink-300">份量</span>
+                    <span className="flex items-baseline gap-1.5 text-[13px] text-ink-300">
+                      吃了多少
+                      {/* 老记录里存着 1.5 份、2 份这种加减号时代的值，
+                          三个档位盖不住它，得如实说出来，别让人以为按错了 */}
+                      {!PORTION_STEPS.some((s) => s.v === (factors[i] ?? 1)) && (
+                        <span className="tabular-nums text-ink-400">
+                          （按 {factors[i]} 份算）
+                        </span>
+                      )}
+                    </span>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() =>
-                          setFactors((prev) =>
-                            prev.map((f, idx) =>
-                              idx === i
-                                ? Math.max(0.5, Math.round((f - 0.5) * 10) / 10)
-                                : f,
-                            ),
-                          )
-                        }
-                        aria-label="减半份"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/[0.05] text-[17px] font-bold text-ink-700 active:scale-95"
-                      >
-                        −
-                      </button>
-                      <span className="w-11 text-center text-[14px] font-semibold tabular-nums">
-                        {factors[i] ?? 1} 份
-                      </span>
-                      <button
-                        onClick={() =>
-                          setFactors((prev) =>
-                            prev.map((f, idx) =>
-                              idx === i
-                                ? Math.min(3, Math.round((f + 0.5) * 10) / 10)
-                                : f,
-                            ),
-                          )
-                        }
-                        aria-label="加半份"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/[0.05] text-[17px] font-bold text-ink-700 active:scale-95"
-                      >
-                        +
-                      </button>
+                      {PORTION_STEPS.map((s) => {
+                        const on = nearestStep(factors[i] ?? 1) === s.v;
+                        return (
+                          <button
+                            key={s.label}
+                            onClick={() =>
+                              setFactors((prev) =>
+                                prev.map((f, idx) => (idx === i ? s.v : f)),
+                              )
+                            }
+                            aria-pressed={on}
+                            className={`h-8 rounded-lg px-2.5 text-[13px] font-medium transition active:scale-95 ${
+                              on
+                                ? "bg-brand-500 text-white"
+                                : "bg-black/[0.05] text-ink-700"
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

@@ -17,8 +17,9 @@ import type {
 import { guessMealType, mealTypeLabel, todayStr } from "@/lib/nutrition";
 import { DRINK_CFG, DRINK_KINDS, drinkKcal } from "@/lib/drinks";
 import { TAG_CFG, TAG_LIST, saltGram, sodiumWithTags } from "@/lib/mealTags";
+import { PORTION_STEPS } from "@/lib/portion";
 import { ruleComment, ruleVerdict } from "@/lib/comment";
-import { putPhoto } from "@/lib/photos";
+import { putPhoto, getPhoto, deletePhoto } from "@/lib/photos";
 import { compress, makeThumb } from "@/lib/image";
 import { Sheet } from "./ui";
 import Icon, { type IconName } from "./Icon";
@@ -37,24 +38,36 @@ const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 const MAX_SHOTS = 4;
 
 /**
- * 份量的三档，用词不用数。
+ * 加餐的副标题。
  *
- * 上一版是「− 1 份 +」，步进 0.5。那个设计假设用户会在心里换算
- * "我大概吃了 0.5 份" —— 而人在饭桌上想的是"还剩半盘"，或者
- * "我就夹了两筷子"。数字是给机器看的，词才是给人用的。
+ * "加餐"是个分类词，不是人话。同一次加餐，下午三点他说"下午茶"，
+ * 晚上十点说"宵夜"，上午十点就是"早点"。
  *
- * 为什么只有三档、没有"更多"：
- * 误差的大头是"没吃完"，不是"吃了两份"。真吃了两碗饭的人极少，
- * 而为了极少数情况多摆一个按钮，会让每道菜都变复杂。
- * 舍掉"更多"，换来一眼就懂的三个词。
+ * 上一版只有"下午茶 / 宵夜"两档，于是上午十一点打开，
+ * 按钮底下写着"下午茶" —— 他还没吃午饭。现在早中晚各归各位，
+ * 两餐正中间那种说不清的时段就什么都不写，别硬编一个词。
  */
-const PORTION_STEPS = [
-  { v: 0.25, label: "几口" },
-  { v: 0.5, label: "一半" },
-  { v: 1, label: "全吃了" },
-] as const;
+function snackSub(hour: number | null): string {
+  if (hour === null) return "";
+  if (hour >= 20 || hour < 5) return "宵夜";
+  if (hour >= 13 && hour < 17) return "下午茶";
+  if (hour >= 5 && hour < 12) return "上午";
+  return "";
+}
 
-/** 压缩图片，避免上传大图拖慢识别 */
+/**
+ * 还没记进账本的那张照片，放在本地仓库的固定位置。
+ *
+ * 为什么要有这个东西：
+ * 识别会失败（网络断、接口 502、模型看走眼），而人不会因为失败就把饭
+ * 重新吃一遍。上一版失败后只有"重拍一张"，等于假定他桌上那盘菜还在 ——
+ * 实际上他可能已经吃完了，或者那顿是跟别人一起吃的，散席了。
+ * 照片一旦跟着失败丢掉，这顿饭就永远没有图了。
+ *
+ * 所以：选完图先落盘，再谈识别。识别失败、甚至关掉面板，图都还在，
+ * 下次打开还能接着认。
+ */
+const DRAFT_ID = "draft-photo";
 
 export default function CameraSheet({
   open,
@@ -124,6 +137,9 @@ export default function CameraSheet({
     ? existing.nutrition.kcal + drinkKcal(existing.drinks)
     : 0;
 
+  /** 还没用掉的那张照片（识别失败后留下的） */
+  const [draft, setDraft] = useState("");
+
   /**
    * 每次打开面板都重新猜一次餐次。
    *
@@ -144,6 +160,19 @@ export default function CameraSheet({
     wasOpen.current = open;
   });
 
+  /** 打开时把上次没认出来的照片捞回来 */
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    void (async () => {
+      const d = await getPhoto(DRAFT_ID);
+      if (alive && d) setDraft(d);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
   const reset = () => {
     setPhase("idle");
     setPreview("");
@@ -162,25 +191,20 @@ export default function CameraSheet({
     setNoteCheck(null);
   };
 
-  const handleFile = async (files?: FileList | File[] | null) => {
-    const picked = files ? Array.from(files).slice(0, MAX_SHOTS) : [];
-    if (!picked.length) return;
+  /**
+   * 认一次。
+   *
+   * 图片和文字都可能已经在手上，所以跟"选图"拆开：
+   * 识别失败时重试的是同一张图、同一句话，不需要他再拍一次。
+   */
+  const recognize = async (urls: string[], text: string) => {
     setPhase("working");
     setErrMsg("");
     try {
-      /*
-        一张照片装不下一桌菜。
-        圆桌一米五，他坐在一角，镜头只够拍面前三盘 —— 所以允许一次选多张，
-        一起送去识别。多张走同一次请求，不是拍一张等一次：
-        一次调用十秒，三张就是三十秒，没人会在饭桌上等。
-      */
-      const urls = await Promise.all(picked.map((f) => compress(f)));
-      setShots(urls);
-      setPreview(urls[0]);
       const res = await fetch("/api/recognize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: urls, image: urls[0], note }),
+        body: JSON.stringify({ images: urls, image: urls[0], note: text }),
       });
       const data = (await res.json()) as RecognizeResult;
       if (!res.ok || data.error === "没有收到图片") {
@@ -210,6 +234,64 @@ export default function CameraSheet({
       setErrMsg(e instanceof Error ? e.message : "识别失败，请重试");
       setPhase("error");
     }
+  };
+
+  const handleFile = async (files?: FileList | File[] | null) => {
+    const picked = files ? Array.from(files).slice(0, MAX_SHOTS) : [];
+    if (!picked.length) return;
+    setPhase("working");
+    setErrMsg("");
+    let urls: string[] = [];
+    try {
+      /*
+        一张照片装不下一桌菜。
+        圆桌一米五，他坐在一角，镜头只够拍面前三盘 —— 所以允许一次选多张，
+        一起送去识别。多张走同一次请求，不是拍一张等一次：
+        一次调用十秒，三张就是三十秒，没人会在饭桌上等。
+      */
+      urls = await Promise.all(picked.map((f) => compress(f)));
+    } catch {
+      setErrMsg("这张照片打不开，换一张试试");
+      setPhase("error");
+      return;
+    }
+    setShots(urls);
+    setPreview(urls[0]);
+
+    /*
+      先落盘，再谈识别。
+      识别失败的时候人往往已经把饭吃完了 —— 照片要是跟着失败一起丢，
+      这顿饭就永远没有图。存进本地仓库，下次打开还能接着认。
+    */
+    try {
+      if (await putPhoto(DRAFT_ID, urls[0])) setDraft(urls[0]);
+    } catch {
+      // 存不下（无痕模式、配额满）不影响识别本身，照常往下走
+    }
+
+    await recognize(urls, note);
+  };
+
+  /** 用手里已有的图再认一次：不重拍，照片也不动 */
+  const retry = async () => {
+    let urls = shots;
+    if (!urls.length && draft) {
+      urls = [draft];
+      setShots(urls);
+      setPreview(draft);
+    }
+    if (!urls.length) return;
+    await recognize(urls, note);
+  };
+
+  /** 丢掉这张，回到干净状态 */
+  const dropDraft = () => {
+    setDraft("");
+    setShots([]);
+    setPreview("");
+    void deletePhoto(DRAFT_ID);
+    setPhase("idle");
+    setErrMsg("");
   };
 
   /**
@@ -453,6 +535,9 @@ export default function CameraSheet({
         drinks: drinks.length ? drinks : undefined,
         tags: tags.length ? tags : undefined,
       };
+      // 这张图已经跟着记录存到自己的位置了，草稿可以撤
+      void deletePhoto(DRAFT_ID);
+      setDraft("");
       onSave(meal);
       reset();
       onClose();
@@ -506,6 +591,55 @@ export default function CameraSheet({
 
       {phase === "idle" && (
         <div className="pb-4">
+          {/*
+            上次那张没认出来，图还在。
+            这条路是给"拍完就吃完了、菜已经撤了"的人走的：
+            他不需要重拍，只需要再认一次。
+          */}
+          {draft && (
+            <div className="mb-4 flex items-center gap-3 rounded-2xl bg-white px-3 py-2.5 shadow-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setPreview(draft);
+                  setZoom(true);
+                }}
+                aria-label="看这张照片"
+                className="h-14 w-14 shrink-0 overflow-hidden rounded-xl active:scale-95"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={draft}
+                  alt="上次那张照片"
+                  className="h-full w-full object-cover"
+                />
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-medium text-ink-700">
+                  上次那张还在
+                </p>
+                <p className="mt-0.5 text-[12px] leading-snug text-ink-400">
+                  不用重拍，再认一次就行
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void retry()}
+                className="shrink-0 rounded-lg bg-brand-500 px-3 py-2 text-[13px] font-medium text-white active:scale-95"
+              >
+                再认
+              </button>
+              <button
+                type="button"
+                onClick={dropDraft}
+                aria-label="不用这张照片"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/[0.05] text-ink-400 active:scale-90"
+              >
+                <Icon name="close" size={13} />
+              </button>
+            </div>
+          )}
+
           <div className="mb-5 flex gap-2">
             {MEAL_TYPES.map((t) => {
               const recorded = todayMeals.some((m) => m.mealType === t);
@@ -521,14 +655,14 @@ export default function CameraSheet({
                 >
                   <span className="flex flex-col items-center justify-center leading-tight">
                     <span>{mealTypeLabel(t)}</span>
-                    {/* "加餐"是个分类词，不是人话：下午三点是下午茶，十一点是宵夜 */}
-                    {t === "snack" && hour !== null && (
+                    {/* 上午十一点不该写"下午茶"：副标题只在该时段的窗口里出现 */}
+                    {t === "snack" && snackSub(hour) !== "" && (
                       <span
                         className={`text-[10px] font-normal ${
                           mealType === t ? "text-white/70" : "text-ink-300"
                         }`}
                       >
-                        {hour >= 17 || hour < 3 ? "宵夜" : "下午茶"}
+                        {snackSub(hour)}
                       </span>
                     )}
                   </span>
@@ -677,16 +811,47 @@ export default function CameraSheet({
 
       {phase === "error" && (
         <div className="py-6">
+          {/* 照片摆出来，先让他确认"这张还在" —— 焦虑的一半是怕东西丢了 */}
+          {preview && (
+            <button
+              type="button"
+              onClick={() => setZoom(true)}
+              aria-label="看大图"
+              className="mx-auto mb-4 block h-32 w-32 overflow-hidden rounded-2xl active:scale-95"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={preview}
+                alt="这张照片"
+                className="h-full w-full object-cover"
+              />
+            </button>
+          )}
           <p className="text-center text-[17px] leading-relaxed text-ink-700">
             {errMsg || "这张没看清，能再拍一张吗"}
           </p>
+          {preview && (
+            <p className="mx-auto mt-1.5 max-w-[17em] text-center text-[13px] leading-relaxed text-ink-400">
+              照片留在本地了，不用重拍。真认不出来，再试一次就行
+            </p>
+          )}
           <div className="mt-6 space-y-3">
-            <button className="btn-primary" onClick={() => fileRef.current?.click()}>
+            {preview && (
+              <button className="btn-primary" onClick={() => void retry()}>
+                再试一次
+              </button>
+            )}
+            <button
+              className={preview ? "btn-ghost" : "btn-primary"}
+              onClick={() => fileRef.current?.click()}
+            >
               重拍一张
             </button>
-            <button className="btn-ghost" onClick={reset}>
-              换个方式
-            </button>
+            {preview && (
+              <button className="btn-ghost" onClick={() => setPhase("idle")}>
+                用文字记
+              </button>
+            )}
           </div>
         </div>
       )}

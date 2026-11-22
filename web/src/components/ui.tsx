@@ -367,6 +367,7 @@ export function MacroBar({
   value,
   target,
   unit,
+  digits = 0,
 }: {
   icon: IconName;
   /** 图标自身的颜色，只用来区分三类，不用来表示状态 */
@@ -376,12 +377,25 @@ export function MacroBar({
   value: number;
   target: number;
   unit: string;
+  /**
+   * 保留几位小数。只有盐要一位 —— 一天 5 克的上限，
+   * 四舍五入到整数会把 4.6 和 5.4 都写成 5，那根条就失去意义了。
+   */
+  digits?: number;
 }) {
   const ratio = target > 0 ? value / target : 0;
   const pct = Math.min(100, ratio * 100);
   const over = ratio > 1.05;
   const near = !over && ratio >= 0.85;
   const barColor = over ? "#d94f3d" : near ? "#e0a83a" : "#8fae9c";
+  const shown =
+    digits > 0
+      ? value.toFixed(digits).replace(/\.0$/, "")
+      : String(Math.round(value));
+  const shownTarget =
+    digits > 0
+      ? String(target).replace(/\.0$/, "")
+      : String(Math.round(target));
 
   return (
     <div className="flex-1">
@@ -399,10 +413,10 @@ export function MacroBar({
             over ? "text-[#b23c2c]" : "text-ink-700"
           }`}
         >
-          {Math.round(value)}
+          {shown}
         </span>
         <span className="text-[11px] font-normal leading-none text-ink-300">
-          /{target}
+          /{shownTarget}
           {unit}
         </span>
       </div>
