@@ -93,6 +93,11 @@ export default function RecordView({
   const [editing, setEditing] = useState<Meal | null>(null);
   const [editType, setEditType] = useState<MealType>("lunch");
   const [editItems, setEditItems] = useState<FoodItem[]>([]);
+  /** 正在改名字的那一项；记录页里菜品也可能被认错，跟拍照页同一套做法 */
+  const [renameIdx, setRenameIdx] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameTip, setRenameTip] = useState("");
   const [factors, setFactors] = useState<number[]>([]);
   /**
    * 编辑时的照片，和"原记录里有哪些照片"分开存：
@@ -303,6 +308,52 @@ export default function RecordView({
     if (editItems.length <= 1) return;
     setEditItems((prev) => prev.filter((_, idx) => idx !== i));
     setFactors((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  const startRename = (i: number) => {
+    setRenameIdx(i);
+    setRenameDraft(editItems[i]?.name ?? "");
+    setRenameTip("");
+  };
+
+  /**
+   * 改菜名并重估热量。
+   *
+   * 记录已经存下来了才发现认错菜（比如昨天那顿的"蒸蛋"其实是番茄炒蛋），
+   * 以前只能删掉重拍 —— 但照片早就没了，等于让他丢掉一整条记录。
+   * 现在直接改名，热量跟着重算，其余营养素按新热量等比重算。
+   */
+  const commitRename = async (i: number) => {
+    const cur = editItems[i];
+    const next = renameDraft.trim().slice(0, 20);
+    setRenameIdx(null);
+    if (!cur || !next || next === cur.name) return;
+
+    setRenameBusy(true);
+    try {
+      const res = await fetch("/api/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: next, portion: cur.portion }),
+      });
+      if (!res.ok) throw new Error("estimate failed");
+      const data = (await res.json()) as { nutrition?: { kcal?: number } };
+      const kcal = Math.round(Number(data?.nutrition?.kcal) || 0);
+      if (kcal <= 0) throw new Error("no kcal");
+      setEditItems((prev) =>
+        prev.map((it, idx) => (idx === i ? { ...it, name: next, kcal } : it)),
+      );
+      setRenameTip(`「${cur.name}」改成「${next}」，热量按 ${kcal} 大卡重算`);
+    } catch {
+      setEditItems((prev) =>
+        prev.map((it, idx) => (idx === i ? { ...it, name: next } : it)),
+      );
+      setRenameTip(
+        `名字改成「${next}」了，但这会儿没算出新热量，可以调份量`,
+      );
+    } finally {
+      setRenameBusy(false);
+    }
   };
 
   const saveEdit = () => {
@@ -859,17 +910,57 @@ export default function RecordView({
                 {editItems.length} 样
               </span>
             </div>
+            {(renameBusy || renameTip) && (
+              <p
+                className={`text-[13px] leading-relaxed ${
+                  renameBusy ? "text-ink-400" : "text-brand-600"
+                }`}
+              >
+                {renameBusy ? "正在按新菜名重算热量…" : renameTip}
+              </p>
+            )}
             <div className="space-y-2">
               {editItems.map((it, i) => (
                 <div
-                  key={`${it.name}-${i}`}
+                  key={i}
                   className="rounded-2xl bg-white px-4 py-3"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[16px] font-medium leading-snug">
-                        {it.name}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      {renameIdx === i ? (
+                        <input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          /* 一进来就全选：他要改的通常是整个名字，不该先让他删三个字 */
+                          onFocus={(e) => e.currentTarget.select()}
+                          onBlur={() => void commitRename(i)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                            if (e.key === "Escape") setRenameIdx(null);
+                          }}
+                          maxLength={20}
+                          enterKeyHint="done"
+                          aria-label="改菜名"
+                          className="w-full rounded-lg bg-black/[0.05] px-2 py-1 text-[16px] font-medium text-ink-900 outline-none ring-2 ring-brand-500/40"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startRename(i)}
+                          aria-label={`${it.name}，点这里改菜名`}
+                          className="flex max-w-full items-center gap-1 text-left active:opacity-60"
+                        >
+                          <span className="truncate text-[16px] font-medium leading-snug">
+                            {it.name}
+                          </span>
+                          <Icon
+                            name="edit"
+                            size={13}
+                            className="shrink-0 text-ink-300"
+                          />
+                        </button>
+                      )}
                       <p className="text-[13px] text-ink-300">
                         {it.portion} · 约{" "}
                         {Math.round(it.kcal * (factors[i] ?? 1))} 大卡

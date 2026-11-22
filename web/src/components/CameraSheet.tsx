@@ -110,6 +110,12 @@ export default function CameraSheet({
   const [saving, setSaving] = useState(false);
   /** 打开面板那一刻的钟点，用来判断"加餐"到底是下午茶还是宵夜 */
   const [hour, setHour] = useState<number | null>(null);
+  /** 正在改名字的那一项；null 表示没有在改 */
+  const [renameIdx, setRenameIdx] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  /** 改完之后的一句反馈，要说清热量到底跟着变了没有 */
+  const [renameTip, setRenameTip] = useState("");
 
   /** 这个餐次今天是否已经记过；记过就只能往这顿里加，不再新增一条 */
   const existing = todayMeals.find((m) => m.mealType === mealType);
@@ -307,6 +313,56 @@ export default function CameraSheet({
 
   const setFactor = (i: number, v: number) => {
     setFactors((prev) => prev.map((f, idx) => (idx === i ? v : f)));
+  };
+
+  const startRename = (i: number) => {
+    setRenameIdx(i);
+    setRenameDraft(items[i]?.name ?? "");
+    setRenameTip("");
+  };
+
+  /**
+   * 改名，并把热量跟着重算。
+   *
+   * 只改名不重算等于没修：他要改，就是因为"蒸蛋"和"番茄炒蛋"差着近一倍的热量。
+   * 名字对了、数字还是错的，这本账依然是假的。
+   *
+   * 所以名字一落，就去问一次"这份大概多少卡"。算得出来就换掉，
+   * 算不出来也把名字留下 —— 名字写错是事实错误，热量不准至少还能靠份量兜。
+   */
+  const commitRename = async (i: number) => {
+    const cur = items[i];
+    const next = renameDraft.trim().slice(0, 20);
+    setRenameIdx(null);
+    if (!cur || !next || next === cur.name) return;
+
+    setRenameBusy(true);
+    try {
+      const res = await fetch("/api/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: next, portion: cur.portion }),
+      });
+      if (!res.ok) throw new Error("estimate failed");
+      const data = (await res.json()) as { nutrition?: { kcal?: number } };
+      const kcal = Math.round(Number(data?.nutrition?.kcal) || 0);
+      if (kcal <= 0) throw new Error("no kcal");
+      setItems((prev) =>
+        prev.map((it, idx) => (idx === i ? { ...it, name: next, kcal } : it)),
+      );
+      setRenameTip(
+        `「${cur.name}」改成「${next}」，热量按 ${kcal} 大卡重算`,
+      );
+    } catch {
+      setItems((prev) =>
+        prev.map((it, idx) => (idx === i ? { ...it, name: next } : it)),
+      );
+      setRenameTip(
+        `名字改成「${next}」了，但这会儿没算出新热量，可以先调份量`,
+      );
+    } finally {
+      setRenameBusy(false);
+    }
   };
 
   /** 用户说"不算"，就把这几项连同分数一起摘掉，账上不留痕 */
@@ -833,26 +889,67 @@ export default function CameraSheet({
             </div>
           )}
 
+          {(renameBusy || renameTip) && (
+            <p
+              className={`mt-4 text-[13px] leading-relaxed ${
+                renameBusy ? "text-ink-400" : "text-brand-600"
+              }`}
+            >
+              {renameBusy ? "正在按新菜名重算热量…" : renameTip}
+            </p>
+          )}
+
           <div className="mt-5 space-y-2">
             {visible.map(({ it, i }) => {
               const off = confirmed[i] === false;
               return (
                 <div
-                  key={`${it.name}-${i}`}
-                  className={`flex items-center justify-between rounded-2xl px-4 py-3 ${
+                  key={i}
+                  className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ${
                     off
                       ? "border border-dashed border-[#d8b98e] bg-[#fffaf2]"
                       : "bg-white"
                   }`}
                 >
-                  <div className="min-w-0">
-                    <p
-                      className={`truncate text-[17px] font-medium ${
-                        off ? "text-ink-300" : ""
-                      }`}
-                    >
-                      {it.name}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    {renameIdx === i ? (
+                      <input
+                        autoFocus
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        /* 一进来就全选：他要改的通常是整个名字，不该先让他删三个字 */
+                        onFocus={(e) => e.currentTarget.select()}
+                        onBlur={() => void commitRename(i)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                          if (e.key === "Escape") setRenameIdx(null);
+                        }}
+                        maxLength={20}
+                        enterKeyHint="done"
+                        aria-label="改菜名"
+                        className="w-full rounded-lg bg-black/[0.05] px-2 py-1 text-[17px] font-medium text-ink-900 outline-none ring-2 ring-brand-500/40"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startRename(i)}
+                        aria-label={`${it.name}，点这里改菜名`}
+                        className="flex max-w-full items-center gap-1 text-left active:opacity-60"
+                      >
+                        <span
+                          className={`truncate text-[17px] font-medium ${
+                            off ? "text-ink-300" : ""
+                          }`}
+                        >
+                          {it.name}
+                        </span>
+                        <Icon
+                          name="edit"
+                          size={13}
+                          className="shrink-0 text-ink-300"
+                        />
+                      </button>
+                    )}
                     <p className="text-[13px] text-ink-300">
                       {off
                         ? "照片里没看见"
