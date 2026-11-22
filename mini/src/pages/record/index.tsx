@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import BottomNav from "../../components/BottomNav";
 import Icon from "../../components/Icon";
 import WeightTrend from "../../components/WeightTrend";
-import { recognize } from "../../lib/api";
+import { estimate, recognize } from "../../lib/api";
 import { ruleComment } from "../../lib/comment";
 import { drinkKcal, drinksLabel } from "../../lib/drinks";
 import { compressPath, pathToDataUrl } from "../../lib/image";
@@ -18,6 +18,7 @@ import {
   todayStr,
 } from "../../lib/nutrition";
 import { deletePhoto, getPhoto, photoIdsOf } from "../../lib/photos";
+import { PORTION_STEPS, nearestStep } from "../../lib/portion";
 import {
   activityOfDate,
   dateList,
@@ -75,6 +76,10 @@ export default function RecordPage() {
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [recalcErr, setRecalcErr] = useState("");
   const [addingPhoto, setAddingPhoto] = useState(false);
+  /** 正在改名字的那一项；null 表示没有在改 */
+  const [renameIdx, setRenameIdx] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameTip, setRenameTip] = useState("");
 
   const router = useRouter();
 
@@ -219,6 +224,8 @@ export default function RecordPage() {
     setFactors(m.items.map(() => 1));
     setRecalcBase(null);
     setRecalcErr("");
+    setRenameIdx(null);
+    setRenameTip("");
     const list: { id?: string; src: string; path: string }[] = [];
     for (const id of photoIdsOf(m)) {
       const src = thumbs[id] ?? (await getPhoto(id)) ?? "";
@@ -236,14 +243,35 @@ export default function RecordPage() {
     setFactors((prev) => prev.filter((_, idx) => idx !== i));
   };
 
-  const bumpFactor = (i: number, delta: number) => {
-    setFactors((prev) =>
-      prev.map((f, idx) =>
-        idx === i
-          ? Math.min(3, Math.max(0.5, Math.round((f + delta) * 10) / 10))
-          : f,
-      ),
-    );
+  /** 份量只有三档，跟拍照确认页同一套词 */
+  const setFactorAt = (i: number, v: number) => {
+    setFactors((prev) => prev.map((f, idx) => (idx === i ? v : f)));
+  };
+
+  const startRename = (i: number) => {
+    setRenameIdx(i);
+    setRenameDraft(editItems[i]?.name ?? "");
+    setRenameTip("");
+  };
+
+  /**
+   * 改名并重算这一份的热量。
+   * 记录卡上的数字是这条记录的全部依据，改完名字不重算，
+   * 等于只把标签换了、账还是错的。
+   */
+  const commitRename = async (i: number) => {
+    const cur = editItems[i];
+    const next = renameDraft.trim().slice(0, 20);
+    setRenameIdx(null);
+    if (!cur || !next || next === cur.name) return;
+    const { kcal } = await estimate(next, cur.portion);
+    if (kcal > 0) {
+      setEditItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, name: next, kcal } : it)));
+      setRenameTip(`「${cur.name}」改成「${next}」，热量按 ${kcal} 大卡重算`);
+    } else {
+      setEditItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, name: next } : it)));
+      setRenameTip(`名字改成「${next}」了，但这会儿没算出新热量，可以先调份量`);
+    }
   };
 
   /** 补一张照片：先压、再存、再按这几张重算 */
@@ -765,7 +793,24 @@ export default function RecordPage() {
                 <View key={`${it.name}-${i}`} className="edit-item">
                   <View className="edit-item-top">
                     <View className="edit-item-left">
-                      <Text className="edit-item-name">{it.name}</Text>
+                      {/* 认错的菜名能点开改，改完热量跟着重算 */}
+                      {renameIdx === i ? (
+                        <Input
+                          className="edit-name-input"
+                          value={renameDraft}
+                          maxlength={20}
+                          focus
+                          confirmType="done"
+                          onInput={(e) => setRenameDraft(e.detail.value)}
+                          onBlur={() => void commitRename(i)}
+                          onConfirm={() => void commitRename(i)}
+                        />
+                      ) : (
+                        <View className="edit-name-row" hoverClass="tap" onClick={() => startRename(i)}>
+                          <Text className="edit-item-name">{it.name}</Text>
+                          <Icon name="edit" size={12} color="#9aa5a0" />
+                        </View>
+                      )}
                       <Text className="edit-item-sub">
                         {it.portion} · 约 {Math.round(it.kcal * (factors[i] ?? 1))} 大卡
                       </Text>
@@ -778,21 +823,46 @@ export default function RecordPage() {
                       <Icon name="trash" size={15} color="#6b7671" />
                     </View>
                   </View>
+                  {/*
+                    份量三档，跟拍照确认页一致。
+                    原来是「− 1 份 +」，逼着人把"还剩小半盘"翻译成 0.5 份 ——
+                    同一件事两套交互，等于让他学两遍。
+                  */}
                   <View className="edit-item-foot">
-                    <Text className="edit-item-portion">份量</Text>
+                    <Text className="edit-item-portion">
+                      吃了多少
+                      {/* 老记录里存着 1.5 份、2 份这种加减号时代的值，如实说出来 */}
+                      {!PORTION_STEPS.some((s) => s.v === (factors[i] ?? 1)) && (
+                        <Text className="edit-portion-legacy">（按 {factors[i]} 份算）</Text>
+                      )}
+                    </Text>
                     <View className="edit-portion-btns">
-                      <View className="edit-portion-btn" hoverClass="tap" onClick={() => bumpFactor(i, -0.5)}>
-                        <Text className="edit-portion-sign">−</Text>
-                      </View>
-                      <Text className="edit-portion-val tabular">{factors[i] ?? 1} 份</Text>
-                      <View className="edit-portion-btn" hoverClass="tap" onClick={() => bumpFactor(i, 0.5)}>
-                        <Text className="edit-portion-sign">+</Text>
-                      </View>
+                      {PORTION_STEPS.map((s) => {
+                        const on = nearestStep(factors[i] ?? 1) === s.v;
+                        return (
+                          <View
+                            key={s.v}
+                            className={`edit-portion-chip ${on ? "is-on" : ""}`}
+                            hoverClass="tap"
+                            onClick={() => setFactorAt(i, s.v)}
+                          >
+                            <Text className={`edit-portion-chip-text ${on ? "is-on" : ""}`}>
+                              {s.label}
+                            </Text>
+                          </View>
+                        );
+                      })}
                     </View>
                   </View>
                 </View>
               ))}
             </View>
+
+            {!!renameTip && (
+              <View className="edit-rename-tip">
+                <Text className="edit-rename-tip-text">{renameTip}</Text>
+              </View>
+            )}
 
             {editItems.length <= 1 && (
               <Text className="edit-tip">只剩一样菜了。想整顿都不要，回上一页点垃圾桶图标。</Text>

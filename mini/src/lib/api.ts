@@ -89,6 +89,36 @@ export async function transcribe(filePath: string): Promise<{ text?: string; err
   }
 }
 
+/**
+ * 改完菜名后重算这一份的热量。
+ *
+ * 只改名不重算是假修：「蒸蛋 100」和「番茄炒蛋 190」差着近一倍，
+ * 名字对了数字还错，这本账依然是错的。
+ * 这道菜叫什么是用户的知识，值多少卡是模型的知识 —— 各问各的。
+ */
+export async function estimate(
+  name: string,
+  portion: string,
+): Promise<{ kcal: number }> {
+  try {
+    const res = await Taro.request<{
+      nutrition?: { kcal?: number };
+      error?: string;
+    }>({
+      url: `${BASE}/api/estimate`,
+      method: "POST",
+      // 纯文本调用，比看图快得多；给 30 秒已经是很宽的余量
+      timeout: 30000,
+      header: { "Content-Type": "application/json" },
+      data: { name, portion },
+    });
+    return { kcal: Math.round(Number(res.data?.nutrition?.kcal) || 0) };
+  } catch {
+    // 估不出来不是错误：名字照样改掉，热量让他自己调份量
+    return { kcal: 0 };
+  }
+}
+
 const EMPTY: RecognizeResult = {
   items: [],
   nutrition: { kcal: 0, protein: 0, carb: 0, fat: 0, sodium: 0 },

@@ -105,9 +105,9 @@ async function grab(path, name, after) {
   console.log(p);
 }
 
-await grab("/pages/settings/index", "settings");
-await grab("/pages/record/index", "record");
+await grab("/pages/index/index", "home");
 await grab("/pages/capture/index", "capture");
+await grab("/pages/record/index", "record");
 await grab("/pages/record/index", "record-edit", () => {
   // 点第一行的「改」：图标按钮没有文字，按 aria-label 找不到，取 .rec-act.is-edit
   const btn = document.querySelector(".rec-act.is-edit");

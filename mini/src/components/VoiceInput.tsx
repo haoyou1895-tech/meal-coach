@@ -146,6 +146,12 @@ export default function VoiceInput({
     }
   };
 
+  /**
+   * 空闲时不写字。
+   * "说一句"摆在输入框下面等于先教一遍怎么用；一个话筒图标谁都认得，
+   * 省下的这行高度够放下面那张拍照大卡。
+   * 录音、转写、出错三种状态必须写 —— 那三个时刻他需要知道发生了什么。
+   */
   const label =
     status === "recording"
       ? `正在听 ${seconds}s`
@@ -153,14 +159,14 @@ export default function VoiceInput({
         ? "转文字…"
         : status === "error"
           ? "再说一次"
-          : "说一句";
+          : "";
 
   const busy = disabled || status === "uploading";
 
   return (
     <View className="voice">
       <View
-        className={`voice-btn ${status === "recording" ? "is-rec" : ""} ${busy ? "is-busy" : ""}`}
+        className={`voice-btn ${label ? "" : "is-bare"} ${status === "recording" ? "is-rec" : ""} ${busy ? "is-busy" : ""}`}
         hoverClass={busy ? "none" : "tap"}
         onClick={() => {
           if (busy) return;
@@ -175,7 +181,7 @@ export default function VoiceInput({
         ) : (
           <Icon name="mic" size={18} color="#176f49" />
         )}
-        <Text className="voice-label">{label}</Text>
+        {!!label && <Text className="voice-label">{label}</Text>}
       </View>
 
       {!!msg ? (

@@ -986,8 +986,10 @@
 
 .salt-tag {
   display: flex;
-  flex: 1;
-  min-width: 30%;
+  /* 四颗等分。原来写 min-width: 30%，四颗加起来 120%，必然折成 3+1 ——
+     "出去吃"比"下馆子"多一个字，就把这行挤破了 */
+  flex: 1 1 0;
+  min-width: 0;
   align-items: center;
   justify-content: center;
   height: tw(11);
@@ -1035,4 +1037,143 @@
 
 .bottom-space {
   height: tw(8);
+}
+
+/* ---------- 失败页：照片还留着 ---------- */
+
+.err-photo {
+  display: block;
+  width: tw(32);
+  height: tw(32);
+  margin: 0 auto tw(4);
+  border-radius: tw(4);
+  overflow: hidden;
+}
+
+.err-photo-img {
+  width: 100%;
+  height: 100%;
+}
+
+.err-sub {
+  display: block;
+  margin-top: tw(1.5);
+  font-size: 13px;
+  line-height: 1.5;
+  color: $ink-300;
+  text-align: center;
+}
+
+/* ---------- 改菜名 ---------- */
+
+.dish-name-row {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+}
+
+.dish-name-row .dish-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.dish-name-input {
+  width: 100%;
+  height: tw(8);
+  padding: 0 tw(2);
+  border-radius: tw(2);
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 17px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+.rename-tip {
+  margin: tw(2) 0;
+  padding: tw(2) tw(3);
+  border-radius: tw(2.5);
+  background: #eef7f1;
+}
+
+.rename-tip-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #176f49;
+}
+
+.rename-busy {
+  display: block;
+  margin: tw(1) 0;
+  font-size: 12px;
+  color: $ink-300;
+}
+
+/* ---------- 上次那张还在 ---------- */
+
+.draft-card {
+  display: flex;
+  align-items: center;
+  gap: tw(3);
+  margin-bottom: tw(3);
+  padding: tw(2.5) tw(3);
+  border-radius: tw(4);
+  background: #ffffff;
+}
+
+.draft-thumb {
+  width: tw(14);
+  height: tw(14);
+  flex-shrink: 0;
+  border-radius: tw(3);
+  overflow: hidden;
+}
+
+.draft-img {
+  width: 100%;
+  height: 100%;
+}
+
+.draft-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+.draft-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: $ink-300;
+}
+
+.draft-retry {
+  flex-shrink: 0;
+  padding: tw(1.5) tw(3);
+  border-radius: tw(2);
+  background: $brand-500;
+}
+
+.draft-retry-text {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.draft-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: tw(7);
+  height: tw(7);
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
 }

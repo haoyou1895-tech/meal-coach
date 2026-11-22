@@ -1,9 +1,9 @@
-import { Image, Text, Textarea, View } from "@tarojs/components";
+import { Image, Input, Text, Textarea, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon, { type IconName } from "../../components/Icon";
 import VoiceInput from "../../components/VoiceInput";
-import { recognize } from "../../lib/api";
+import { estimate, recognize } from "../../lib/api";
 import { ruleComment, ruleVerdict } from "../../lib/comment";
 import { DRINK_CFG, DRINK_KINDS, drinkKcal } from "../../lib/drinks";
 import { compressPath, pathToDataUrl } from "../../lib/image";
@@ -15,7 +15,8 @@ import {
   sumMeals,
   todayStr,
 } from "../../lib/nutrition";
-import { putPhoto } from "../../lib/photos";
+import { deletePhoto, getPhoto, putPhoto } from "../../lib/photos";
+import { PORTION_STEPS } from "../../lib/portion";
 import { activityOfDate, latestWeightKg, loadState, saveState, upsertMeal } from "../../lib/store";
 import type {
   Drink,
@@ -50,14 +51,29 @@ const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 const MAX_SHOTS = 4;
 
 /**
- * 份量三档，用词不用数。
- * 人在饭桌上想的是"还剩半盘""我就夹了两筷子"，不是"我吃了 0.5 份"。
+ * 还没记进账本的那张照片，放在本地文件系统的固定位置。
+ *
+ * 识别会失败（断网、接口 502、模型看走眼），而人不会因为失败再把饭
+ * 重新吃一遍 —— 上一版失败后只有"重拍一张"，等于假定桌上那盘菜还在，
+ * 可他可能已经吃完了。照片跟着失败一起丢，这顿饭就永远没有图。
+ *
+ * 所以：选完图先落盘，再谈识别。失败、甚至退出页面，图都还在。
  */
-const PORTION_STEPS = [
-  { v: 0.25, label: "几口" },
-  { v: 0.5, label: "一半" },
-  { v: 1, label: "全吃了" },
-] as const;
+const DRAFT_ID = "draft-photo";
+
+/**
+ * 加餐的副标题。
+ *
+ * "加餐"是个分类词，不是人话。下午三点他说"下午茶"，十点说"宵夜"，
+ * 上午十点就是"上午"。上一版只有下午茶/宵夜两档，于是上午十一点
+ * 打开也写着"下午茶"，跟还没吃的午饭撞在一起。
+ */
+function snackSub(hour: number): string {
+  if (hour >= 20 || hour < 5) return "宵夜";
+  if (hour >= 13 && hour < 17) return "下午茶";
+  if (hour >= 5 && hour < 12) return "上午";
+  return "";
+}
 
 export default function CapturePage() {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -78,6 +94,13 @@ export default function CapturePage() {
   const [drinkOpen, setDrinkOpen] = useState(false);
   const [tags, setTags] = useState<MealTag[]>([]);
   const [saving, setSaving] = useState(false);
+  /** 上次没认出来的那张，路径；空表示没有 */
+  const [draftPath, setDraftPath] = useState("");
+  /** 正在改名字的那一项；null 表示没有在改 */
+  const [renameIdx, setRenameIdx] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameTip, setRenameTip] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
   /** 写照片是异步的，连点两下会存两份 */
   const busyRef = useRef(false);
 
@@ -105,6 +128,18 @@ export default function CapturePage() {
     setHour(now.getHours());
     // 只在进页面那一刻猜一次；放依赖里会把他手动改的又改回去
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 进页面先看有没有上次没认出来的照片 */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const p = await getPhoto(DRAFT_ID);
+      if (alive && p) setDraftPath(p);
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // 标题跟着阶段变：网页版的弹层标题也是这么换的
@@ -161,6 +196,18 @@ export default function CapturePage() {
         return;
       }
       setShots(paths);
+      /*
+        先落盘，再谈识别。
+        识别失败的时候人往往已经把饭吃完了 —— 照片要是跟着失败一起丢，
+        这顿饭就永远没有图。存进 photos 目录，退出页面再进来也还在。
+      */
+      try {
+        if (await putPhoto(DRAFT_ID, paths[0])) {
+          setDraftPath((await getPhoto(DRAFT_ID)) ?? paths[0]);
+        }
+      } catch {
+        // 存不下不影响识别本身，照常往下走
+      }
       await run(urls, note);
     } catch (e) {
       const msg = (e as { errMsg?: string })?.errMsg ?? "";
@@ -245,6 +292,70 @@ export default function CapturePage() {
   const setFactor = (i: number, v: number) =>
     setFactors((prev) => prev.map((f, idx) => (idx === i ? v : f)));
 
+  /* ---------- 失败保温：同一张图再认一次 ---------- */
+
+  /** 用手里已有的图重试，不重拍、照片也不动 */
+  const retry = async () => {
+    const paths = shots.length ? shots : draftPath ? [draftPath] : [];
+    if (!paths.length) return;
+    setPhase("working");
+    setErrMsg("");
+    const urls: string[] = [];
+    for (const p of paths) {
+      const u = await pathToDataUrl(p);
+      if (u) urls.push(u);
+    }
+    if (!urls.length) {
+      setPhase("error");
+      setErrMsg("这张图读不出来了，重拍一张吧");
+      return;
+    }
+    setShots(paths);
+    await run(urls, note);
+  };
+
+  /** 丢掉这张，回到干净状态 */
+  const dropDraft = () => {
+    setDraftPath("");
+    setShots([]);
+    void deletePhoto(DRAFT_ID);
+    setPhase("idle");
+    setErrMsg("");
+  };
+
+  /* ---------- 改菜名 ---------- */
+
+  const startRename = (i: number) => {
+    setRenameIdx(i);
+    setRenameDraft(items[i]?.name ?? "");
+    setRenameTip("");
+  };
+
+  /**
+   * 改名，并把热量跟着重算。
+   * 只改名不重算等于没修：蒸蛋 100、番茄炒蛋 190，名字对了数字还错，
+   * 这本账依然是假的。算不出来也把名字留下 —— 至少事实是对的。
+   */
+  const commitRename = async (i: number) => {
+    const cur = items[i];
+    const next = renameDraft.trim().slice(0, 20);
+    setRenameIdx(null);
+    if (!cur || !next || next === cur.name) return;
+    setRenameBusy(true);
+    try {
+      const { kcal } = await estimate(next, cur.portion);
+      if (kcal > 0) {
+        setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, name: next, kcal } : it)));
+        setRenameTip(`「${cur.name}」改成「${next}」，热量按 ${kcal} 大卡重算`);
+      } else {
+        setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, name: next } : it)));
+        setRenameTip(`名字改成「${next}」了，但这会儿没算出新热量，可以先调份量`);
+      }
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
   const dropPending = () => {
     const keep = items.map((_, i) => confirmed[i] !== false);
     setItems(items.filter((_, i) => keep[i]));
@@ -321,6 +432,9 @@ export default function CapturePage() {
       };
 
       saveState(upsertMeal(loadState(), meal));
+      // 这张图已经跟着记录存到自己的位置了，草稿可以撤
+      void deletePhoto(DRAFT_ID);
+      setDraftPath("");
       busyRef.current = false;
       setSaving(false);
       Taro.showToast({ title: existing ? "加进这一顿了" : "记下了", icon: "success" });
@@ -362,17 +476,42 @@ export default function CapturePage() {
   }
 
   if (phase === "error") {
+    // 手里还有图（刚拍的，或上次留下的），就不该只有"重拍"这一条路
+    const kept = preview || draftPath;
     return (
       <View className="page cap">
         <View className="err-wrap">
+          {!!kept && (
+            <View
+              className="err-photo"
+              hoverClass="tap"
+              onClick={() => Taro.previewImage({ urls: [kept] })}
+            >
+              <Image className="err-photo-img" src={kept} mode="aspectFill" />
+            </View>
+          )}
           <Text className="err-title">{errMsg || "这张没看清，能再拍一张吗"}</Text>
+          {!!kept && (
+            <Text className="err-sub">照片留在手机里了，不用重拍。真认不出来，再试一次就行</Text>
+          )}
           <View className="err-btns">
-            <View className="btn-primary" hoverClass="tap" onClick={() => pick("camera")}>
-              <Text className="btn-primary-text">重拍一张</Text>
+            {!!kept && (
+              <View className="btn-primary" hoverClass="tap" onClick={() => void retry()}>
+                <Text className="btn-primary-text">再试一次</Text>
+              </View>
+            )}
+            <View
+              className={kept ? "btn-ghost" : "btn-primary"}
+              hoverClass="tap"
+              onClick={() => pick("camera")}
+            >
+              <Text className={kept ? "btn-ghost-text" : "btn-primary-text"}>重拍一张</Text>
             </View>
-            <View className="btn-ghost" hoverClass="tap" onClick={reset}>
-              <Text className="btn-ghost-text">换个方式</Text>
-            </View>
+            {!!kept && (
+              <View className="btn-ghost" hoverClass="tap" onClick={() => setPhase("idle")}>
+                <Text className="btn-ghost-text">用文字记</Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -512,6 +651,16 @@ export default function CapturePage() {
           </View>
         )}
 
+        {/* 改完名字的一句反馈：要说清热量到底跟着变了没有 */}
+        {!!renameTip && (
+          <View className="rename-tip">
+            <Text className="rename-tip-text">{renameTip}</Text>
+          </View>
+        )}
+        {renameBusy && (
+          <Text className="rename-busy">正在按新菜名重算热量…</Text>
+        )}
+
         {/* 菜品：份量三档 */}
         <View className="dishes">
           {visible.map(({ it, i }) => {
@@ -519,7 +668,25 @@ export default function CapturePage() {
             return (
               <View key={`${it.name}-${i}`} className={`dish ${off ? "is-off" : ""}`}>
                 <View className="dish-left">
-                  <Text className={`dish-name ${off ? "is-off" : ""}`}>{it.name}</Text>
+                  {/* 菜名是模型给的，认错是常态。名字后面挂个铅笔，
+                      点一下就能改 —— 不然只能删掉重拍，而菜已经吃完了 */}
+                  {renameIdx === i ? (
+                    <Input
+                      className="dish-name-input"
+                      value={renameDraft}
+                      maxlength={20}
+                      focus
+                      confirmType="done"
+                      onInput={(e) => setRenameDraft(e.detail.value)}
+                      onBlur={() => void commitRename(i)}
+                      onConfirm={() => void commitRename(i)}
+                    />
+                  ) : (
+                    <View className="dish-name-row" hoverClass="tap" onClick={() => startRename(i)}>
+                      <Text className={`dish-name ${off ? "is-off" : ""}`}>{it.name}</Text>
+                      <Icon name="edit" size={12} color="#9aa5a0" />
+                    </View>
+                  )}
                   <Text className="dish-sub">
                     {off
                       ? "照片里没看见"
@@ -701,6 +868,33 @@ export default function CapturePage() {
   return (
     <View className="page cap">
       <View className="pick">
+        {/*
+          上次那张没认出来，图还在。
+          这条路是给"拍完就吃完了、菜已经撤了"的人走的：
+          他不需要重拍，只需要再认一次。
+        */}
+        {!!draftPath && (
+          <View className="draft-card">
+            <View
+              className="draft-thumb"
+              hoverClass="tap"
+              onClick={() => Taro.previewImage({ urls: [draftPath] })}
+            >
+              <Image className="draft-img" src={draftPath} mode="aspectFill" />
+            </View>
+            <View className="draft-body">
+              <Text className="draft-title">上次那张还在</Text>
+              <Text className="draft-sub">不用重拍，再认一次就行</Text>
+            </View>
+            <View className="draft-retry" hoverClass="tap" onClick={() => void retry()}>
+              <Text className="draft-retry-text">再认</Text>
+            </View>
+            <View className="draft-drop" hoverClass="tap" onClick={dropDraft}>
+              <Icon name="close" size={12} color="#8a958f" />
+            </View>
+          </View>
+        )}
+
         {/* 餐次四选一：拍完就不用再返回来改 */}
         <View className="mealtype-row">
           {MEAL_TYPES.map((t) => {
@@ -715,11 +909,9 @@ export default function CapturePage() {
               >
                 <View className="mealtype-inner">
                   <Text className="mealtype-text">{mealTypeLabel(t)}</Text>
-                  {/* "加餐"是分类词，不是人话：下午三点是下午茶，十一点是宵夜 */}
-                  {t === "snack" && (
-                    <Text className={`mealtype-sub ${on ? "is-on" : ""}`}>
-                      {hour >= 17 || hour < 3 ? "宵夜" : "下午茶"}
-                    </Text>
+                  {/* 上午十一点不该写"下午茶"：副标题只在该时段出现 */}
+                  {t === "snack" && !!snackSub(hour) && (
+                    <Text className={`mealtype-sub ${on ? "is-on" : ""}`}>{snackSub(hour)}</Text>
                   )}
                 </View>
                 {recorded && <Text className={`mealtype-rec ${on ? "is-on" : ""}`}>已记</Text>}

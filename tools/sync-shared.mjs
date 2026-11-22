@@ -28,6 +28,7 @@ const SHARED = [
   "comment.ts",
   "drinks.ts",
   "mealTags.ts",
+  "portion.ts",
   "ranking.ts",
   "mock.ts",
   "store.ts",

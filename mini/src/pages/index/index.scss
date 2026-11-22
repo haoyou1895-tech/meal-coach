@@ -271,10 +271,11 @@
   color: $ink-500;
 }
 
-/* 三条营养素：上边框隔开，跟热量是同一笔账 */
+/* 三条营养素 + 盐：上边框隔开，跟热量是同一笔账。
+   加到第四条之后间距收一点，否则"蛋白质"和"6.1/5g"会贴在一起 */
 .macros {
   display: flex;
-  gap: tw(3);
+  gap: tw(2.5);
   margin-top: tw(3);
   padding-top: tw(3);
   border-top: 1px solid rgba(0, 0, 0, 0.06);

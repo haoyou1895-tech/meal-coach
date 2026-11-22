@@ -19,6 +19,14 @@
   background: rgba(0, 0, 0, 0.05);
 }
 
+/* 没有文字时是个正方形，跟网页版一样：44 宽、46.75 高 */
+.voice-btn.is-bare {
+  justify-content: center;
+  width: tw(11);
+  padding: 0;
+  gap: 0;
+}
+
 .voice-btn.is-rec {
   background: #d94f3d;
 }

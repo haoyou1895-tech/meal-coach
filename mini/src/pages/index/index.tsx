@@ -13,7 +13,7 @@ import {
   drinkKcal,
   drinksLabel,
 } from "../../lib/drinks";
-import { SALT_COLOR, SALT_LABEL, TAG_CFG, daySalt, saltLevelOf } from "../../lib/mealTags";
+import { SALT_COLOR, SALT_LABEL, TAG_CFG, daySalt, saltGram, saltLevelOf } from "../../lib/mealTags";
 import {
   buildPlan,
   goalOptions,
@@ -241,6 +241,7 @@ export default function HomePage() {
       showTip,
       alcoholG,
       alcoholKcal,
+      saltMg: salt.mg,
       saltLevel,
       sorted,
       streak,
@@ -297,6 +298,7 @@ export default function HomePage() {
     reminder,
     showTip,
     alcoholG,
+    saltMg,
     saltLevel,
     sorted,
     streak,
@@ -441,6 +443,17 @@ export default function HomePage() {
             <MacroBar icon="protein" color="#a3563f" label="蛋白质" value={totals.protein} target={plan.proteinTargetG} />
             <MacroBar icon="carb" color="#b0842c" label="碳水" value={totals.carb} target={plan.carbTargetG} />
             <MacroBar icon="fat" color="#7d8b5e" label="脂肪" value={totals.fat} target={plan.fatTargetG} />
+            {/* 盐跟三条营养素并排：只给一句"盐有点多"没有刻度，
+                他不知道自己离 5 克还差多少、是今天超了还是这顿超了 */}
+            <MacroBar
+              icon="salt"
+              color="#6b7c8c"
+              label="盐"
+              value={saltGram(saltMg)}
+              target={saltGram(plan.sodiumLimitMg)}
+              unit="g"
+              digits={1}
+            />
           </View>
         </View>
       </View>
@@ -744,18 +757,25 @@ function MacroBar({
   label,
   value,
   target,
+  unit = "g",
+  digits = 0,
 }: {
   icon: IconName;
   color: string;
   label: string;
   value: number;
   target: number;
+  unit?: string;
+  /** 盐要留一位：一天 5 克，四舍五入会把 4.6 和 5.4 都写成 5 */
+  digits?: number;
 }) {
   const ratio = target > 0 ? value / target : 0;
   const pct = Math.min(100, ratio * 100);
   const over = ratio > 1.05;
   const near = !over && ratio >= 0.85;
   const barColor = over ? "#d94f3d" : near ? "#e0a83a" : "#8fae9c";
+  const shown = digits > 0 ? value.toFixed(digits).replace(/\.0$/, "") : String(Math.round(value));
+  const shownTarget = digits > 0 ? String(target) : String(Math.round(target));
 
   return (
     <View className="macro">
@@ -765,10 +785,10 @@ function MacroBar({
       </View>
       <View className="macro-nums">
         <Text className="macro-val tabular" style={{ color: over ? "#b23c2c" : "#3b4642" }}>
-          {Math.round(value)}
+          {shown}
         </Text>
         <Text className="macro-target tabular">
-          /{target}g
+          /{shownTarget}{unit}
         </Text>
       </View>
       <View className="macro-track">
