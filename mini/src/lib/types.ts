@@ -72,17 +72,33 @@ export interface NutritionPlan {
 }
 
 /**
+ * 明天要做的一项。
+ *
+ * label 只在 kind 是 other 时有值：他说"打拳半小时"，库里没有这一项，
+ * 就把他自己的说法存下来。硬塞进"力量训练"是撒谎 ——
+ * 打拳和举铁的强度不是一回事，而且他下次看到"力量训练"会以为记错了。
+ */
+export interface PlannedExercise {
+  kind: ExerciseKind;
+  minutes: number;
+  /** kind=other 时的原词 */
+  label?: string;
+}
+
+/**
  * 明天的运动计划。
  *
  * 为什么要把"挑一个"存下来：建议列表如果只是看着好看，明天到了他还是不会动。
  * 存下来之后，第二天打开就有"昨天你选了快走 35 分钟" ——
  * 这是他自己做的承诺，不是系统派的活。人对自己说过的话，比对系统的提醒认真。
+ *
+ * 为什么从单项改成列表：一个人愿意做的往往不止一件 —— 早上快走、晚上游泳。
+ * 只让他挑一个，等于替他把生活简化成一件，他做不到的时候就会连记录一起放弃。
  */
 export interface ExercisePlan {
   /** 计划做的那天 */
   date: string;
-  kind: ExerciseKind;
-  minutes: number;
+  items: PlannedExercise[];
 }
 
 export interface FoodItem {
@@ -213,7 +229,15 @@ export type ExerciseKind =
   | "dance"
   | "badminton"
   | "strength"
-  | "chore";
+  | "chore"
+  | "yoga"
+  | "baduanjin"
+  | "pingpong"
+  | "hike"
+  | "rope"
+  | "aerobic"
+  /** 他说了个库里没有的项目，按中等强度估 */
+  | "other";
 
 export interface ExerciseLog {
   /** 前端生成的唯一 id，同一天可以有好几条 */
@@ -221,6 +245,8 @@ export interface ExerciseLog {
   date: string;
   kind: ExerciseKind;
   minutes: number;
+  /** kind=other 时他原话里的项目名，比如"打拳" */
+  label?: string;
 }
 
 /**

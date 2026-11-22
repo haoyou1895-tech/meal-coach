@@ -8,7 +8,7 @@ import Onboarding from "@/components/Onboarding";
 import RecordView from "@/components/RecordView";
 import Splash from "@/components/Splash";
 import { Sheet } from "@/components/ui";
-import { avgBurnEndingOn, exerciseDef, shiftDate } from "@/lib/exercise";
+import { avgBurnEndingOn, nameOf, shiftDate } from "@/lib/exercise";
 import { DISEASE_LABEL, buildPlan, sumMeals, todayStr } from "@/lib/nutrition";
 import {
   closedOf,
@@ -18,6 +18,7 @@ import {
   latestWeightKg,
   loadState,
   migratePhotos,
+  normalizePlan,
   openDay,
   planOfDate,
   resetState,
@@ -27,17 +28,28 @@ import {
   upsertMeal,
   withDayClose,
   withExercise,
-  withExercisePlan,
+  withPlanItems,
   withWeight,
   withoutExercise,
-  withoutExercisePlan,
   withoutMeal,
   type AppState,
 } from "@/lib/store";
 import { clearPhotos, deletePhoto } from "@/lib/photos";
-import type { Meal, Profile } from "@/lib/types";
+import type { ExercisePlan, Meal, Profile } from "@/lib/types";
 
 type Tab = "home" | "record";
+
+function uid(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : String(Date.now());
+}
+
+/** 首页那一行小字：一项写「快走 30 分钟」，几项用顿号连起来 */
+function planLabelOf(p: ExercisePlan | null): string | null {
+  if (!p || !p.items.length) return null;
+  return p.items.map((i) => `${nameOf(i)} ${i.minutes} 分钟`).join("、");
+}
 
 export default function Page() {
   const [state, setState] = useState<AppState | null>(null);
@@ -169,16 +181,8 @@ export default function Page() {
           exercises={dayExercises}
           closed={closed}
           kcalToday={dayKcal}
-          planTomorrowLabel={
-            planTomorrow
-              ? `${exerciseDef(planTomorrow.kind).label} ${planTomorrow.minutes} 分钟`
-              : null
-          }
-          todayPlanLabel={
-            planToday
-              ? `${exerciseDef(planToday.kind).label} ${planToday.minutes} 分钟`
-              : null
-          }
+          planTomorrowLabel={planLabelOf(planTomorrow)}
+          todayPlanLabel={planLabelOf(planToday)}
           onOpenSummary={() => setSummaryOpen(true)}
           currentWeightKg={currentWeightKg}
           onGoalWeeks={(weeks) =>
@@ -300,27 +304,26 @@ export default function Page() {
               })
             : null
         }
-        onExercise={(kind, minutes) =>
+        onAddExercises={(items) =>
           update(
-            withExercise(state, {
-              id:
-                typeof crypto !== "undefined" && crypto.randomUUID
-                  ? crypto.randomUUID()
-                  : String(Date.now()),
-              date: today,
-              kind,
-              minutes,
-            }),
+            items.reduce(
+              (s, it) =>
+                withExercise(s, {
+                  id: uid(),
+                  date: today,
+                  kind: it.kind,
+                  minutes: it.minutes,
+                  ...(it.label ? { label: it.label } : {}),
+                }),
+              state,
+            ),
           )
         }
         onRemoveExercise={(id) => update(withoutExercise(state, id))}
         onMinutes={(id, minutes) => update(setExerciseMinutes(state, id, minutes))}
         onCloseDay={() => update(withDayClose(state, today, dayKcal))}
         onReopenDay={() => update(openDay(state, today))}
-        onPlan={(kind, minutes) =>
-          update(withExercisePlan(state, { date: tomorrow, kind, minutes }))
-        }
-        onUnplan={() => update(withoutExercisePlan(state, tomorrow))}
+        onPlanItems={(items) => update(withPlanItems(state, tomorrow, items))}
       />
 
       <CameraSheet
@@ -475,6 +478,8 @@ export default function Page() {
                             : [],
                           exercisePlans: Array.isArray(parsed.exercisePlans)
                             ? parsed.exercisePlans
+                                .map(normalizePlan)
+                                .filter((p): p is ExercisePlan => !!p)
                             : [],
                           onboarded: !!parsed.onboarded,
                         });

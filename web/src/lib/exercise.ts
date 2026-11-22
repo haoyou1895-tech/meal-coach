@@ -39,12 +39,12 @@ export interface ExerciseDef {
 }
 
 /**
- * 运动库。刻意只有十一项。
+ * 运动库。十六项，按"他真会做的事"挑的。
  *
- * 不做一个几十项的大菜单：他打开这个面板是在饭局散场后、或者睡前，
- * 不是来逛商场的。给多了他反而挑不出来，最后一项都不选。
- * 这十一项覆盖了 46 岁、体重 78 公斤的男性真实会做的事，
- * 从"楼下遛一圈"到"游个泳"，中间没有断层。
+ * 早先只有十一项，理由是"给多了他反而挑不出来"。这个判断现在只对了一半：
+ * 打字的人挑不出来，说话的人不会 —— 他说"打乒乓球"，系统却只有乒乓球以外的十一项，
+ * 那他就只能记成"羽毛球"，账从此不可信。所以库里该有的得有，
+ * 但**摆在按钮上的仍然只有常用的**（见 DaySummary 的 quick）。
  *
  * MET 取的是中等强度那档，不是我挑个好看的数：
  * 快走 5.6km/h 是 4.3，慢跑 8km/h 是 8.3，太极 3.0，家务 3.3。
@@ -148,12 +148,86 @@ export const EXERCISES: ExerciseDef[] = [
     note: "拖地擦窗也算，不用换衣服",
     jointSafe: true,
   },
+  {
+    kind: "yoga",
+    label: "瑜伽",
+    met: 2.5,
+    defaultMin: 40,
+    icon: "heart",
+    note: "消耗不大，主要是让人肯躺下来放松",
+    jointSafe: true,
+  },
+  {
+    kind: "baduanjin",
+    label: "八段锦",
+    met: 3.0,
+    defaultMin: 20,
+    icon: "heart",
+    note: "十几分钟一套，比太极门槛低，在家就能做",
+    jointSafe: true,
+  },
+  {
+    kind: "pingpong",
+    label: "乒乓球",
+    met: 4.0,
+    defaultMin: 40,
+    icon: "walk",
+    note: "有对手才打得起来，强度全看对面",
+    jointSafe: true,
+  },
+  {
+    kind: "hike",
+    label: "爬山",
+    met: 6.0,
+    defaultMin: 60,
+    icon: "walk",
+    note: "一次顶好几次散步，但下来那半天腿是废的",
+    caution: "下山对膝盖的冲击最大，有登山杖就用上",
+  },
+  {
+    kind: "rope",
+    label: "跳绳",
+    met: 10.0,
+    defaultMin: 10,
+    icon: "walk",
+    note: "十分钟就出汗，性价比最高的有氧",
+    caution: "体重偏大的先别跳，膝盖承受不住",
+  },
+  {
+    kind: "aerobic",
+    label: "健身操",
+    met: 6.5,
+    defaultMin: 30,
+    icon: "heart",
+    note: "跟着视频就能做，比一个人硬练有意思",
+  },
 ];
+
+/**
+ * 他说的项目库里没有，按中等强度 4.0 估。
+ * 4.0 约等于"快走偏快点"：估高了明天预算虚高，估低了运动白记，
+ * 宁可保守。面板上会明写"按中等强度估的"，让他知道这个数不准。
+ */
+export const OTHER_DEF: ExerciseDef = {
+  kind: "other",
+  label: "其他运动",
+  met: 4.0,
+  defaultMin: 30,
+  icon: "walk",
+  note: "没对上名字，按中等强度估的",
+};
 
 const BY_KIND = new Map(EXERCISES.map((e) => [e.kind, e]));
 
 export function exerciseDef(kind: ExerciseKind): ExerciseDef {
+  if (kind === "other") return OTHER_DEF;
   return BY_KIND.get(kind) ?? EXERCISES[0];
+}
+
+/** 显示用的名字：库里没有的项目，用他当时说的那个词 */
+export function nameOf(x: { kind: ExerciseKind; label?: string }): string {
+  if (x.kind === "other") return x.label?.trim() || OTHER_DEF.label;
+  return exerciseDef(x.kind).label;
 }
 
 /**
@@ -246,18 +320,37 @@ export function adviseTomorrow(
   weightKg: number,
   today: { kcal: number; budget: number; protein: number; proteinTarget: number },
 ): ExerciseAdvice[] {
-  const over = today.kcal - today.budget;
-  const hypertension = profile.diseases.includes("hypertension");
-  const heavy = weightKg > 0 && weightKg - profile.targetWeightKg > 12;
+  const { minutes } = suggestMinutes(today);
 
-  // 时长：以指南的"每周 4-7 天、每次 30 分钟中等强度"为基线，
-  // 按今天超支的幅度微调，封顶 45 分钟。再多就不现实了。
+  // 候选池：按他的身体状况筛，不是把所有项目倒给他
+  const pool = EXERCISES.filter((e) => !riskOf(e.kind, profile, weightKg));
+
+  // 排序：先看关节友好（能长期做），再看 MET 是否配得上今天的时长
+  const ranked = [...pool].sort((a, b) => {
+    if (a.jointSafe !== b.jointSafe) return a.jointSafe ? -1 : 1;
+    return b.met - a.met;
+  });
+
+  return ranked.slice(0, 3).map((def) => adviceOf(def.kind, minutes, weightKg, profile));
+}
+
+/**
+ * 建议做多少分钟。
+ *
+ * 以指南的"每周 4-7 天、每次 30 分钟中等强度"为基线，
+ * 按今天超支的幅度微调，封顶 45 分钟。再多就不现实了。
+ */
+export function suggestMinutes(today: { kcal: number; budget: number }): {
+  minutes: number;
+  why: string;
+} {
+  const over = today.kcal - today.budget;
+
   let minutes = 30;
   if (over > 500) minutes = 45;
   else if (over > 0) minutes = 35;
   else if (over < -300) minutes = 20;
 
-  // 为什么给这个时长，得说人话
   let why = "指南给成年人的基本量：一周四到五次、每次半小时左右";
   if (over > 500) {
     why = "今天超得不少，多十分钟；但真正的账要明天在饭桌上还，不在这半小时里";
@@ -266,26 +359,63 @@ export function adviseTomorrow(
   } else if (over < -300) {
     why = "今天吃得偏少，运动量就别加了，先保证吃够";
   }
+  return { minutes, why };
+}
 
-  // 候选池：按他的身体状况筛，不是把所有项目倒给他
-  const pool = EXERCISES.filter((e) => {
-    // 血压没控好的人，不优先推高冲击
-    if (hypertension && (e.kind === "jog" || e.kind === "badminton")) return false;
-    // 体重基数大，跳跃和爬楼对膝盖不划算
-    if (heavy && (e.kind === "stairs" || e.kind === "jog")) return false;
-    return true;
-  });
+/**
+ * 给某一项运动配一句人话。
+ *
+ * 用户在输入框里点名了他想做的项目，这时候不该再劝他换一个 ——
+ * 他要的是"这个做多久合适、大约多少卡"，不是被系统改志愿。
+ * 所以这里只算两件事：按时长算消耗、说清这一项对他的意义。
+ *
+ * 时长是怎么来的，不在这句里说 —— 三个项目各重复一遍"为什么是 30 分钟"
+ * 就成了噪音。那段话只在面板上出现一次（见 suggestMinutes）。
+ */
+export function adviceOf(
+  kind: ExerciseKind,
+  minutes: number,
+  weightKg: number,
+  profile: Profile,
+): ExerciseAdvice {
+  const def = exerciseDef(kind);
+  const risk = riskOf(kind, profile, weightKg);
 
-  // 排序：先看关节友好（能长期做），再看 MET 是否配得上今天的时长
-  const ranked = [...pool].sort((a, b) => {
-    if (a.jointSafe !== b.jointSafe) return a.jointSafe ? -1 : 1;
-    return b.met - a.met;
-  });
+  let why: string;
+  if (risk) {
+    why = risk;
+  } else if (def.caution) {
+    why = `${def.note}。${def.caution}`;
+  } else {
+    why = def.note;
+  }
 
-  return ranked.slice(0, 3).map((def) => ({
+  return {
     def,
     minutes,
-    kcal: burnKcal(def.kind, weightKg, minutes),
-    why: def.caution ? `${def.note}。${def.caution}` : def.note,
-  }));
+    kcal: burnKcal(kind, weightKg, minutes),
+    why,
+  };
+}
+
+/**
+ * 这一项对他有没有风险。返回一句提醒，没有风险返回 null。
+ * 不拦着他做 —— 他要真想打羽毛球，系统没资格说不；
+ * 但已经有高血压的人不该在不知情的情况下被推去打羽毛球。
+ */
+export function riskOf(
+  kind: ExerciseKind,
+  profile: Profile,
+  weightKg: number,
+): string | null {
+  const hypertension = profile.diseases.includes("hypertension");
+  const heavy = weightKg > 0 && weightKg - profile.targetWeightKg > 12;
+
+  if (hypertension && (kind === "jog" || kind === "badminton" || kind === "rope")) {
+    return "血压没控好的时候，这种有冲刺和憋气的项目先放一放，改成快走或骑车";
+  }
+  if (heavy && (kind === "stairs" || kind === "jog" || kind === "rope")) {
+    return "体重还没降下来之前，跳跃和上下楼对膝盖不划算，换成游泳或骑车";
+  }
+  return null;
 }

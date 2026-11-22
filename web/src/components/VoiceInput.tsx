@@ -48,9 +48,12 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 export default function VoiceInput({
   onText,
   disabled,
+  ariaLabel = "用语音说吃了什么",
 }: {
   onText: (text: string) => void;
   disabled?: boolean;
+  /** 同一个按钮用在吃饭、记运动两处，读屏得说对地方 */
+  ariaLabel?: string;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [msg, setMsg] = useState("");
@@ -224,7 +227,7 @@ export default function VoiceInput({
       <button
         type="button"
         disabled={busy}
-        aria-label={status === "recording" ? "结束录音" : "用语音说吃了什么"}
+        aria-label={status === "recording" ? "结束录音" : ariaLabel}
         onClick={() => {
           if (status === "recording") stop();
           else void start();

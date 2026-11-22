@@ -5,11 +5,15 @@ import Icon from "./Icon";
 import { Sheet } from "./ui";
 import {
   EXERCISES,
+  adviceOf,
   adviseTomorrow,
-  burnKcal,
   burnOfLog,
   exerciseDef,
+  nameOf,
+  suggestMinutes,
 } from "@/lib/exercise";
+import ExerciseSay from "./ExerciseSay";
+import type { ParsedExercise } from "@/lib/exerciseParse";
 import { drinksLabel } from "@/lib/drinks";
 import { SALT_LABEL, daySalt, saltGram, saltLevelOf } from "@/lib/mealTags";
 import { mealTypeLabel, round, sumMeals } from "@/lib/nutrition";
@@ -19,6 +23,7 @@ import type {
   ExercisePlan,
   Meal,
   NutritionPlan,
+  PlannedExercise,
   Profile,
 } from "@/lib/types";
 
@@ -52,13 +57,12 @@ export default function DaySummary({
   planTomorrow,
   closed,
   closedAtLabel,
-  onExercise,
+  onAddExercises,
   onRemoveExercise,
   onMinutes,
   onCloseDay,
   onReopenDay,
-  onPlan,
-  onUnplan,
+  onPlanItems,
 }: {
   open: boolean;
   onClose: () => void;
@@ -75,13 +79,14 @@ export default function DaySummary({
   planTomorrow: ExercisePlan | null;
   closed: boolean;
   closedAtLabel: string | null;
-  onExercise: (kind: ExerciseKind, minutes: number) => void;
+  /** 记运动：一句话可能拆出好几条，所以进的是数组 */
+  onAddExercises: (items: { kind: ExerciseKind; label?: string; minutes: number }[]) => void;
   onRemoveExercise: (id: string) => void;
   onMinutes: (id: string, minutes: number) => void;
   onCloseDay: () => void;
   onReopenDay: () => void;
-  onPlan: (kind: ExerciseKind, minutes: number) => void;
-  onUnplan: () => void;
+  /** 整组覆盖明天的计划，传空数组就是取消 */
+  onPlanItems: (items: PlannedExercise[]) => void;
 }) {
   /** 展开全部运动项，还是只给常用的几个 */
   const [more, setMore] = useState(false);
@@ -108,16 +113,60 @@ export default function DaySummary({
     }).filter(Boolean) as { type: (typeof MEAL_ORDER)[number]; kcal: number }[];
   }, [meals]);
 
+  const today = {
+    kcal: totals.kcal,
+    budget: plan.dailyBudgetKcal,
+    protein: totals.protein,
+    proteinTarget: plan.proteinTargetG,
+  };
+
   const advices = useMemo(
-    () =>
-      adviseTomorrow(profile, weightKg, {
-        kcal: totals.kcal,
-        budget: plan.dailyBudgetKcal,
-        protein: totals.protein,
-        proteinTarget: plan.proteinTargetG,
-      }),
+    () => adviseTomorrow(profile, weightKg, today),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [profile, weightKg, totals, plan],
   );
+
+  /** 明天建议做多久。用户自己说了时长就不用它 */
+  const suggest = useMemo(() => suggestMinutes(today), [
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    totals,
+    plan,
+  ]);
+
+  const planned = planTomorrow?.items ?? [];
+
+  /** 计划项的身份证：同一种运动算同一项，"其他"按名字区分 */
+  const keyOf = (x: { kind: ExerciseKind; label?: string }) =>
+    x.kind === "other" ? `other:${x.label ?? ""}` : x.kind;
+
+  function togglePlan(item: PlannedExercise) {
+    const k = keyOf(item);
+    const has = planned.some((p) => keyOf(p) === k);
+    onPlanItems(
+      has ? planned.filter((p) => keyOf(p) !== k) : [...planned, item],
+    );
+  }
+
+  /**
+   * 输入框进来的这几项。
+   *
+   * 他没说时长的，用建议时长；说了的就听他的 —— 但 5 分钟和 4 小时之间
+   * 得有人拦一下，那不是自律问题，是打字打错了。
+   */
+  function planFromInput(items: ParsedExercise[]) {
+    const add: PlannedExercise[] = items.map((p) => ({
+      kind: p.kind,
+      minutes: p.explicit ? p.minutes : suggest.minutes,
+      ...(p.kind === "other" && p.label ? { label: p.label } : {}),
+    }));
+    const merged = [...planned];
+    for (const a of add) {
+      const i = merged.findIndex((p) => keyOf(p) === keyOf(a));
+      if (i >= 0) merged[i] = a;
+      else merged.push(a);
+    }
+    onPlanItems(merged);
+  }
 
   const drinkText = drinksLabel(
     meals.flatMap((m) => m.drinks ?? []),
@@ -224,12 +273,30 @@ export default function DaySummary({
             )}
           </div>
 
-          {exercises.length === 0 ? (
-            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
-              还没记。下楼走一圈、拖个地都算，动了就记上 —— 这决定明天能宽松多少。
-            </p>
-          ) : (
-            <div className="mt-2.5 space-y-2">
+          <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
+            {exercises.length === 0
+              ? "还没记。下楼走一圈、拖个地都算，动了就记上 —— 这决定明天能宽松多少。"
+              : "记漏了就说一句补上，一种几种一起说都行。"}
+          </p>
+
+          <ExerciseSay
+            actionLabel="记上"
+            ariaLabel="用语音说今天做了什么运动"
+            placeholder="快走 40 分钟、游泳半小时"
+            footnote="「和」隔开能一次记几种；对不上的名字按中等强度算。"
+            onSubmit={(items) =>
+              onAddExercises(
+                items.map((p) => ({
+                  kind: p.kind,
+                  minutes: p.minutes,
+                  ...(p.kind === "other" && p.label ? { label: p.label } : {}),
+                })),
+              )
+            }
+          />
+
+          {exercises.length > 0 && (
+            <div className="mt-3 space-y-2">
               {exercises.map((e) => {
                 const def = exerciseDef(e.kind);
                 return (
@@ -239,7 +306,7 @@ export default function DaySummary({
                   >
                     <Icon name={def.icon} size={16} style={{ color: "#176f49" }} />
                     <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
-                      {def.label}
+                      {nameOf(e)}
                     </span>
                     <div className="flex shrink-0 items-center gap-1">
                       <button
@@ -264,7 +331,7 @@ export default function DaySummary({
                       {burnOfLog(e, weightKg)} 卡
                     </span>
                     <button
-                      aria-label={`删掉${def.label}`}
+                      aria-label={`删掉${nameOf(e)}`}
                       onClick={() => onRemoveExercise(e.id)}
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black/[0.04]"
                     >
@@ -280,7 +347,9 @@ export default function DaySummary({
             {(more ? EXERCISES : quick).map((def) => (
               <button
                 key={def.kind}
-                onClick={() => onExercise(def.kind, def.defaultMin)}
+                onClick={() =>
+                  onAddExercises([{ kind: def.kind, minutes: def.defaultMin }])
+                }
                 className="h-9 rounded-lg bg-black/[0.04] px-3 text-[13px] font-medium text-ink-700 active:scale-95 active:bg-black/[0.08]"
               >
                 {def.label}
@@ -316,50 +385,116 @@ export default function DaySummary({
           </div>
 
           <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
-            挑一个，明天打开就在首页上。
+            {planned.length > 0
+              ? "明天这几项，打开就在首页上。"
+              : "挑一个也行，说一句也行 —— 你愿意做的，才排得进明天。"}
           </p>
 
-          <div className="mt-2.5 space-y-2">
-            {advices.map((a) => {
-              const on = planTomorrow?.kind === a.def.kind;
-              return (
-                <button
-                  key={a.def.kind}
-                  onClick={() =>
-                    on ? onUnplan() : onPlan(a.def.kind, a.minutes)
-                  }
-                  className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition active:scale-[0.99] ${
-                    on
-                      ? "border-brand-500 bg-brand-50"
-                      : "border-transparent bg-black/[0.03]"
-                  }`}
-                >
-                  <Icon
-                    name={a.def.icon}
-                    size={20}
-                    style={{ color: on ? "#176f49" : "#8b948f" }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-medium leading-snug">
-                      {a.def.label}{" "}
-                      <span className="text-ink-500">{a.minutes} 分钟</span>
-                      <span className="ml-1 text-[13px] font-normal text-ink-300 tabular-nums">
-                        约 {a.kcal} 卡
-                      </span>
-                    </p>
-                    <p className="mt-0.5 text-[12px] leading-snug text-ink-300">
-                      {a.why}
-                    </p>
+          {/*
+            时长是怎么来的，只说一次。
+            三个项目每张卡片都写一遍"为什么 30 分钟"，就成了噪音，
+            而他只会记住"这软件很啰嗦"。
+          */}
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-300">
+            建议 {suggest.minutes} 分钟 —— {suggest.why}
+          </p>
+
+          <ExerciseSay
+            actionLabel="定上"
+            ariaLabel="用语音说明天想做什么运动"
+            placeholder="想做什么？快走和游泳各半小时"
+            footnote="一次能说几种，用「和」隔开；没说时长的，按上面的建议量给。"
+            onSubmit={planFromInput}
+          />
+
+          {/* 他自己定的，连建议一起摆出来 —— 是他点的，就得告诉他这个量合不合适 */}
+          {planned.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {planned.map((item) => {
+                const a = adviceOf(item.kind, item.minutes, weightKg, profile);
+                return (
+                  <div
+                    key={keyOf(item)}
+                    className="flex items-start gap-3 rounded-xl border border-brand-500 bg-brand-50 px-3 py-2.5"
+                  >
+                    <Icon
+                      name={a.def.icon}
+                      size={20}
+                      style={{ color: "#176f49" }}
+                      className="mt-0.5 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-medium leading-snug">
+                        {nameOf(item)}{" "}
+                        <span className="text-ink-500">{a.minutes} 分钟</span>
+                        <span className="ml-1 text-[13px] font-normal text-ink-300 tabular-nums">
+                          约 {a.kcal} 卡
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-[12px] leading-snug text-ink-300">
+                        {a.why}
+                      </p>
+                    </div>
+                    <button
+                      aria-label={`明天不做${nameOf(item)}了`}
+                      onClick={() => togglePlan(item)}
+                      className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/70"
+                    >
+                      <Icon name="close" size={11} style={{ color: "#8b948f" }} />
+                    </button>
                   </div>
-                  {on && (
-                    <span className="shrink-0 rounded-md bg-brand-500 px-1.5 py-0.5 text-[11px] font-medium text-white">
-                      已定
+                );
+              })}
+            </div>
+          )}
+
+          {/* 建议只摆没定的那几项，免得同一项出现两遍 */}
+          {advices.some((a) => !planned.some((p) => keyOf(p) === a.def.kind)) && (
+            <div className="mt-2.5 space-y-2">
+              {advices
+                .filter((a) => !planned.some((p) => keyOf(p) === a.def.kind))
+                .map((a) => (
+                  <button
+                    key={a.def.kind}
+                    onClick={() =>
+                      togglePlan({ kind: a.def.kind, minutes: a.minutes })
+                    }
+                    className="flex w-full items-center gap-3 rounded-xl border border-transparent bg-black/[0.03] px-3 py-2.5 text-left transition active:scale-[0.99]"
+                  >
+                    <Icon
+                      name={a.def.icon}
+                      size={20}
+                      style={{ color: "#8b948f" }}
+                      className="shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-medium leading-snug">
+                        {a.def.label}{" "}
+                        <span className="text-ink-500">{a.minutes} 分钟</span>
+                        <span className="ml-1 text-[13px] font-normal text-ink-300 tabular-nums">
+                          约 {a.kcal} 卡
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-[12px] leading-snug text-ink-300">
+                        {a.why}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[18px] font-light text-brand-600">
+                      +
                     </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                ))}
+            </div>
+          )}
+
+          {planned.length > 1 && (
+            <button
+              onClick={() => onPlanItems([])}
+              className="mt-2 text-[12px] font-medium text-ink-300"
+            >
+              全清掉，重新挑
+            </button>
+          )}
 
           <p className="mt-2.5 text-[12px] leading-relaxed text-ink-300">
             明天的预算按你最近一周实际动的情况算：这周动得多，明天就宽松一点。

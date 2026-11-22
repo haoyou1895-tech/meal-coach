@@ -62,6 +62,8 @@ export function loadState(): AppState {
       closedDays: Array.isArray(parsed.closedDays) ? parsed.closedDays : [],
       exercisePlans: Array.isArray(parsed.exercisePlans)
         ? parsed.exercisePlans
+            .map(normalizePlan)
+            .filter((p): p is ExercisePlan => !!p)
         : [],
       onboarded: !!parsed.onboarded,
     };
@@ -274,12 +276,65 @@ export function planOfDate(s: AppState, date: string): ExercisePlan | null {
   return s.exercisePlans.find((p) => p.date === date) ?? null;
 }
 
+/**
+ * 老数据里一天只有一个计划（{date, kind, minutes}）。
+ * 新结构是 items 数组。这里把两种都读成新结构 ——
+ * 升级一次就把昨天的计划弄丢，他会以为这软件不可靠，而这恰好是最贵的一种错误。
+ */
+export function normalizePlan(raw: unknown): ExercisePlan | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as {
+    date?: unknown;
+    kind?: unknown;
+    minutes?: unknown;
+    items?: unknown;
+  };
+  if (typeof p.date !== "string") return null;
+
+  if (Array.isArray(p.items)) {
+    const items = p.items
+      .filter((it): it is { kind: string; minutes: number; label?: string } =>
+        !!it && typeof it === "object" && typeof (it as { kind?: unknown }).kind === "string",
+      )
+      .map((it) => ({
+        kind: it.kind as ExercisePlan["items"][number]["kind"],
+        minutes: Math.max(5, Math.min(240, Number(it.minutes) || 30)),
+        ...(typeof it.label === "string" && it.label ? { label: it.label } : {}),
+      }));
+    return items.length ? { date: p.date, items } : null;
+  }
+
+  if (typeof p.kind === "string") {
+    return {
+      date: p.date,
+      items: [
+        {
+          kind: p.kind as ExercisePlan["items"][number]["kind"],
+          minutes: Math.max(5, Math.min(240, Number(p.minutes) || 30)),
+        },
+      ],
+    };
+  }
+  return null;
+}
+
 /** 一天只留一个计划：他改主意就换掉，不叠在一起 */
 export function withExercisePlan(s: AppState, plan: ExercisePlan): AppState {
   return {
     ...s,
     exercisePlans: [plan, ...s.exercisePlans.filter((p) => p.date !== plan.date)],
   };
+}
+
+/** 整组覆盖。空的就等于把这一天取消了，不留一条空计划 */
+export function withPlanItems(
+  s: AppState,
+  date: string,
+  items: ExercisePlan["items"],
+): AppState {
+  const rest = s.exercisePlans.filter((p) => p.date !== date);
+  if (!items.length) return { ...s, exercisePlans: rest };
+  return { ...s, exercisePlans: [{ date, items }, ...rest] };
 }
 
 export function withoutExercisePlan(s: AppState, date: string): AppState {
