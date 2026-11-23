@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
  */
 
 import VoiceInput from "./VoiceInput";
+import Explain from "./Explain";
 import { parseExerciseText } from "@/lib/exerciseParse";
 import type { ParsedExercise } from "@/lib/exerciseParse";
 
@@ -85,7 +86,7 @@ export default function ExerciseSay({
       {err ? (
         <p className="mt-1.5 text-[12px] leading-relaxed text-warn-600">{err}</p>
       ) : footnote ? (
-        <p className="mt-1.5 text-[12px] leading-relaxed text-ink-300">{footnote}</p>
+        <Explain>{footnote}</Explain>
       ) : null}
     </div>
   );

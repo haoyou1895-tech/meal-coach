@@ -21,6 +21,32 @@
 
 import type { ExerciseLog, ExerciseKind, Profile } from "./types";
 
+/**
+ * 运动图标一律取 Lucide（v0.469.0）里的现成图标，不自己画。
+ *
+ * 早先只有"走路 / 哑铃 / 心"三个图标做分组，十七项运动挤在三个符号上，
+ * 看起来像同一件事 —— 而"游泳"和"家务"是两件事。
+ *
+ * 但也不能十七项各画一个：乒乓球和羽毛球的区别，24px 下画不出来，
+ * 硬画只会得到两个都看不懂的方块。
+ * 所以按"动作方式"分配，同一种方式共用图标（快走和散步都是脚印），
+ * 靠旁边的中文名区分 —— 图标是索引，不是名词。
+ */
+export type ExerciseIcon =
+  | "footprints"
+  | "bike"
+  | "waves"
+  | "trendingUp"
+  | "personStanding"
+  | "music"
+  | "circleDot"
+  | "dumbbell"
+  | "mountain"
+  | "zap"
+  | "activity"
+  | "sprayCan"
+  | "move";
+
 export interface ExerciseDef {
   kind: ExerciseKind;
   label: string;
@@ -28,8 +54,8 @@ export interface ExerciseDef {
   met: number;
   /** 加进来时的默认时长 */
   defaultMin: number;
-  /** 图标只做分组：移动 / 力量 / 舒缓，不给每项单独画 */
-  icon: "walk" | "dumbbell" | "heart";
+  /** 取 Lucide 图标名，见上方 ExerciseIcon */
+  icon: ExerciseIcon;
   /** 这个运动对他意味着什么，一句话 */
   note: string;
   /** 高血压、体重偏大的人要注意的地方。没有就不填 */
@@ -55,81 +81,81 @@ export const EXERCISES: ExerciseDef[] = [
     label: "快走",
     met: 4.3,
     defaultMin: 40,
-    icon: "walk",
+    icon: "footprints",
     note: "最省事的一种，出门就能做",
     jointSafe: true,
-  },
+    },
   {
     kind: "stroll",
     label: "散步",
     met: 3.0,
     defaultMin: 40,
-    icon: "walk",
+    icon: "footprints",
     note: "饭后溜达，主要是让血糖别蹿太快",
     jointSafe: true,
-  },
+    },
   {
     kind: "jog",
     label: "慢跑",
     met: 7.0,
     defaultMin: 30,
-    icon: "walk",
+    icon: "activity",
     note: "同样时间消耗最大，但别一上来就冲",
     caution: "血压没控好的时候先别跑，改成快走",
-  },
+    },
   {
     kind: "bike",
     label: "骑车",
     met: 6.8,
     defaultMin: 40,
-    icon: "walk",
+    icon: "bike",
     note: "膝盖不吃力，通勤路上就能完成",
     jointSafe: true,
-  },
+    },
   {
     kind: "swim",
     label: "游泳",
     met: 6.0,
     defaultMin: 30,
-    icon: "walk",
+    icon: "waves",
     note: "对关节最友好的有氧",
     jointSafe: true,
-  },
+    },
   {
     kind: "stairs",
     label: "爬楼",
     met: 5.0,
     defaultMin: 15,
-    icon: "walk",
+    icon: "trendingUp",
     note: "十几分钟就顶得上散步半小时",
     caution: "下楼伤膝盖，坐电梯下来",
-  },
+    },
   {
     kind: "taiji",
     label: "太极",
     met: 3.0,
     defaultMin: 40,
-    icon: "heart",
+    icon: "personStanding",
     note: "消耗不大，但对血压和平衡是真有用",
     jointSafe: true,
-  },
+    },
   {
     kind: "dance",
     label: "广场舞",
     met: 4.5,
     defaultMin: 40,
-    icon: "heart",
+    icon: "music",
     note: "能坚持下来的运动才算运动",
     jointSafe: true,
-  },
+    },
   {
     kind: "badminton",
     label: "羽毛球",
     met: 5.5,
     defaultMin: 40,
-    icon: "walk",
+    icon: "circleDot",
     note: "有来有回，比一个人练容易坚持",
-  },
+    },
   {
     kind: "strength",
     label: "力量训练",
@@ -138,69 +164,69 @@ export const EXERCISES: ExerciseDef[] = [
     icon: "dumbbell",
     note: "减重时保住肌肉，靠的是这个",
     caution: "发力时呼气，别憋着劲举",
-  },
+    },
   {
     kind: "chore",
     label: "家务",
     met: 3.3,
     defaultMin: 40,
-    icon: "walk",
+    icon: "sprayCan",
     note: "拖地擦窗也算，不用换衣服",
     jointSafe: true,
-  },
+    },
   {
     kind: "yoga",
     label: "瑜伽",
     met: 2.5,
     defaultMin: 40,
-    icon: "heart",
+    icon: "personStanding",
     note: "消耗不大，主要是让人肯躺下来放松",
     jointSafe: true,
-  },
+    },
   {
     kind: "baduanjin",
     label: "八段锦",
     met: 3.0,
     defaultMin: 20,
-    icon: "heart",
+    icon: "personStanding",
     note: "十几分钟一套，比太极门槛低，在家就能做",
     jointSafe: true,
-  },
+    },
   {
     kind: "pingpong",
     label: "乒乓球",
     met: 4.0,
     defaultMin: 40,
-    icon: "walk",
+    icon: "circleDot",
     note: "有对手才打得起来，强度全看对面",
     jointSafe: true,
-  },
+    },
   {
     kind: "hike",
     label: "爬山",
     met: 6.0,
     defaultMin: 60,
-    icon: "walk",
+    icon: "mountain",
     note: "一次顶好几次散步，但下来那半天腿是废的",
     caution: "下山对膝盖的冲击最大，有登山杖就用上",
-  },
+    },
   {
     kind: "rope",
     label: "跳绳",
     met: 10.0,
     defaultMin: 10,
-    icon: "walk",
+    icon: "zap",
     note: "十分钟就出汗，性价比最高的有氧",
     caution: "体重偏大的先别跳，膝盖承受不住",
-  },
+    },
   {
     kind: "aerobic",
     label: "健身操",
     met: 6.5,
     defaultMin: 30,
-    icon: "heart",
+    icon: "activity",
     note: "跟着视频就能做，比一个人硬练有意思",
-  },
+    },
 ];
 
 /**
@@ -213,7 +239,7 @@ export const OTHER_DEF: ExerciseDef = {
   label: "其他运动",
   met: 4.0,
   defaultMin: 30,
-  icon: "walk",
+  icon: "move",
   note: "没对上名字，按中等强度估的",
 };
 
@@ -292,7 +318,97 @@ export function avgBurnEndingOn(
   return Math.round(total / days);
 }
 
+/**
+ * 这一项每分钟净消耗多少。
+ * 40 分钟快走、78 公斤 → 172 / 40 ≈ 4.3 大卡/分钟。
+ */
+export function kcalPerMin(kind: ExerciseKind, weightKg: number): number {
+  if (weightKg <= 0) return 0;
+  return ((exerciseDef(kind).met - 1) * weightKg) / 60;
+}
+
+/* ---------- 把今天超支的，摊到明天开始补 ---------- */
+
+export interface DebtSlice {
+  date: string;
+  minutes: number;
+  kcal: number;
+}
+
+export interface DebtPlan {
+  /** 要补回去的大卡（今天超支的数） */
+  total: number;
+  /** 排进计划的每一天 */
+  slices: DebtSlice[];
+  /** 这几天的估算消耗合计 */
+  covered: number;
+  /** 排不下、补不完的部分 */
+  leftover: number;
+  /** 单日上限 */
+  capMin: number;
+  /** 每分钟多少大卡，用来说明"这项够不够快" */
+  perMin: number;
+}
+
+/**
+ * 今天超了 500，明天要动多久。
+ *
+ * 这条规则是用户明确要的：他不想听"明天注意点"，他要一个能打勾的数。
+ * 但它和 ADR-004「运动不换饭」的边界必须划清，否则就变成赎罪：
+ *
+ * 1. **只往前摊，不往回抵**。今天超的 500，不会让今天的环变大 ——
+ *    今天的账已经封了口。补的这几天，动掉的是"已经吃进肚子的"，
+ *    不是"再换一顿"。
+ * 2. **单日封顶 45 分钟**。这是 46 岁、血压偏高、平时不太动的人能承受的上限。
+ *    写 120 分钟，他第一天就不会开始，而没开始的计划消耗是 0。
+ * 3. **最多摊 3 天，摊不完就说摊不完**。硬凑四天、五天，
+ *    等于把一次晚饭的代价变成一个星期的刑期。
+ * 4. **均分，不搞"先苦后甜"**。第一天 45 第二天 20，
+ *    他会觉得被算计；每天一样长，才像一件事。
+ *
+ * 瑜伽这类温和项目，三天 135 分钟也补不完 500 —— 那就如实报 leftover，
+ * 让他自己决定是换一项，还是接受"这次补不完"。
+ */
+export function spreadDebt(
+  overKcal: number,
+  kind: ExerciseKind,
+  weightKg: number,
+  startDate: string,
+  capMin = 45,
+  maxDays = 3,
+): DebtPlan {
+  const total = Math.max(0, Math.round(overKcal));
+  const perMin = kcalPerMin(kind, weightKg);
+
+  if (total <= 0 || perMin <= 0) {
+    return { total, slices: [], covered: 0, leftover: total, capMin, perMin };
+  }
+
+  const need = total / perMin;
+  const days = Math.min(maxDays, Math.max(1, Math.ceil(need / capMin)));
+  // 均分，再向上取到 5 分钟 —— "37 分钟"这种数没人会照着做
+  let each = Math.ceil(need / days / 5) * 5;
+  if (each > capMin) each = capMin;
+
+  const slices: DebtSlice[] = Array.from({ length: days }, (_, i) => ({
+    date: shiftDate(startDate, i),
+    minutes: each,
+    kcal: Math.round(each * perMin),
+  }));
+
+  const covered = slices.reduce((s, x) => s + x.kcal, 0);
+  return {
+    total,
+    slices,
+    covered,
+    leftover: Math.max(0, total - covered),
+    capMin,
+    perMin,
+  };
+}
+
 /* ---------- 明天练什么 ---------- */
+
 
 export interface ExerciseAdvice {
   def: ExerciseDef;

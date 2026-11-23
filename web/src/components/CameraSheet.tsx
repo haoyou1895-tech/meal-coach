@@ -24,6 +24,7 @@ import { compress, makeThumb } from "@/lib/image";
 import { Sheet } from "./ui";
 import Icon, { type IconName } from "./Icon";
 import VoiceInput from "./VoiceInput";
+import { useExplain } from "./Explain";
 
 type Phase = "idle" | "working" | "result" | "error";
 
@@ -92,6 +93,7 @@ export default function CameraSheet({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   /** 相册入口：不能强制调摄像头，补记昨天的饭、别人发来的照片都得能选 */
+  const showHints = useExplain();
   const galleryRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<string>("");
@@ -753,9 +755,11 @@ export default function CameraSheet({
             <span className="text-[19px] font-semibold text-brand-600">
               拍一张照片
             </span>
-            <span className="text-[15px] text-ink-500">
-              我帮您算这顿有多少大卡
-            </span>
+            {showHints && (
+              <span className="text-[15px] text-ink-500">
+                我帮您算这顿有多少大卡
+              </span>
+            )}
           </button>
 
           <button
@@ -763,9 +767,11 @@ export default function CameraSheet({
             className="mt-2.5 w-full rounded-2xl bg-white py-3.5 text-[16px] font-medium text-brand-600 shadow-sm transition active:scale-[0.99]"
           >
             从相册选
-            <span className="ml-1 text-[14px] font-normal text-ink-300">
-              可多选，一桌菜拍不完就选几张
-            </span>
+            {showHints && (
+              <span className="ml-1 text-[14px] font-normal text-ink-300">
+                可多选，一桌菜拍不完就选几张
+              </span>
+            )}
           </button>
 
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import CameraSheet from "@/components/CameraSheet";
 import DaySummary from "@/components/DaySummary";
+import { ExplainProvider } from "@/components/Explain";
 import HomeView from "@/components/HomeView";
 import Onboarding from "@/components/Onboarding";
 import RecordView from "@/components/RecordView";
@@ -172,6 +173,7 @@ export default function Page() {
   }
 
   return (
+    <ExplainProvider show={!!state.hints}>
     <div className="mx-auto min-h-dvh w-full max-w-lg">
       {tab === "home" ? (
         <HomeView
@@ -293,6 +295,7 @@ export default function Page() {
         meals={todayMeals}
         exercises={dayExercises}
         weightKg={currentWeightKg}
+        tomorrow={tomorrow}
         tomorrowBudget={tomorrowBudget}
         planTomorrow={planTomorrow}
         closed={closed}
@@ -323,7 +326,14 @@ export default function Page() {
         onMinutes={(id, minutes) => update(setExerciseMinutes(state, id, minutes))}
         onCloseDay={() => update(withDayClose(state, today, dayKcal))}
         onReopenDay={() => update(openDay(state, today))}
-        onPlanItems={(items) => update(withPlanItems(state, tomorrow, items))}
+        onPlanItems={(date, items) => update(withPlanItems(state, date, items))}
+        onPlanMany={(days) => {
+          // 一定在本地连着算完再落盘：逐次 update 会拿同一份旧 state，
+          // 三天只剩一天。这类 bug 不报错，只是悄悄骗人。
+          let next = state;
+          for (const d of days) next = withPlanItems(next, d.date, d.items);
+          update(next);
+        }}
       />
 
       <CameraSheet
@@ -372,6 +382,29 @@ export default function Page() {
               }
             />
           </div>
+
+          {/*
+            默认关。这个开关存在的意义不是"给爱看解释的人留个口子"，
+            是让默认界面能干净到可以单手用完 —— 说明都收在这里，
+            他想看的时候自己来开。
+          */}
+          <button
+            className="card flex w-full items-center justify-between p-4! text-left"
+            onClick={() => update({ ...state, hints: !state.hints })}
+          >
+            <span className="text-[15px]">显示说明文字</span>
+            <span
+              className={`flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition ${
+                state.hints ? "bg-brand-500" : "bg-black/[0.12]"
+              }`}
+            >
+              <span
+                className={`h-6 w-6 rounded-full bg-white shadow-sm transition ${
+                  state.hints ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </span>
+          </button>
 
           <button
             className="btn-ghost"
@@ -532,6 +565,7 @@ export default function Page() {
         </div>
       </Sheet>
     </div>
+    </ExplainProvider>
   );
 }
 

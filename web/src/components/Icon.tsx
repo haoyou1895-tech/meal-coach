@@ -9,6 +9,21 @@ import type { CSSProperties, JSX } from "react";
  *
  * 全用内联 SVG，不引第三方库：(1) 包体积 (2) 线上已经是 PWA，
  * 少一个外链就少一个白屏的可能。
+ *
+ * ── 图标来源规则（AGENTS.md 的 H11，别违背）────────────────────
+ *
+ * 1. **界面与运动图标只有一个来源：Lucide v0.469.0（ISC）。**
+ *    下面的 `footprints / bike / waves / trendingUp / personStanding /
+ *    music / circleDot / dumbbell / mountain / zap / activity / sprayCan / move`
+ *    是从 `lucide-static@0.469.0` 抄进来的原始 path，**一个坐标都没改**。
+ *    要加图标就去库里取，取完原样贴进来，别照着感觉画。
+ * 2. **不引 npm 包，也不引 CDN**。只把用到的十几个 path 抄进来，
+ *    这样既有统一风格，又不给首屏多一个网络请求。
+ * 3. **不用 Emoji、不用 Unicode 字符、不临时生成 SVG**。
+ *    一个 🏃 在安卓和 iOS 上长得完全不同，那就不叫一套图标了。
+ * 4. 食物那六个（蛋 / 猪 / 盐罐 / 饭 / 油 / 菜）是这块产品的视觉资产，
+ *    不在 Lucide 的能力范围里，属于**冻结**状态：不改、不新增、不扩散到界面。
+ *    它们只出现在营养分类上，不参与 UI 图标系统。
  */
 export type IconName =
   | "alert"
@@ -44,7 +59,20 @@ export type IconName =
   | "fried"
   | "sweet"
   | "scale"
-  | "clock";
+  | "clock"
+  // ↓ 以下取自 Lucide v0.469.0，供运动项使用
+  | "footprints"
+  | "bike"
+  | "waves"
+  | "trendingUp"
+  | "personStanding"
+  | "music"
+  | "circleDot"
+  | "mountain"
+  | "zap"
+  | "activity"
+  | "sprayCan"
+  | "move";
 
 const P: Record<IconName, JSX.Element> = {
   alert: (
@@ -251,7 +279,11 @@ const P: Record<IconName, JSX.Element> = {
   ),
   dumbbell: (
     <>
-      <path d="M3.4 9.6v4.8M6.8 7.2v9.6M17.2 7.2v9.6M20.6 9.6v4.8M6.8 12h10.4" />
+      <path d="M14.4 14.4 9.6 9.6" />
+      <path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z" />
+      <path d="m21.5 21.5-1.4-1.4" />
+      <path d="M3.9 3.9 2.5 2.5" />
+      <path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z" />
     </>
   ),
   heart: (
@@ -301,6 +333,91 @@ const P: Record<IconName, JSX.Element> = {
     <>
       <circle cx="12" cy="12" r="8.4" />
       <path d="M12 7.4V12l3 1.8" />
+    </>
+  ),
+
+  /* ── Lucide v0.469.0 原始数据，请勿改动坐标 ───────────────── */
+
+  /** 快走 / 散步 */
+  footprints: (
+    <>
+      <path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z" />
+      <path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z" />
+      <path d="M16 17h4" />
+      <path d="M4 13h4" />
+    </>
+  ),
+  bike: (
+    <>
+      <circle cx="18.5" cy="17.5" r="3.5" />
+      <circle cx="5.5" cy="17.5" r="3.5" />
+      <circle cx="15" cy="5" r="1" />
+      <path d="M12 17.5V14l-3-3 4-3 2 3h2" />
+    </>
+  ),
+  waves: (
+    <>
+      <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+    </>
+  ),
+  trendingUp: (
+    <>
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+      <polyline points="16 7 22 7 22 13" />
+    </>
+  ),
+  personStanding: (
+    <>
+      <circle cx="12" cy="5" r="1" />
+      <path d="m9 20 3-6 3 6" />
+      <path d="m6 8 6 2 6-2" />
+      <path d="M12 10v4" />
+    </>
+  ),
+  music: (
+    <>
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </>
+  ),
+  circleDot: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="1" />
+    </>
+  ),
+  mountain: <path d="m8 3 4 8 5-5 5 15H2L8 3z" />,
+  zap: (
+    <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+  ),
+  activity: (
+    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+  ),
+  sprayCan: (
+    <>
+      <path d="M3 3h.01" />
+      <path d="M7 5h.01" />
+      <path d="M11 7h.01" />
+      <path d="M3 7h.01" />
+      <path d="M7 9h.01" />
+      <path d="M3 11h.01" />
+      <rect width="4" height="4" x="15" y="5" />
+      <path d="m19 9 2 2v10c0 .6-.4 1-1 1h-6c-.6 0-1-.4-1-1V11l2-2" />
+      <path d="m13 14 8-2" />
+      <path d="m13 19 8-2" />
+    </>
+  ),
+  move: (
+    <>
+      <path d="M12 2v20" />
+      <path d="m15 19-3 3-3-3" />
+      <path d="m19 9 3 3-3 3" />
+      <path d="M2 12h20" />
+      <path d="m5 9-3 3 3 3" />
+      <path d="m9 5 3-3 3 3" />
     </>
   ),
 };

@@ -222,8 +222,16 @@ export default function VoiceInput({
   const busy = disabled || status === "uploading";
   const bare = label === "";
 
+  /**
+   * 一律靠右。
+   *
+   * 拇指在机器右下角。这个按钮是单手操作频率最高的一个（另一个是主按钮），
+   * 放在左下角，握持的时候得把手心挪进去才够得着。
+   * 所有用到语音的地方都走这里，所以改这一处就全站生效 ——
+   * 别在某个页面单独写一个"左对齐"的麦克风。
+   */
   return (
-    <div className="mt-2 flex items-center gap-2.5">
+    <div className="mt-1.5 flex items-center justify-end gap-2.5">
       <button
         type="button"
         disabled={busy}

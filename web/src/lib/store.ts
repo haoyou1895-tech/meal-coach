@@ -33,6 +33,14 @@ export interface AppState {
   closedDays: DayClose[];
   /** 给某一天定下的运动计划 */
   exercisePlans: ExercisePlan[];
+  /**
+   * 是否显示解释性文字。默认关（见 components/Explain.tsx）。
+   *
+   * 为什么存进状态而不是只放 localStorage：他要换手机，搬家码得把
+   * "我习惯看说明书"这个偏好一起带走 —— 否则新手机上突然多出一堆小字，
+   * 他会以为是版本更新，实际是自己开过的开关丢了。
+   */
+  hints?: boolean;
   /** 是否已完成首次引导 */
   onboarded: boolean;
 }
@@ -45,6 +53,7 @@ const EMPTY: AppState = {
   exercises: [],
   closedDays: [],
   exercisePlans: [],
+  hints: false,
   onboarded: false,
 };
 
@@ -65,6 +74,7 @@ export function loadState(): AppState {
             .map(normalizePlan)
             .filter((p): p is ExercisePlan => !!p)
         : [],
+      hints: !!parsed.hints,
       onboarded: !!parsed.onboarded,
     };
   } catch {
