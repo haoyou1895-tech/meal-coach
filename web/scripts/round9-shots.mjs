@@ -133,7 +133,7 @@ const amounts = await page.evaluate(() =>
 console.log("② 运动量指标:", [
   amounts.some((x) => x.includes("5.5")) ? "公里 ✓" : "公里 ✗",
   amounts.some((x) => x.includes("1000")) ? "个数 ✓" : "个数 ✗",
-  moveTop.includes("约 59 分钟") ? "折算 ✓" : "折算 ✗",
+  /59 分 · 250 卡/.test(moveTop) ? "折算 ✓" : "折算 ✗",
 ].join(" · "), amounts.join(" | "));
 console.log("  今天要做的:", moveTop.includes("今天要做的") ? "在" : "没显示");
 
@@ -187,7 +187,7 @@ const led = await page.evaluate(() => document.body.innerText);
 console.log("④ 总账对照:", [
   led.includes("近 7 天吃了") ? "吃 ✓" : "吃 ✗",
   led.includes("近 7 天动了") ? "动 ✓" : "动 ✗",
-  led.includes("动 432") || led.includes("动 4") ? "按天 ✓" : "按天 ?",
+  led.includes("动 365") ? "按天 ✓" : "按天 ✗",
 ].join(" · "));
 
 await browser.close();
