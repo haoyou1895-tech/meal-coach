@@ -29,8 +29,14 @@ import type { ExerciseLog, ExerciseKind, Profile } from "./types";
  * 用户拿截图来问"这些含义不符合" —— 他说得对，那不是省事，那是没画。
  *
  * 换成 Tabler 之后每一项都有自己的图标：跑步的人、一双鞋、瑜伽、伸展、
- * 跳绳、乒乓拍、带线的网球拍、拳架、杠铃、台阶、刷子、火苗。
+ * 跳绳、乒乓拍、拳架、杠铃、台阶、刷子、火苗。
  * 只有"其他运动"用火苗兜底，因为那时确实不知道是什么。
+ *
+ * **一个例外**：Tabler 全库没有羽毛球（连 shuttlecock 都没有），
+ * 上一版只好拿 `ball-tennis`（一个网球）顶替 —— 用户第二次拿截图来问
+ * "羽毛球图标还是不对"。网球和羽毛球不是一回事，这个顶替是错的。
+ * 所以 `exBadminton` 是照 24 网格手绘的羽毛球（球头 + 羽毛裙），
+ * 线宽和 Tabler 一致，见 Icon.tsx。这条例外已登记在 docs/04。
  */
 export type ExerciseIcon =
   | "exWalk"
@@ -41,7 +47,7 @@ export type ExerciseIcon =
   | "exStairs"
   | "exKarate"
   | "exMusic"
-  | "exTennis"
+  | "exBadminton"
   | "exBarbell"
   | "exBrush"
   | "exYoga"
@@ -52,6 +58,71 @@ export type ExerciseIcon =
   | "exHeartbeat"
   | "exFlame";
 
+/**
+ * 用什么东西量"今天做了多少"。
+ *
+ * 这一条是用户提出来的：他说"跑步和散步，你要判断是公里数更能反映运动量
+ * 还是时间；跳绳是次数还是时间"。答案是**不一样**：
+ *
+ * - 走路、跑步、骑车、游泳、爬山：同样 30 分钟，配速差一倍，消耗差一倍。
+ *   说"5 公里"是确定的，说"半小时"什么也没说。所以这些用**公里**。
+ * - 跳绳的人自己数个数，不数分钟。所以用**个**。
+ * - 太极、瑜伽、广场舞、家务、力量：本来就是按时间做的，用**分钟**。
+ *
+ * 但内部只认分钟：MET 是按小时算的，公里和个数必须先折成分钟。
+ * 折算率写在每一项的 metric 里，都是常见速度，不是拍脑袋。
+ */
+export type MetricUnit = "min" | "km" | "count";
+
+export interface Metric {
+  unit: MetricUnit;
+  /** 一个单位折合多少分钟 */
+  minPerUnit: number;
+  /** 加减一次的步长 */
+  step: number;
+  min: number;
+  max: number;
+  /** 输入框后面那个字 */
+  suffix: string;
+  /** 要不要允许小数（公里要，次数不要） */
+  decimal?: boolean;
+}
+
+/** 按时间量的那些项目共用这一个 */
+export const MIN_METRIC: Metric = {
+  unit: "min",
+  minPerUnit: 1,
+  step: 5,
+  min: 5,
+  max: 240,
+  suffix: "分钟",
+};
+
+/** 按距离量。参数是"一公里要走多少分钟"，等于时速的倒数 */
+function km(minPerKm: number): Metric {
+  return {
+    unit: "km",
+    minPerUnit: minPerKm,
+    step: 0.5,
+    min: 0.5,
+    max: 40,
+    suffix: "公里",
+    decimal: true,
+  };
+}
+
+/** 按个数量。参数是每分钟大约多少个 */
+function count(perMin: number): Metric {
+  return {
+    unit: "count",
+    minPerUnit: 1 / perMin,
+    step: 100,
+    min: 100,
+    max: 6000,
+    suffix: "个",
+  };
+}
+
 export interface ExerciseDef {
   kind: ExerciseKind;
   label: string;
@@ -59,10 +130,12 @@ export interface ExerciseDef {
   met: number;
   /** 加进来时的默认时长 */
   defaultMin: number;
-  /** 取 Lucide 图标名，见上方 ExerciseIcon */
+  /** 取 Tabler 图标名，见上方 ExerciseIcon */
   icon: ExerciseIcon;
   /** 这个运动对他意味着什么，一句话 */
   note: string;
+  /** 用什么量"做了多少"。不填就是按分钟 */
+  metric?: Metric;
   /** 高血压、体重偏大的人要注意的地方。没有就不填 */
   caution?: string;
   /** 关节负担小，膝盖不好也能做 */
@@ -87,6 +160,8 @@ export const EXERCISES: ExerciseDef[] = [
     met: 4.3,
     defaultMin: 40,
     icon: "exWalk",
+    /** 5.6 公里/小时，一公里约 10.7 分钟 */
+    metric: km(10.7),
     note: "最省事的一种，出门就能做",
     jointSafe: true,
     },
@@ -96,6 +171,8 @@ export const EXERCISES: ExerciseDef[] = [
     met: 3.0,
     defaultMin: 40,
     icon: "exShoe",
+    /** 4 公里/小时，一公里 15 分钟 */
+    metric: km(15),
     note: "饭后溜达，主要是让血糖别蹿太快",
     jointSafe: true,
     },
@@ -105,6 +182,8 @@ export const EXERCISES: ExerciseDef[] = [
     met: 7.0,
     defaultMin: 30,
     icon: "exRun",
+    /** 8 公里/小时，一公里 7.5 分钟 */
+    metric: km(7.5),
     note: "同样时间消耗最大，但别一上来就冲",
     caution: "血压没控好的时候先别跑，改成快走",
     },
@@ -114,6 +193,8 @@ export const EXERCISES: ExerciseDef[] = [
     met: 6.8,
     defaultMin: 40,
     icon: "exBike",
+    /** 16 公里/小时，一公里约 3.8 分钟 */
+    metric: km(3.8),
     note: "膝盖不吃力，通勤路上就能完成",
     jointSafe: true,
     },
@@ -123,6 +204,8 @@ export const EXERCISES: ExerciseDef[] = [
     met: 6.0,
     defaultMin: 30,
     icon: "exSwim",
+    /** 2 公里/小时，一公里 30 分钟 —— 游泳的人本来就说游了多少米 */
+    metric: km(30),
     note: "对关节最友好的有氧",
     jointSafe: true,
     },
@@ -158,7 +241,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "羽毛球",
     met: 5.5,
     defaultMin: 40,
-    icon: "exTennis",
+    icon: "exBadminton",
     note: "有来有回，比一个人练容易坚持",
     },
   {
@@ -212,6 +295,8 @@ export const EXERCISES: ExerciseDef[] = [
     met: 6.0,
     defaultMin: 60,
     icon: "exMountain",
+    /** 上坡 3 公里/小时，一公里 20 分钟 */
+    metric: km(20),
     note: "一次顶好几次散步，但下来那半天腿是废的",
     caution: "下山对膝盖的冲击最大，有登山杖就用上",
     },
@@ -221,6 +306,8 @@ export const EXERCISES: ExerciseDef[] = [
     met: 10.0,
     defaultMin: 10,
     icon: "exRope",
+    /** 一分钟 100 个 —— 中等速度连着跳，停下来喘的时间也算在里面 */
+    metric: count(100),
     note: "十分钟就出汗，性价比最高的有氧",
     caution: "体重偏大的先别跳，膝盖承受不住",
     },
@@ -277,6 +364,54 @@ export function burnKcal(
 
 export function burnOfLog(log: ExerciseLog, weightKg: number): number {
   return burnKcal(log.kind, weightKg, log.minutes);
+}
+
+/* ---------- 运动量：公里 / 个数 / 分钟 三选一，内部只认分钟 ---------- */
+
+/** 这一项用什么量 */
+export function metricOf(kind: ExerciseKind): Metric {
+  return exerciseDef(kind).metric ?? MIN_METRIC;
+}
+
+/** 他填的那个量。老记录没有这个字段，返回 null */
+export function amountOf(x: { amount?: number }): number | null {
+  return typeof x.amount === "number" && x.amount > 0 ? x.amount : null;
+}
+
+/** 公里/个数 → 分钟。MET 算的是时间，所以这一步躲不掉 */
+export function minutesOfAmount(kind: ExerciseKind, amount: number): number {
+  const m = metricOf(kind);
+  const raw = amount * m.minPerUnit;
+  return Math.max(1, Math.round(raw));
+}
+
+/** 分钟 → 公里/个数。显示和编辑时要反着换一次 */
+export function amountFromMinutes(kind: ExerciseKind, minutes: number): number {
+  const m = metricOf(kind);
+  const raw = minutes / m.minPerUnit;
+  // 公里留一位小数，个数取整到十位 —— "1523 个"没人这么说话
+  return m.unit === "km"
+    ? Math.max(m.min, Math.round(raw * 10) / 10)
+    : Math.max(m.min, Math.round(raw / 10) * 10);
+}
+
+/** 显示用："5 公里" / "1500 个" / "40 分钟" */
+export function amountText(kind: ExerciseKind, amount: number): string {
+  const m = metricOf(kind);
+  const n =
+    m.unit === "km"
+      ? String(Math.round(amount * 10) / 10)
+      : String(Math.round(amount));
+  return `${n} ${m.suffix}`;
+}
+
+/**
+ * 一条记录"做了多少"的那几个字。
+ * 有量就写量（那是他自己填的事实），没有就退回分钟数（老记录）。
+ */
+export function logAmountText(log: ExerciseLog): string {
+  const a = amountOf(log);
+  return a ? amountText(log.kind, a) : `${log.minutes} 分钟`;
 }
 
 /** 一天总共动了多少 */

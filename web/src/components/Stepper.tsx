@@ -30,6 +30,7 @@ export default function Stepper({
   unit = "分",
   ariaLabel = "分钟数",
   compact = false,
+  decimal = false,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -40,6 +41,11 @@ export default function Stepper({
   ariaLabel?: string;
   /** 塞进已有的列表行里用：矮一档、窄一档 */
   compact?: boolean;
+  /**
+   * 允许一位小数。公里（5.5 公里）和体重（78.1 公斤）要用，
+   * 分钟和个数不用 —— 谁也不说"跳了 1523.4 个"。
+   */
+  decimal?: boolean;
 }) {
   const [draft, setDraft] = useState(String(value));
 
@@ -48,10 +54,19 @@ export default function Stepper({
     setDraft(String(value));
   }, [value]);
 
-  const clamp = (n: number) => Math.max(min, Math.min(max, n));
+  const round = (n: number) => (decimal ? Math.round(n * 10) / 10 : Math.round(n));
+  const clamp = (n: number) => round(Math.max(min, Math.min(max, n)));
+
+  /** 打字时只留数字和**一个**小数点。不然 "5.5.5" 会被 Number() 读成 NaN */
+  function clean(s: string): string {
+    if (!decimal) return s.replace(/[^\d]/g, "");
+    const only = s.replace(/[^\d.]/g, "");
+    const [head, ...rest] = only.split(".");
+    return rest.length ? `${head}.${rest.join("")}` : head;
+  }
 
   function commit(raw: string) {
-    const n = Number(raw.replace(/[^\d]/g, ""));
+    const n = Number(raw.replace(/[^\d.]/g, ""));
     if (!raw.trim() || !Number.isFinite(n) || n <= 0) {
       setDraft(String(value));
       return;
@@ -86,7 +101,7 @@ export default function Stepper({
 
       <input
         value={draft}
-        onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ""))}
+        onChange={(e) => setDraft(clean(e.target.value))}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -95,10 +110,14 @@ export default function Stepper({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        inputMode="numeric"
+        inputMode={decimal ? "decimal" : "numeric"}
         aria-label={ariaLabel}
         className={`bg-transparent text-center font-semibold tabular-nums text-ink-700 outline-none ${
-          compact ? "w-7 text-[13px]" : "w-9 text-[15px]"
+          compact
+            ? decimal
+              ? "w-9 text-[13px]"
+              : "w-7 text-[13px]"
+            : "w-11 text-[15px]"
         }`}
       />
 

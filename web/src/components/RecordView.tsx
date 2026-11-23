@@ -18,7 +18,7 @@ import {
   sumMeals,
   todayStr,
 } from "@/lib/nutrition";
-import { avgBurnEndingOn, shiftDate } from "@/lib/exercise";
+import { avgBurnEndingOn, burnOfLog, shiftDate } from "@/lib/exercise";
 import { dateList, latestWeightKg } from "@/lib/store";
 import { drinkKcal, drinksLabel } from "@/lib/drinks";
 import { deletePhoto, getPhoto, photoIdsOf, putPhoto } from "@/lib/photos";
@@ -429,13 +429,60 @@ export default function RecordView({
     return Array.from(map.entries());
   }, [meals]);
 
+  /** 每天动了多少。总账要"并排看"，所以按天先聚合好，列表里直接取 */
+  const burnOfDay = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of exercises) {
+      m.set(e.date, (m.get(e.date) ?? 0) + burnOfLog(e, latest));
+    }
+    return m;
+  }, [exercises, latest]);
+
+  const weekEat = dailyKcal.reduce((s, d) => s + d.kcal, 0);
+  const weekBurn = last7.reduce((s, d) => s + (burnOfDay.get(d) ?? 0), 0);
+
   const lost = round(profile.weightKg - latest, 1);
 
   return (
     <div className="pb-52">
       <header className="safe-top px-5 pb-3 pt-5">
-        <h1 className="text-[27px] font-bold tracking-tight">我的记录</h1>
+        <h1 className="text-[27px] font-bold tracking-tight">总账</h1>
+        <p className="mt-1 text-[13px] text-ink-400">
+          吃进去的、动掉的，两笔账并排看
+        </p>
       </header>
+
+      {/* 近 7 天：吃和动并排。不做减法 —— 见 H5，净摄入那个数一出现，
+          账就变成"我还能吃多少"，人就开始为多吃去运动。 */}
+      <section className="px-5">
+        <div className="card flex items-stretch gap-3 p-4!">
+          <div className="flex-1">
+            <p className="text-[13px] text-ink-400">近 7 天吃了</p>
+            <p className="mt-1 flex items-baseline gap-1">
+              <span className="text-[26px] font-bold leading-none tabular-nums">
+                {weekEat}
+              </span>
+              <span className="text-[12px] text-ink-300">大卡</span>
+            </p>
+            <p className="mt-1 text-[12px] tabular-nums text-ink-300">
+              平均每天 {Math.round(weekEat / 7)}
+            </p>
+          </div>
+          <div className="w-px shrink-0 self-stretch bg-black/[0.06]" />
+          <div className="flex-1">
+            <p className="text-[13px] text-ink-400">近 7 天动了</p>
+            <p className="mt-1 flex items-baseline gap-1">
+              <span className="text-[26px] font-bold leading-none tabular-nums text-[#3f9d74]">
+                {weekBurn}
+              </span>
+              <span className="text-[12px] text-ink-300">大卡</span>
+            </p>
+            <p className="mt-1 text-[12px] tabular-nums text-ink-300">
+              平均每天 {Math.round(weekBurn / 7)}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* 体重 */}
       <section className="px-5">
@@ -504,7 +551,7 @@ export default function RecordView({
 
       {/* 近 7 天热量 */}
       <section className="mt-6 px-5">
-        <h2 className="mb-3 text-[17px] font-bold">近 7 天</h2>
+        <h2 className="mb-3 text-[17px] font-bold">每天吃了多少</h2>
         <div className="card">
           <div className="relative flex h-40 items-end gap-1.5">
             {/*
@@ -634,8 +681,13 @@ export default function RecordView({
                     <span className="text-[15px] font-semibold text-ink-700">
                       {date === todayStr() ? "今天" : date.slice(5).replace("-", "月") + "日"}
                     </span>
-                    <span className="text-[13px] text-ink-300 tabular-nums">
-                      {total} 大卡
+                    <span className="flex items-baseline gap-2 text-[13px] text-ink-300 tabular-nums">
+                      <span>{total} 大卡</span>
+                      {burnOfDay.get(date) ? (
+                        <span className="text-[#3f9d74]">
+                          动 {burnOfDay.get(date)}
+                        </span>
+                      ) : null}
                     </span>
                   </div>
                   <div className="space-y-2">
@@ -733,7 +785,7 @@ export default function RecordView({
               setWeightOpen(false);
             }}
           >
-            记下了
+            确定
           </button>
         </div>
       </Sheet>
@@ -996,10 +1048,10 @@ export default function RecordView({
 
             <div className="mt-6 space-y-2">
               <button className="btn-primary" onClick={saveEdit}>
-                保存修改
+                确定
               </button>
               <button className="btn-ghost" onClick={() => setEditing(null)}>
-                不改了
+                取消
               </button>
             </div>
           </div>

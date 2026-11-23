@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type {
-  ExerciseLog,
   Meal,
   MealType,
   NutritionPlan,
@@ -176,11 +175,9 @@ export default function HomeView({
   profile,
   plan,
   meals,
-  exercises,
   closed,
   kcalToday,
   planTomorrowLabel,
-  todayPlanLabel,
   onOpenSummary,
   onOpenSettings,
   onGoalWeeks,
@@ -189,15 +186,11 @@ export default function HomeView({
   profile: Profile;
   plan: NutritionPlan;
   meals: Meal[];
-  /** 今天已经记下的运动 */
-  exercises: ExerciseLog[];
   /** 今天是不是已经"收工"了 */
   closed: boolean;
   kcalToday: number;
   /** 明天定下的运动计划，没有就是 null */
   planTomorrowLabel: string | null;
-  /** 昨天定给今天的运动计划 */
-  todayPlanLabel: string | null;
   onOpenSummary: () => void;
   onOpenSettings: () => void;
   /**
@@ -1066,7 +1059,6 @@ export default function HomeView({
           kcal={kcalToday}
           budget={plan.dailyBudgetKcal}
           planLabel={planTomorrowLabel}
-          todayPlanLabel={todayPlanLabel}
           onClick={onOpenSummary}
         />
       </section>

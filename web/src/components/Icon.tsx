@@ -75,7 +75,7 @@ export type IconName =
   | "exStairs"
   | "exKarate"
   | "exMusic"
-  | "exTennis"
+  | "exBadminton"
   | "exBarbell"
   | "exBrush"
   | "exYoga"
@@ -418,12 +418,24 @@ const P: Record<IconName, JSX.Element> = {
       <path d="M9 8h10" />
     </>
   ),
-  /** 羽毛球 —— 一只带拍线的球拍，不是抽象圆点 */
-  exTennis: (
+  /**
+   * 羽毛球 —— 球头加一圈羽毛。
+   *
+   * Tabler 全库没有羽毛球，连 shuttlecock 都没有（v3.24.0 只有一个
+   * ball-tennis）。上一版拿网球顶替，用户第二次拿截图来问"还是不对" ——
+   * 网球和羽毛球不是一回事，顶替就是错。所以这一个照 Tabler 的
+   * 24 网格、2px 线宽手绘，摆在一排里看不出是外来的。
+   *
+   * 为什么画球头不画球拍：羽毛球拍、网球拍、乒乓拍在 24px 下是同一个圈，
+   * 三个拍子并排又回到"含义不符"。球头（底下的小圆）是羽毛球独有的形状。
+   */
+  exBadminton: (
     <>
-      <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
-      <path d="M6 5.3a9 9 0 0 1 0 13.4" />
-      <path d="M18 5.3a9 9 0 0 0 0 13.4" />
+      <circle cx="12" cy="17.2" r="2.9" />
+      <path d="M9.9 15.1 6.3 5.6" />
+      <path d="M14.1 15.1 17.7 5.6" />
+      <path d="M6.3 5.6c3.6-1.7 7.8-1.7 11.4 0" />
+      <path d="M12 14.3V4.4" />
     </>
   ),
   /** 力量训练 —— 杠铃。比"哑铃"更能表达"练一组" */

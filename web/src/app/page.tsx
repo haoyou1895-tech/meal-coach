@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import CameraSheet from "@/components/CameraSheet";
-import DaySummary from "@/components/DaySummary";
+import DaySheet, { DaySummaryBar } from "@/components/DaySummary";
 import { ExplainProvider } from "@/components/Explain";
 import HomeView from "@/components/HomeView";
+import MoveView from "@/components/MoveView";
 import Onboarding from "@/components/Onboarding";
 import RecordView from "@/components/RecordView";
 import Splash from "@/components/Splash";
@@ -24,7 +25,7 @@ import {
   planOfDate,
   resetState,
   saveState,
-  setExerciseMinutes,
+  setExerciseAmount,
   updateMeal,
   upsertMeal,
   withDayClose,
@@ -38,7 +39,7 @@ import {
 import { clearPhotos, deletePhoto } from "@/lib/photos";
 import type { ExercisePlan, Meal, Profile } from "@/lib/types";
 
-type Tab = "home" | "record";
+type Tab = "eat" | "move" | "ledger";
 
 function uid(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
@@ -54,7 +55,7 @@ function planLabelOf(p: ExercisePlan | null): string | null {
 
 export default function Page() {
   const [state, setState] = useState<AppState | null>(null);
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>("eat");
   /** 「记一餐」里点「改」时，把要改的那条传过去 */
   const [pendingEditId, setPendingEditId] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -159,7 +160,7 @@ export default function Page() {
         onDone={(p: Profile) => {
           update({ ...state, profile: p, onboarded: true });
           setRedoSetup(false);
-          setTab("home");
+          setTab("eat");
         }}
         onBack={
           redoSetup
@@ -175,16 +176,14 @@ export default function Page() {
   return (
     <ExplainProvider show={!!state.hints}>
     <div className="mx-auto min-h-dvh w-full max-w-lg">
-      {tab === "home" ? (
+      {tab === "eat" ? (
         <HomeView
           profile={profile}
           plan={plan!}
           meals={state.meals}
-          exercises={dayExercises}
           closed={closed}
           kcalToday={dayKcal}
           planTomorrowLabel={planLabelOf(planTomorrow)}
-          todayPlanLabel={planLabelOf(planToday)}
           onOpenSummary={() => setSummaryOpen(true)}
           currentWeightKg={currentWeightKg}
           onGoalWeeks={(weeks) =>
@@ -194,6 +193,47 @@ export default function Page() {
             })
           }
           onOpenSettings={() => setSettingsOpen(true)}
+        />
+      ) : tab === "move" ? (
+        <MoveView
+          profile={profile}
+          plan={plan!}
+          weightKg={currentWeightKg}
+          exercises={dayExercises}
+          allExercises={state.exercises}
+          planToday={planToday}
+          planTomorrow={planTomorrow}
+          tomorrow={tomorrow}
+          tomorrowBudget={tomorrowBudget}
+          over={Math.round(dayKcal - plan!.dailyBudgetKcal)}
+          onAddExercises={(items) =>
+            update(
+              items.reduce(
+                (s, it) =>
+                  withExercise(s, {
+                    id: uid(),
+                    date: today,
+                    kind: it.kind,
+                    minutes: it.minutes,
+                    ...(it.amount ? { amount: it.amount } : {}),
+                    ...(it.label ? { label: it.label } : {}),
+                  }),
+                state,
+              ),
+            )
+          }
+          onRemoveExercise={(id) => update(withoutExercise(state, id))}
+          onAmount={(id, amount, minutes) =>
+            update(setExerciseAmount(state, id, amount, minutes))
+          }
+          onPlanItems={(date, items) => update(withPlanItems(state, date, items))}
+          onPlanMany={(days) => {
+            // 一定在本地连着算完再落盘：逐次 update 会拿同一份旧 state，
+            // 三天只剩一天。这类 bug 不报错，只是悄悄骗人。
+            let next = state;
+            for (const d of days) next = withPlanItems(next, d.date, d.items);
+            update(next);
+          }}
         />
       ) : (
         <RecordView
@@ -220,7 +260,7 @@ export default function Page() {
       {/* 底部操作区 */}
       <div className="fixed inset-x-0 bottom-0 z-30">
         <div className="mx-auto max-w-lg bg-gradient-to-t from-[#f4f6f4] via-[#f4f6f4] to-transparent px-5 pb-1 pt-6">
-          {tab === "home" && (
+          {tab === "eat" && (
             <button
               onClick={() => setCameraOpen(true)}
               className={
@@ -256,22 +296,37 @@ export default function Page() {
 
           <nav className="flex gap-2">
             <TabButton
-              active={tab === "home"}
-              onClick={() => setTab("home")}
-              label="今天"
+              active={tab === "eat"}
+              onClick={() => setTab("eat")}
+              label="吃"
               icon={
                 <path
-                  d="M4 10.5L12 4l8 6.5V19a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 19v-8.5z"
+                  d="M3.5 11h17a8.5 8.5 0 01-8.5 8.5A8.5 8.5 0 013.5 11zM8.5 7.5c0-1 1-1.6 1-2.5M12.5 7.5c0-1 1-1.6 1-2.5"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               }
             />
             <TabButton
-              active={tab === "record"}
-              onClick={() => setTab("record")}
-              label="记录"
+              active={tab === "move"}
+              onClick={() => setTab("move")}
+              label="动"
+              icon={
+                <path
+                  d="M13.6 5.4a1.7 1.7 0 100-3.4 1.7 1.7 0 000 3.4zM7 21l3-6 3 2v4M10 15l-2-5 4-2 3 3h4"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              }
+            />
+            <TabButton
+              active={tab === "ledger"}
+              onClick={() => setTab("ledger")}
+              label="账"
               icon={
                 <path
                   d="M6 3.5v3M18 3.5v3M4 9h16M5 5.5h14a1 1 0 011 1V19a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 19V6.5a1 1 0 011-1z"
@@ -287,17 +342,11 @@ export default function Page() {
         <div className="safe-bottom bg-[#f4f6f4]" />
       </div>
 
-      <DaySummary
+      <DaySheet
         open={summaryOpen}
         onClose={() => setSummaryOpen(false)}
-        profile={profile}
         plan={plan!}
         meals={todayMeals}
-        exercises={dayExercises}
-        weightKg={currentWeightKg}
-        tomorrow={tomorrow}
-        tomorrowBudget={tomorrowBudget}
-        planTomorrow={planTomorrow}
         closed={closed}
         closedAtLabel={
           closedInfo
@@ -307,33 +356,8 @@ export default function Page() {
               })
             : null
         }
-        onAddExercises={(items) =>
-          update(
-            items.reduce(
-              (s, it) =>
-                withExercise(s, {
-                  id: uid(),
-                  date: today,
-                  kind: it.kind,
-                  minutes: it.minutes,
-                  ...(it.label ? { label: it.label } : {}),
-                }),
-              state,
-            ),
-          )
-        }
-        onRemoveExercise={(id) => update(withoutExercise(state, id))}
-        onMinutes={(id, minutes) => update(setExerciseMinutes(state, id, minutes))}
         onCloseDay={() => update(withDayClose(state, today, dayKcal))}
         onReopenDay={() => update(openDay(state, today))}
-        onPlanItems={(date, items) => update(withPlanItems(state, date, items))}
-        onPlanMany={(days) => {
-          // 一定在本地连着算完再落盘：逐次 update 会拿同一份旧 state，
-          // 三天只剩一天。这类 bug 不报错，只是悄悄骗人。
-          let next = state;
-          for (const d of days) next = withPlanItems(next, d.date, d.items);
-          update(next);
-        }}
       />
 
       <CameraSheet
@@ -351,7 +375,7 @@ export default function Page() {
         onEditMeal={(id) => {
           setCameraOpen(false);
           setPendingEditId(id);
-          setTab("record");
+          setTab("ledger");
         }}
       />
 
@@ -434,7 +458,7 @@ export default function Page() {
                   setDataPanel("export");
                 }}
               >
-                备份一串码
+                备份
               </button>
               <button
                 className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-brand-600 active:scale-[0.98]"
@@ -443,7 +467,7 @@ export default function Page() {
                   setDataPanel("import");
                 }}
               >
-                粘回来
+                导入
               </button>
             </div>
             <p className="text-[13px] leading-relaxed text-ink-300">
@@ -530,7 +554,7 @@ export default function Page() {
                   className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-ink-500 active:scale-[0.98]"
                   onClick={() => setDataPanel(null)}
                 >
-                  关掉
+                  关闭
                 </button>
               </div>
             </div>
@@ -550,7 +574,7 @@ export default function Page() {
                 void clearPhotos();
                 setState(loadState());
                 setSettingsOpen(false);
-                setTab("home");
+                setTab("eat");
               }
             }}
           >

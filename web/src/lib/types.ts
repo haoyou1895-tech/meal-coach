@@ -244,6 +244,13 @@ export interface ExerciseLog {
   date: string;
   kind: ExerciseKind;
   minutes: number;
+  /**
+   * 他自己填的那个量：距离类填公里，跳绳填个数。
+   * 只用来还原"我到底做了多少"，算消耗永远走 minutes ——
+   * MET 是按小时的，换算只发生一次，在录入那一刻。
+   * 老记录没有这个字段，界面退回显示分钟。
+   */
+  amount?: number;
   /** kind=other 时他原话里的项目名，比如"打拳" */
   label?: string;
 }

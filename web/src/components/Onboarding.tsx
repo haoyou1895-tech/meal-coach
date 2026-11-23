@@ -299,7 +299,7 @@ export default function Onboarding({
       </div>
 
       <button className="btn-primary mt-6" onClick={next}>
-        {step === TOTAL - 1 ? "算一下" : "下一步"}
+        {step === TOTAL - 1 ? "完成" : "下一步"}
       </button>
     </div>
   );

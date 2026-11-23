@@ -1357,11 +1357,7 @@ export default function CameraSheet({
               onClick={() => void save()}
               disabled={saving}
             >
-              {existing
-                ? `加进${mealTypeLabel(mealType)}`
-                : demo
-                  ? "仍然记下（示例）"
-                  : "记上了"}
+              {demo && !existing ? "仍然记下（示例）" : "确定"}
             </button>
             {existing && (
               <p className="mt-2 text-center text-[12px] tabular-nums text-ink-300">
