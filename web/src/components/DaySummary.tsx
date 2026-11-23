@@ -14,8 +14,8 @@ import {
   adviseTomorrow,
   burnOfLog,
   exerciseDef,
-  kcalPerMin,
   nameOf,
+  riskOf,
   spreadDebt,
   suggestMinutes,
 } from "@/lib/exercise";
@@ -43,6 +43,9 @@ function addDays(date: string, n: number): string {
     t.getDate(),
   ).padStart(2, "0")}`;
 }
+
+/** 明天、后天、大后天 —— 补账最多摊三天 */
+const DAY_WORD = ["明天", "后天", "大后天"];
 
 /**
  * 今天收工面板。
@@ -121,9 +124,9 @@ export default function DaySummary({
   /** 展开全部运动项，还是只给常用的几个 */
   const [more, setMore] = useState(false);
 
-  /** 补账：他选了哪一项、每天做多久、定了没有 */
-  const [debtKind, setDebtKind] = useState<ExerciseKind | null>(null);
-  const [debtMin, setDebtMin] = useState(45);
+  /** 补账：选了哪几项、每天最多动多久、定了没有 */
+  const [debtKinds, setDebtKinds] = useState<ExerciseKind[]>([]);
+  const [dayCap, setDayCap] = useState(75);
   const [debtDone, setDebtDone] = useState(false);
 
   const totals = useMemo(() => sumMeals(meals), [meals]);
@@ -206,45 +209,43 @@ export default function DaySummary({
 
   /* ---------- 补账 ---------- */
 
-  /** 选一项 → 系统算要多久、分几天。他说了类型，时间由我们给。 */
-  function pickDebt(kind: ExerciseKind) {
-    setDebtKind(kind);
+  /**
+   * 选几项一起做。
+   *
+   * 为什么允许组合，而不是逼他挑一项：444 大卡用快走要 104 分钟，
+   * 一项做 104 分钟没人做得完；拆成"快走 45 + 跳绳 15"就是 75 分钟，
+   * 同样的事，从不可能变成可能。
+   */
+  function toggleDebtKind(kind: ExerciseKind) {
     setDebtDone(false);
-    const d = spreadDebt(over, kind, weightKg, tomorrow);
-    setDebtMin(d.slices[0]?.minutes ?? 45);
+    setDebtKinds((prev) =>
+      prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind],
+    );
   }
 
-  const debt = useMemo(() => {
-    if (!debtKind || over <= 0) return null;
-    const perMin = kcalPerMin(debtKind, weightKg);
-    if (perMin <= 0) return null;
-    // 天数按"他实际愿意给的分钟数"算，不是按系统一厢情愿的 45 算
-    const days = Math.min(
-      3,
-      Math.max(1, Math.ceil(over / perMin / Math.max(5, debtMin))),
-    );
-    const covered = Math.min(over, Math.round(days * debtMin * perMin));
-    return { perMin, days, covered, leftover: Math.max(0, over - covered) };
-  }, [debtKind, debtMin, over, weightKg]);
+  const debt = useMemo(
+    () =>
+      debtKinds.length
+        ? spreadDebt(over, debtKinds, weightKg, tomorrow, dayCap)
+        : null,
+    [debtKinds, over, weightKg, tomorrow, dayCap],
+  );
 
   /**
    * 定上这几天。
    *
    * 必须一次交上去，不能循环里逐天调 onPlanItems ——
    * 每次回调拿的都是同一份旧 state，后一次会把前一次覆盖掉，
-   * 结果只落下最后一天，而界面上写着"明天起 3 天"。
-   * 这个 bug 不会报错，只会让人觉得这软件在骗人。
+   * 结果只落下最后一天，而界面上写着"明天起 3 天"（K43）。
    */
   function commitDebt() {
-    if (!debtKind || !debt) return;
-    const days: { date: string; items: PlannedExercise[] }[] = [];
-    for (let i = 0; i < debt.days; i++) {
-      days.push({
-        date: addDays(tomorrow, i),
-        items: [{ kind: debtKind, minutes: debtMin }],
-      });
-    }
-    onPlanMany(days);
+    if (!debt || !debt.days.length) return;
+    onPlanMany(
+      debt.days.map((d) => ({
+        date: d.date,
+        items: d.items.map((x) => ({ kind: x.kind, minutes: x.minutes })),
+      })),
+    );
     setDebtDone(true);
   }
 
@@ -253,7 +254,7 @@ export default function DaySummary({
       [0, 1, 2].map((i) => ({ date: addDays(tomorrow, i), items: [] })),
     );
     setDebtDone(false);
-    setDebtKind(null);
+    setDebtKinds([]);
   }
 
   const drinkText = drinksLabel(meals.flatMap((m) => m.drinks ?? []));
@@ -456,7 +457,7 @@ export default function DaySummary({
 
           {over > 0 ? (
             <>
-              {/* ---- 补账模式：今天超了多少，摊到明天起几天里 ---- */}
+              {/* ---- 补账模式：今天超了多少，挑几项补，尽量明天补完 ---- */}
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-[30px] font-bold leading-none tabular-nums text-[#b23c2c]">
                   {over}
@@ -466,60 +467,76 @@ export default function DaySummary({
                 </span>
               </div>
 
-              <p className="mt-2 text-[14px] font-medium">补回来要动多久，选一项</p>
+              <p className="mt-3 text-[14px] font-medium">补回来动什么，挑几项</p>
+              <Explain className="mt-0.5">
+                一项做两小时你坐不住，三样各半小时能做完 —— 卡路里一样，完成率高得多。
+              </Explain>
 
-              <PickExercise
+              <MultiPick
                 options={EXERCISES.filter(
-                  (d) => !(profile.diseases.includes("hypertension") && (d.kind === "jog" || d.kind === "rope")),
+                  (d) => !riskOf(d.kind, profile, weightKg),
                 ).map((d) => ({
                   kind: d.kind,
                   label: d.label,
                   icon: d.icon as IconName,
                 }))}
-                actionLabel="算一下"
-                showStepper={false}
-                onCommit={(kind) => pickDebt(kind)}
+                selected={debtKinds}
+                onToggle={toggleDebtKind}
               />
 
-              {debtKind && debt && (
+              {debt && debt.days.length > 0 && (
                 <div className="mt-2.5 rounded-xl border border-brand-500 bg-brand-50 p-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-[15px] font-medium">
-                      {debt.days === 1
-                        ? `明天 ${debtMin} 分钟`
-                        : debt.days === 2
-                          ? `明天、后天各 ${debtMin} 分钟`
-                          : `明天起 ${debt.days} 天，每天 ${debtMin} 分钟`}
-                    </span>
-                    <span className="shrink-0 text-[13px] tabular-nums text-ink-500">
-                      约 {debt.covered} 卡
-                    </span>
+                  <div className="space-y-2">
+                    {debt.days.map((d, i) => (
+                      <div key={d.date}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-[14px] font-semibold">
+                            {DAY_WORD[i] ?? d.date.slice(5)}
+                          </span>
+                          <span className="shrink-0 text-[12px] tabular-nums text-ink-500">
+                            约 {d.kcal} 卡
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[13px] leading-snug text-ink-700">
+                          {d.items
+                            .map((x) => nameOf(x) + " " + x.minutes + " 分钟")
+                            .join(" + ")}
+                        </p>
+                      </div>
+                    ))}
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="text-[13px] text-ink-500">每天改一下</span>
+                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-brand-500/20 pt-2.5">
+                    <span className="text-[13px] text-ink-500">每天最多动</span>
                     <Stepper
-                      value={debtMin}
+                      value={dayCap}
                       onChange={(v) => {
-                        setDebtMin(v);
+                        setDayCap(v);
                         setDebtDone(false);
                       }}
-                      min={5}
-                      max={90}
+                      min={30}
+                      max={120}
                     />
                   </div>
 
-                  {debt.leftover > 0 && (
-                    <p className="mt-2 text-[12px] leading-relaxed text-[#b23c2c]">
-                      还差 {debt.leftover} 卡 ——
-                      {debt.days >= 3
-                        ? "三天补不完。换一项快点的，或者这次就先这样。"
-                        : "把每天的时间加上去，或者多摊一天。"}
-                    </p>
-                  )}
+                  <p className="mt-2 text-[12px] leading-relaxed">
+                    {debt.leftover > 0 ? (
+                      <span className="text-[#b23c2c]">
+                        三天还差 {debt.leftover} 卡 —— 加一项强度大的，或者每天多动一会儿。
+                      </span>
+                    ) : debt.oneDay ? (
+                      <span className="text-brand-600">
+                        明天一天补完，约 {debt.covered} 卡。
+                      </span>
+                    ) : (
+                      <span className="text-brand-600">
+                        {debt.days.length} 天补完，共约 {debt.covered} 卡。
+                      </span>
+                    )}
+                  </p>
 
                   {planned.length > 0 && (
-                    <Explain className="mt-2 text-[12px] leading-relaxed text-ink-500">
+                    <Explain className="mt-1.5 text-ink-500">
                       明天原本定了 {planned.map(nameOf).join("、")}，定上会换掉。
                     </Explain>
                   )}
@@ -549,17 +566,21 @@ export default function DaySummary({
 
               {/* 说一句也行：只说运动类型，时间由上面算 */}
               <div className="mt-3 border-t border-black/[0.05] pt-2">
-                <p className="text-[12px] text-ink-300">不想挑？说一项也行</p>
+                <p className="text-[12px] text-ink-300">不想挑？说一句也行</p>
                 <ExerciseSay
                   actionLabel="算一下"
                   ariaLabel="用语音说明天想做什么运动"
-                  placeholder="游泳"
-                  footnote="只说运动类型就行，要动多久我来算。"
+                  placeholder="游泳和快走"
+                  footnote="一次能说几种，我按你说的分到每天。"
                   onSubmit={(items) => {
-                    if (items[0]) pickDebt(items[0].kind);
+                    const ks = items.map((p) => p.kind).filter((k) => k !== "other");
+                    if (!ks.length) return;
+                    setDebtKinds((prev) => [...new Set([...prev, ...ks])]);
+                    setDebtDone(false);
                   }}
                 />
               </div>
+
             </>
           ) : (
             <>
@@ -800,6 +821,52 @@ function PickExercise({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * 多选一格的运动网格。
+ *
+ * 和上面的 PickExercise 分开写，因为它们是两件事：
+ * 那个是"记今天做了什么"—— 选一项、填时长、立刻落库；
+ * 这个是"明天打算做哪几项"—— 只勾不填，时长交给补账算法去分。
+ * 合到一个组件里，两边状态会互相污染（勾了没定 vs 定了没勾）。
+ */
+function MultiPick({
+  options,
+  selected,
+  onToggle,
+}: {
+  options: { kind: ExerciseKind; label: string; icon: IconName }[];
+  selected: ExerciseKind[];
+  onToggle: (kind: ExerciseKind) => void;
+}) {
+  return (
+    <div className="mt-2.5 flex flex-wrap gap-1.5">
+      {options.map((o) => {
+        const on = selected.includes(o.kind);
+        return (
+          <button
+            key={o.kind}
+            onClick={() => onToggle(o.kind)}
+            aria-pressed={on}
+            className={`flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium transition active:scale-95 ${
+              on
+                ? "bg-brand-500 text-white"
+                : "bg-black/[0.04] text-ink-700 active:bg-black/[0.08]"
+            }`}
+          >
+            <Icon
+              name={o.icon}
+              size={15}
+              style={{ color: on ? "#ffffff" : "#5b6660" }}
+              className="shrink-0"
+            />
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

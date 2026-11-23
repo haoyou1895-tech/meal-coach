@@ -18,7 +18,7 @@ import { guessMealType, mealTypeLabel, todayStr } from "@/lib/nutrition";
 import { DRINK_CFG, DRINK_KINDS, drinkKcal } from "@/lib/drinks";
 import { TAG_CFG, TAG_LIST, saltGram, sodiumWithTags } from "@/lib/mealTags";
 import { PORTION_STEPS } from "@/lib/portion";
-import { ruleComment, ruleVerdict } from "@/lib/comment";
+import { MEAL_ADVICE_ON, ruleComment, ruleVerdict } from "@/lib/comment";
 import { putPhoto, getPhoto, deletePhoto } from "@/lib/photos";
 import { compress, makeThumb } from "@/lib/image";
 import { Sheet } from "./ui";
@@ -1252,6 +1252,7 @@ export default function CameraSheet({
             )}
           </div>
 
+          {MEAL_ADVICE_ON && (
           <div className="mt-4 rounded-2xl bg-brand-50 px-4 py-3.5">
             <div className="flex items-center gap-1.5">
               <Icon
@@ -1272,6 +1273,7 @@ export default function CameraSheet({
               </span>
             </div>
           </div>
+          )}
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <Macro

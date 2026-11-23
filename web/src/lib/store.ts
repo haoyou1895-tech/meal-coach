@@ -344,7 +344,14 @@ export function withPlanItems(
 ): AppState {
   const rest = s.exercisePlans.filter((p) => p.date !== date);
   if (!items.length) return { ...s, exercisePlans: rest };
-  return { ...s, exercisePlans: [{ date, items }, ...rest] };
+  // 按日期排：补账一次写三天时，新加的那天会 prepend 到最前面，
+  // 不排序的话存储里是"大后天、后天、明天"，读出来顺序是反的
+  return {
+    ...s,
+    exercisePlans: [{ date, items }, ...rest].sort((a, b) =>
+      a.date < b.date ? -1 : 1,
+    ),
+  };
 }
 
 export function withoutExercisePlan(s: AppState, date: string): AppState {

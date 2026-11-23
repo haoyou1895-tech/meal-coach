@@ -22,30 +22,35 @@
 import type { ExerciseLog, ExerciseKind, Profile } from "./types";
 
 /**
- * 运动图标一律取 Lucide（v0.469.0）里的现成图标，不自己画。
+ * 运动图标一律取 Tabler Icons（v3.24.0）里的现成图标，不自己画。
  *
- * 早先只有"走路 / 哑铃 / 心"三个图标做分组，十七项运动挤在三个符号上，
- * 看起来像同一件事 —— 而"游泳"和"家务"是两件事。
+ * 上一版用的是 Lucide，十七项运动只能挤在十二个符号上："快走/散步"共用脚印、
+ * "慢跑/健身操"共用一条心跳线、"羽毛球/乒乓球"共用同一个圆点。
+ * 用户拿截图来问"这些含义不符合" —— 他说得对，那不是省事，那是没画。
  *
- * 但也不能十七项各画一个：乒乓球和羽毛球的区别，24px 下画不出来，
- * 硬画只会得到两个都看不懂的方块。
- * 所以按"动作方式"分配，同一种方式共用图标（快走和散步都是脚印），
- * 靠旁边的中文名区分 —— 图标是索引，不是名词。
+ * 换成 Tabler 之后每一项都有自己的图标：跑步的人、一双鞋、瑜伽、伸展、
+ * 跳绳、乒乓拍、带线的网球拍、拳架、杠铃、台阶、刷子、火苗。
+ * 只有"其他运动"用火苗兜底，因为那时确实不知道是什么。
  */
 export type ExerciseIcon =
-  | "footprints"
-  | "bike"
-  | "waves"
-  | "trendingUp"
-  | "personStanding"
-  | "music"
-  | "circleDot"
-  | "dumbbell"
-  | "mountain"
-  | "zap"
-  | "activity"
-  | "sprayCan"
-  | "move";
+  | "exWalk"
+  | "exShoe"
+  | "exRun"
+  | "exBike"
+  | "exSwim"
+  | "exStairs"
+  | "exKarate"
+  | "exMusic"
+  | "exTennis"
+  | "exBarbell"
+  | "exBrush"
+  | "exYoga"
+  | "exStretch"
+  | "exPingpong"
+  | "exMountain"
+  | "exRope"
+  | "exHeartbeat"
+  | "exFlame";
 
 export interface ExerciseDef {
   kind: ExerciseKind;
@@ -81,7 +86,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "快走",
     met: 4.3,
     defaultMin: 40,
-    icon: "footprints",
+    icon: "exWalk",
     note: "最省事的一种，出门就能做",
     jointSafe: true,
     },
@@ -90,7 +95,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "散步",
     met: 3.0,
     defaultMin: 40,
-    icon: "footprints",
+    icon: "exShoe",
     note: "饭后溜达，主要是让血糖别蹿太快",
     jointSafe: true,
     },
@@ -99,7 +104,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "慢跑",
     met: 7.0,
     defaultMin: 30,
-    icon: "activity",
+    icon: "exRun",
     note: "同样时间消耗最大，但别一上来就冲",
     caution: "血压没控好的时候先别跑，改成快走",
     },
@@ -108,7 +113,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "骑车",
     met: 6.8,
     defaultMin: 40,
-    icon: "bike",
+    icon: "exBike",
     note: "膝盖不吃力，通勤路上就能完成",
     jointSafe: true,
     },
@@ -117,7 +122,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "游泳",
     met: 6.0,
     defaultMin: 30,
-    icon: "waves",
+    icon: "exSwim",
     note: "对关节最友好的有氧",
     jointSafe: true,
     },
@@ -126,7 +131,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "爬楼",
     met: 5.0,
     defaultMin: 15,
-    icon: "trendingUp",
+    icon: "exStairs",
     note: "十几分钟就顶得上散步半小时",
     caution: "下楼伤膝盖，坐电梯下来",
     },
@@ -135,7 +140,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "太极",
     met: 3.0,
     defaultMin: 40,
-    icon: "personStanding",
+    icon: "exKarate",
     note: "消耗不大，但对血压和平衡是真有用",
     jointSafe: true,
     },
@@ -144,7 +149,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "广场舞",
     met: 4.5,
     defaultMin: 40,
-    icon: "music",
+    icon: "exMusic",
     note: "能坚持下来的运动才算运动",
     jointSafe: true,
     },
@@ -153,7 +158,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "羽毛球",
     met: 5.5,
     defaultMin: 40,
-    icon: "circleDot",
+    icon: "exTennis",
     note: "有来有回，比一个人练容易坚持",
     },
   {
@@ -161,7 +166,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "力量训练",
     met: 3.5,
     defaultMin: 25,
-    icon: "dumbbell",
+    icon: "exBarbell",
     note: "减重时保住肌肉，靠的是这个",
     caution: "发力时呼气，别憋着劲举",
     },
@@ -170,7 +175,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "家务",
     met: 3.3,
     defaultMin: 40,
-    icon: "sprayCan",
+    icon: "exBrush",
     note: "拖地擦窗也算，不用换衣服",
     jointSafe: true,
     },
@@ -179,7 +184,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "瑜伽",
     met: 2.5,
     defaultMin: 40,
-    icon: "personStanding",
+    icon: "exYoga",
     note: "消耗不大，主要是让人肯躺下来放松",
     jointSafe: true,
     },
@@ -188,7 +193,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "八段锦",
     met: 3.0,
     defaultMin: 20,
-    icon: "personStanding",
+    icon: "exStretch",
     note: "十几分钟一套，比太极门槛低，在家就能做",
     jointSafe: true,
     },
@@ -197,7 +202,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "乒乓球",
     met: 4.0,
     defaultMin: 40,
-    icon: "circleDot",
+    icon: "exPingpong",
     note: "有对手才打得起来，强度全看对面",
     jointSafe: true,
     },
@@ -206,7 +211,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "爬山",
     met: 6.0,
     defaultMin: 60,
-    icon: "mountain",
+    icon: "exMountain",
     note: "一次顶好几次散步，但下来那半天腿是废的",
     caution: "下山对膝盖的冲击最大，有登山杖就用上",
     },
@@ -215,7 +220,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "跳绳",
     met: 10.0,
     defaultMin: 10,
-    icon: "zap",
+    icon: "exRope",
     note: "十分钟就出汗，性价比最高的有氧",
     caution: "体重偏大的先别跳，膝盖承受不住",
     },
@@ -224,7 +229,7 @@ export const EXERCISES: ExerciseDef[] = [
     label: "健身操",
     met: 6.5,
     defaultMin: 30,
-    icon: "activity",
+    icon: "exHeartbeat",
     note: "跟着视频就能做，比一个人硬练有意思",
     },
 ];
@@ -239,7 +244,7 @@ export const OTHER_DEF: ExerciseDef = {
   label: "其他运动",
   met: 4.0,
   defaultMin: 30,
-  icon: "move",
+  icon: "exFlame",
   note: "没对上名字，按中等强度估的",
 };
 
@@ -329,9 +334,15 @@ export function kcalPerMin(kind: ExerciseKind, weightKg: number): number {
 
 /* ---------- 把今天超支的，摊到明天开始补 ---------- */
 
-export interface DebtSlice {
-  date: string;
+export interface DebtItem {
+  kind: ExerciseKind;
   minutes: number;
+  kcal: number;
+}
+
+export interface DebtDay {
+  date: string;
+  items: DebtItem[];
   kcal: number;
 }
 
@@ -339,71 +350,164 @@ export interface DebtPlan {
   /** 要补回去的大卡（今天超支的数） */
   total: number;
   /** 排进计划的每一天 */
-  slices: DebtSlice[];
+  days: DebtDay[];
   /** 这几天的估算消耗合计 */
   covered: number;
   /** 排不下、补不完的部分 */
   leftover: number;
-  /** 单日上限 */
-  capMin: number;
-  /** 每分钟多少大卡，用来说明"这项够不够快" */
-  perMin: number;
+  /** 每天最多动多久 */
+  dayCap: number;
+  /** 一天就补完了 */
+  oneDay: boolean;
 }
 
 /**
- * 今天超了 500，明天要动多久。
+ * 一项运动"一次做多久算合理"。
  *
- * 这条规则是用户明确要的：他不想听"明天注意点"，他要一个能打勾的数。
- * 但它和 ADR-004「运动不换饭」的边界必须划清，否则就变成赎罪：
+ * 这不是能力上限，是"今天真会做"的上限：跳绳给 30 分钟，他看一眼就不做了。
+ * 取默认时长的 2 倍，卡在 15–90 分钟之间。
  *
- * 1. **只往前摊，不往回抵**。今天超的 500，不会让今天的环变大 ——
- *    今天的账已经封了口。补的这几天，动掉的是"已经吃进肚子的"，
- *    不是"再换一顿"。
- * 2. **单日封顶 45 分钟**。这是 46 岁、血压偏高、平时不太动的人能承受的上限。
- *    写 120 分钟，他第一天就不会开始，而没开始的计划消耗是 0。
- * 3. **最多摊 3 天，摊不完就说摊不完**。硬凑四天、五天，
- *    等于把一次晚饭的代价变成一个星期的刑期。
- * 4. **均分，不搞"先苦后甜"**。第一天 45 第二天 20，
- *    他会觉得被算计；每天一样长，才像一件事。
+ * 为什么是 2 倍而不是 1.5 倍：1.5 倍之下，游泳只到 45 分钟、快走到 60 分钟，
+ * 444 大卡的账一项都补不完，任何组合都被迫摊成两天 ——
+ * 而"摊成两天"正是用户明确不想要的。游泳一小时、快走一小时二十分，
+ * 都是正常人做得完的量。
+ */
+export function sessionCap(kind: ExerciseKind): number {
+  const def = exerciseDef(kind);
+  const raw = Math.round((def.defaultMin * 2) / 5) * 5;
+  return Math.min(90, Math.max(15, raw));
+}
+
+/**
+ * 在一天之内，把 needKcal 分给这几项运动。
  *
- * 瑜伽这类温和项目，三天 135 分钟也补不完 500 —— 那就如实报 leftover，
- * 让他自己决定是换一项，还是接受"这次补不完"。
+ * 分配规则，三句话：
+ * 1. 每项先给 15 分钟 —— 他既然勾了这项，就是想做，不是来陪跑的。
+ * 2. 剩下的缺口交给"每分钟最划算"的那项往上加，加到它的单次上限为止，再换下一项。
+ *    想让 500 大卡在一天里补完，只能靠强度，靠堆时长会堆出三小时。
+ * 3. 加到当天总时长上限就停，装不下的留给下一天。
+ */
+function fillOneDay(
+  needKcal: number,
+  kinds: ExerciseKind[],
+  weightKg: number,
+  dayCap: number,
+): DebtItem[] {
+  const uniq = [...new Set(kinds)];
+  const defs = uniq
+    .map((k) => ({ kind: k, perMin: kcalPerMin(k, weightKg), cap: sessionCap(k) }))
+    .filter((d) => d.perMin > 0)
+    .sort((a, b) => b.perMin - a.perMin);
+  if (!defs.length || needKcal <= 0) return [];
+
+  // 一、每项 10 分钟起步。为什么不是 15：选了三四项时，15 分钟起步
+  // 就把当天大半额度占掉了，剩下那点只能给第一项，其余几项变成陪跑。
+  // 10 分钟是"做了"的最小单位，剩下的按效率分 —— 谁划算谁多担。
+  const mins = defs.map(() => 10);
+  let used = 10 * mins.length;
+  if (used > dayCap) {
+    const k = dayCap / used;
+    for (let i = 0; i < mins.length; i++) {
+      mins[i] = Math.max(5, Math.round((mins[i] * k) / 5) * 5);
+    }
+    used = mins.reduce((s2, m) => s2 + m, 0);
+  }
+
+  let kcal = mins.reduce((s2, m, i) => s2 + m * defs[i].perMin, 0);
+
+  // 二、缺口按效率从高到低补
+  for (let i = 0; i < defs.length; i++) {
+    if (kcal >= needKcal || used >= dayCap) break;
+    const d = defs[i];
+    const room = Math.min(d.cap - mins[i], dayCap - used);
+    if (room <= 0) continue;
+    // 向上取到 5 分钟：算出来 37 分钟，没人照着做
+    const want = Math.ceil((needKcal - kcal) / d.perMin / 5) * 5;
+    const add = Math.min(room, want);
+    if (add <= 0) continue;
+    mins[i] += add;
+    used += add;
+    kcal += add * d.perMin;
+  }
+
+  /*
+    差一点点就补完的，别为它另开一天。
+    444 卡补到 421，剩下 23 卡就是快走五分钟 ——
+    让人为这五分钟明天再来一趟，他会觉得这软件在耍他。
+    允许突破当天上限 5 分钟收尾，把账在一次里结清。
+  */
+  const gap = needKcal - kcal;
+  if (gap > 0 && gap <= defs[0].perMin * 5) {
+    mins[0] += 5;
+    kcal += defs[0].perMin * 5;
+  }
+
+  return defs
+    .map((d, i) => ({
+      kind: d.kind,
+      minutes: mins[i],
+      kcal: Math.round(mins[i] * d.perMin),
+    }))
+    .filter((x) => x.minutes > 0 && x.kcal > 0);
+}
+
+/**
+ * 今天超了 500，明天要动多久、动什么。
+ *
+ * 这一版的规则是用户定的，原话：**"很多用户都很心急，除非今天过于超标，
+ * 不然都尽量让他在明天一天之内把额度补回来"**。所以：
+ *
+ * 1. **一天优先**。默认单日上限 75 分钟，只要装得下就全排明天。
+ *    前一天 45 分钟的封顶太小气 —— 444 大卡用快走要 104 分钟，永远摊成三天，
+ *    而三天是最容易断的：第一天没做完，后面两天就不作了。
+ * 2. **装不下才往后摊**，最多 3 天，摊不完就说摊不完。
+ * 3. **可以选几种一起做**。组合不是花活：一项做 75 分钟他坐不住，
+ *    两三项各做三四十分钟，同样的卡路里，完成的概率高得多。
+ * 4. **只往前摊，不往回抵**。今天超的 500，不会让今天的环变大 ——
+ *    补的这几天，动掉的是"已经吃进肚子的"，不是"再换一顿"。
+ *
+ * 这个"一天优先"和 ADR-004「运动不换饭」不冲突：改的只是"还账排几天"，
+ * 没有把运动折成今天能多吃的额度。见 ADR-018。
  */
 export function spreadDebt(
   overKcal: number,
-  kind: ExerciseKind,
+  kinds: ExerciseKind[],
   weightKg: number,
   startDate: string,
-  capMin = 45,
+  dayCap = 75,
   maxDays = 3,
 ): DebtPlan {
   const total = Math.max(0, Math.round(overKcal));
-  const perMin = kcalPerMin(kind, weightKg);
+  const empty: DebtPlan = {
+    total,
+    days: [],
+    covered: 0,
+    leftover: total,
+    dayCap,
+    oneDay: false,
+  };
+  if (total <= 0 || !kinds.length || weightKg <= 0) return empty;
 
-  if (total <= 0 || perMin <= 0) {
-    return { total, slices: [], covered: 0, leftover: total, capMin, perMin };
+  const days: DebtDay[] = [];
+  let remaining = total;
+
+  for (let i = 0; i < maxDays && remaining > 0; i++) {
+    const items = fillOneDay(remaining, kinds, weightKg, dayCap);
+    if (!items.length) break;
+    const kcal = items.reduce((s2, x) => s2 + x.kcal, 0);
+    if (kcal <= 0) break;
+    days.push({ date: shiftDate(startDate, i), items, kcal });
+    remaining -= kcal;
   }
 
-  const need = total / perMin;
-  const days = Math.min(maxDays, Math.max(1, Math.ceil(need / capMin)));
-  // 均分，再向上取到 5 分钟 —— "37 分钟"这种数没人会照着做
-  let each = Math.ceil(need / days / 5) * 5;
-  if (each > capMin) each = capMin;
-
-  const slices: DebtSlice[] = Array.from({ length: days }, (_, i) => ({
-    date: shiftDate(startDate, i),
-    minutes: each,
-    kcal: Math.round(each * perMin),
-  }));
-
-  const covered = slices.reduce((s, x) => s + x.kcal, 0);
+  const covered = days.reduce((s2, d) => s2 + d.kcal, 0);
   return {
     total,
-    slices,
+    days,
     covered,
     leftover: Math.max(0, total - covered),
-    capMin,
-    perMin,
+    dayCap,
+    oneDay: days.length === 1,
   };
 }
 

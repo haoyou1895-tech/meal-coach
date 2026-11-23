@@ -34,18 +34,6 @@ import { Sheet, Stepper } from "./ui";
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
-/**
- * 一周柱状图的配色：越晚吃颜色越深（顺序即强度），酒单独一档。
- * 不用四种彩色，是不想让"颜色"变成需要背的图例。
- */
-const MEAL_SHADE: Record<string, string> = {
-  breakfast: "#b6d4c2",
-  lunch: "#6ea98a",
-  dinner: "#1f8a5b",
-  snack: "#c9cfcb",
-  drink: "#c4694a",
-};
-
 /** 这顿是几点吃的。旧记录没有 eatenAt，退回记录时刻 */
 function mealTime(m: Meal): string {
   const raw = m.eatenAt ?? m.createdAt;
@@ -387,29 +375,22 @@ export default function RecordView({
 
   const last7 = useMemo(() => dateList(7).reverse(), []);
   /**
-   * 一天一根柱子看不出"哪顿吃爆了"。改成按餐次叠起来，
-   * 一眼能看到是午饭高还是晚饭高。
+   * 一天一根柱子，一根柱子一个颜色。
    *
-   * 酒不单独一档 —— 它就是那一顿的一部分，跟半碗米饭一样。
-   * 以前给它一个独立颜色，等于在"早/午/晚"之外又立了第四类。
+   * 上一版按餐次叠成四个色块（早浅绿 / 午中绿 / 晚深绿 / 加灰），
+   * 想让人看出"哪顿吃爆了"。但这一眼要问的是**这一周吃得怎么样**，
+   * 不是"今天午饭比晚饭多多少" —— 后者在下面"吃过的"列表里本来就有。
+   * 四个色块等于给图装了一个需要背的图例，而它回答的不是这个图该回答的问题。
+   *
+   * 现在的颜色只表达一件事：这天超没超预算。
    */
   const dailyKcal = useMemo(
     () =>
       last7.map((d) => {
-        const list = meals.filter((m) => m.date === d);
-        const parts = (
-          ["breakfast", "lunch", "dinner", "snack"] as MealType[]
-        )
-          .map((t) => ({
-            key: t as string,
-            kcal: list
-              .filter((m) => m.mealType === t)
-              .reduce((s, m) => s + m.nutrition.kcal + drinkKcal(m.drinks), 0),
-          }))
-          .filter((p) => p.kcal > 0);
-        // 柱子高度和色块总和必须是同一个数，否则色块会从柱子里冒出来
-        const kcal = parts.reduce((s, p) => s + p.kcal, 0);
-        return { date: d, kcal, parts };
+        const kcal = meals
+          .filter((m) => m.date === d)
+          .reduce((s, m) => s + m.nutrition.kcal + drinkKcal(m.drinks), 0);
+        return { date: d, kcal };
       }),
     [last7, meals],
   );
@@ -567,11 +548,12 @@ export default function RecordView({
                 />
               );
             })}
-            {dailyKcal.map((d) => {
+            {dailyKcal.map((d, i) => {
               const barH =
                 d.kcal === 0
                   ? 4
                   : Math.max(8, Math.round((d.kcal / maxKcal) * 104));
+              const overDay = d.kcal > 0 && d.kcal > budgets[i];
               return (
                 <button
                   key={d.date}
@@ -585,22 +567,13 @@ export default function RecordView({
                     {d.kcal > 0 ? d.kcal : ""}
                   </span>
                   <div
-                    className="flex w-full flex-col-reverse overflow-hidden rounded-md transition-all duration-500 active:opacity-60"
+                    className="w-full rounded-md transition-all duration-500 active:opacity-60"
                     style={{
                       height: barH,
-                      background: d.kcal === 0 ? "#e7eae8" : undefined,
+                      background:
+                        d.kcal === 0 ? "#e7eae8" : overDay ? "#c4694a" : "#3f9d74",
                     }}
-                  >
-                    {d.parts.map((p) => (
-                      <div
-                        key={p.key}
-                        style={{
-                          height: `${(p.kcal / Math.max(1, d.kcal)) * 100}%`,
-                          background: MEAL_SHADE[p.key] ?? "#8fae9c",
-                        }}
-                      />
-                    ))}
-                  </div>
+                  />
                 </button>
               );
             })}
@@ -616,20 +589,14 @@ export default function RecordView({
             ))}
           </div>
           <div className="mt-2.5 flex items-center gap-2.5 border-t border-black/[0.05] pt-2.5 text-[12px] text-ink-300">
-            {[
-              ["早", MEAL_SHADE.breakfast],
-              ["午", MEAL_SHADE.lunch],
-              ["晚", MEAL_SHADE.dinner],
-              ["加", MEAL_SHADE.snack],
-            ].map(([label, color]) => (
-              <span key={label} className="flex items-center gap-1">
-                <span
-                  className="h-2 w-2 rounded-[2px]"
-                  style={{ background: color }}
-                />
-                {label}
-              </span>
-            ))}
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-[2px]" style={{ background: "#3f9d74" }} />
+              当天总量
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-[2px]" style={{ background: "#c4694a" }} />
+              超了
+            </span>
             {/* 不写“预算随运动量变”这种解释，直接给一个同款虚线样例，看图就懂 */}
             <span className="ml-auto flex items-center gap-1">
               <span className="w-3.5 border-t border-dashed border-warn-500/70" />

@@ -17,7 +17,7 @@ import {
   sumMeals,
   todayStr,
 } from "@/lib/nutrition";
-import { dayStatusText, ruleVerdict, type Verdict } from "@/lib/comment";
+import { MEAL_ADVICE_ON, dayStatusText, ruleVerdict, type Verdict } from "@/lib/comment";
 import { macroWarnings, habitTimes, mealReminder, nextMealAdvice } from "@/lib/advice";
 import {
   alcoholVerdict,
@@ -1002,7 +1002,7 @@ export default function HomeView({
                     </div>
                   )}
 
-                  {v && verdictOnce.has(m.id) && (
+                  {MEAL_ADVICE_ON && v && verdictOnce.has(m.id) && (
                     <div className="mt-2.5 flex items-center gap-1.5 border-t border-black/[0.05] pt-2.5">
                       <Icon
                         name={v.icon as IconName}
