@@ -112,8 +112,9 @@ await page.waitForFunction(
 );
 await sleep(300);
 
-const inCard = (label) =>
-  page.evaluate((label) => {
+const body = () => page.evaluate(() => document.body.innerText);
+
+const inCard = (label) =>  page.evaluate((label) => {
     const p = [...document.querySelectorAll("p")].find((x) =>
       x.innerText.includes("补回来动什么"),
     );
@@ -213,6 +214,57 @@ const tai = plan.flatMap((p) => p.items).find((i) => i.kind === "taiji");
 check("按分钟的项目不重复存 amount", tai ? tai.amount === null : false, JSON.stringify(tai));
 
 await page.screenshot({ path: path.join(OUT, "mk-03-saved.png") });
+
+/* 小账不排运动：超 13 卡不该让他去骑 1.3 公里 */
+const budgetText = await body();
+const budget = Number((budgetText.match(/预算 (\d+) 大卡/) || [])[1] || 0);
+check("读到了明天预算", budget > 0, `${budget} 大卡`);
+
+const page2 = await browser.newPage();
+await page2.evaluateOnNewDocument(
+  (profile, meals) => {
+    localStorage.setItem(
+      "mealcoach.v1",
+      JSON.stringify({
+        profile,
+        meals,
+        weights: [],
+        activities: [],
+        exercises: [],
+        closedDays: [],
+        exercisePlans: [],
+        onboarded: true,
+      }),
+    );
+  },
+  PROFILE,
+  [
+    meal("s1", "breakfast", Math.round((budget + 13) / 2), "08"),
+    meal("s2", "lunch", Math.round((budget + 13) / 2), "12"),
+  ],
+);
+await page2.goto(BASE, { waitUntil: "networkidle0" });
+await sleep(1200);
+await page2.evaluate(() => {
+  [...document.querySelectorAll("button")]
+    .find((b) => b.innerText.trim().replace(/\s/g, "") === "动")
+    ?.click();
+});
+await page2.waitForFunction(() => document.body.innerText.includes("明天"), {
+  timeout: 8000,
+});
+await sleep(400);
+const small = await page2.evaluate(() => document.body.innerText);
+check(
+  "超 13 卡不给补账面板",
+  !small.includes("补回来动什么"),
+  small.split("\n").find((l) => l.includes("误差")) ?? "没找到说明",
+);
+check(
+  "改成一句话说清楚",
+  small.includes("这点差额在估算误差里"),
+);
+await page2.screenshot({ path: path.join(OUT, "mk-04-small.png") });
 
 await browser.close();
 console.log(fails ? `\n${fails} 项没过` : "\n全过");

@@ -8,6 +8,7 @@ import ExerciseSay from "./ExerciseSay";
 import type { ParsedExercise } from "@/lib/exerciseParse";
 import {
   EXERCISES,
+  MIN_DEBT_KCAL,
   adviceOf,
   adviseTomorrow,
   amountFromMinutes,
@@ -450,7 +451,8 @@ export default function MoveView({
             </span>
           </div>
 
-          {over > 0 ? (
+          {/* 十几二十卡的账不排运动：最小的一次都顶出两三倍，比这笔账本身还大 */}
+          {over >= MIN_DEBT_KCAL ? (
             <>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-[30px] font-bold leading-none tabular-nums text-[#b23c2c]">
@@ -521,7 +523,7 @@ export default function MoveView({
                   <p className="mt-2.5 border-t border-brand-500/20 pt-2.5 text-[12px] leading-relaxed">
                     {debtKcal >= over ? (
                       <span className="text-brand-600">
-                        这些动完约 {debtKcal} 卡，抵掉今天多的 {over} 卡。
+                        这些动完约 {debtKcal} 卡，够抵今天多的 {over} 卡。
                       </span>
                     ) : (
                       <span className="text-[#b23c2c]">
@@ -582,6 +584,12 @@ export default function MoveView({
               {/* 这里原来有一句"明天这几项，打开就在这一页上" ——
                   卡片标题已经写了"明天"，这句只是把标题又说了一遍（H21）。
                   排好的项目本来就看得见，不用解释。 */}
+
+              {over > 0 && (
+                <p className="mt-1.5 text-[13px] leading-relaxed text-ink-500">
+                  今天多 {over} 卡，这点差额在估算误差里，不用专门动一次。
+                </p>
+              )}
 
               <Explain>
                 建议 {suggest.minutes} 分钟 —— {suggest.why}
