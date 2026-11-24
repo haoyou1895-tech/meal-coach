@@ -280,7 +280,7 @@ export default function MoveView({
             >
               <span className="flex items-center gap-1.5 text-[15px] font-medium text-brand-600">
                 <Icon name={showAdd ? "close" : "plus"} size={14} />
-                {showAdd ? "收起" : "加一项"}
+                {showAdd ? "收起" : "添加"}
               </span>
               {!showAdd && (
                 <span className="text-[12px] text-ink-300">
@@ -356,11 +356,7 @@ export default function MoveView({
               <span className="text-[15px] font-semibold text-brand-700">
                 今天要做的
               </span>
-              <span className="text-[12px] text-brand-600/70">
-                {doneKinds.size > 0 && todo.some((t) => doneKinds.has(keyOf(t)))
-                  ? "做完就记上"
-                  : "昨天定的"}
-              </span>
+              <span className="text-[12px] text-brand-600/70">昨天定的</span>
             </div>
             <div className="mt-2 space-y-1.5">
               {todo.map((t) => {
@@ -389,7 +385,7 @@ export default function MoveView({
                         onClick={() => onAddExercises([{ kind: t.kind, minutes: t.minutes }])}
                         className="h-8 shrink-0 rounded-lg bg-brand-500 px-3 text-[13px] font-medium text-white active:scale-95"
                       >
-                        记上
+                        确定
                       </button>
                     )}
                   </div>
@@ -476,7 +472,7 @@ export default function MoveView({
                   <p className="mt-2 text-[12px] leading-relaxed">
                     {debt.leftover > 0 ? (
                       <span className="text-[#b23c2c]">
-                        三天还差 {debt.leftover} 卡 —— 加一项强度大的，或者每天多动一会儿。
+                        三天还差 {debt.leftover} 卡 —— 换一项强度大的，或者每天多动一会儿。
                       </span>
                     ) : debt.oneDay ? (
                       <span className="text-brand-600">
@@ -521,7 +517,7 @@ export default function MoveView({
 
               {/* 说一句也行：只说运动类型，时间由上面算 */}
               <div className="mt-3 border-t border-black/[0.05] pt-2">
-                <p className="text-[12px] text-ink-300">不想挑？说一句也行</p>
+                <p className="text-[12px] text-ink-300">说一句也行</p>
                 <ExerciseSay
                   actionLabel="确定"
                   ariaLabel="用语音说明天想做什么运动"
@@ -537,11 +533,9 @@ export default function MoveView({
             </>
           ) : (
             <>
-              {planned.length > 0 && (
-                <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
-                  明天这几项，打开就在这一页上。
-                </p>
-              )}
+              {/* 这里原来有一句"明天这几项，打开就在这一页上" ——
+                  卡片标题已经写了"明天"，这句只是把标题又说了一遍（H21）。
+                  排好的项目本来就看得见，不用解释。 */}
 
               <Explain>
                 建议 {suggest.minutes} 分钟 —— {suggest.why}
@@ -599,11 +593,7 @@ export default function MoveView({
               >
                 <span className="flex items-center gap-1.5 text-[15px] font-medium text-brand-600">
                   <Icon name={planOpen ? "close" : "plus"} size={14} />
-                  {planOpen
-                    ? "收起"
-                    : planned.length > 0
-                      ? "再排一项"
-                      : "明天做点什么"}
+                  {planOpen ? "收起" : "添加"}
                 </span>
                 {!planOpen && (
                   <span className="text-[12px] text-ink-300">说一句也行</span>

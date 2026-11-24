@@ -1247,7 +1247,7 @@ export default function CameraSheet({
                 className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-ink-300/40 py-3 text-[15px] text-ink-400 active:scale-[0.99]"
               >
                 <Icon name="alcohol" size={16} />
-                {drinks.length > 0 ? "再加一种" : "加了酒"}
+                {drinks.length > 0 ? "添加" : "加了酒"}
               </button>
             )}
           </div>

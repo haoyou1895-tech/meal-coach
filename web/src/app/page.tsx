@@ -291,7 +291,7 @@ export default function Page() {
                   strokeWidth="1.8"
                 />
               </svg>
-              {closed ? "再记一顿" : "拍一张，记一餐"}
+              记一餐
             </button>
           )}
 
