@@ -80,6 +80,13 @@ export interface NutritionPlan {
 export interface PlannedExercise {
   kind: ExerciseKind;
   minutes: number;
+  /**
+   * 他自己填的量，单位按项目走（公里 / 个 / 分钟）。
+   *
+   * 为什么计划里也要存：他定的是"明天跑 5 公里"，不是"明天跑 37 分钟"。
+   * 老计划没有这个字段，显示时退回 minutes —— 所以只能新增、不能改名（H2）。
+   */
+  amount?: number;
   /** kind=other 时的原词 */
   label?: string;
 }

@@ -467,183 +467,46 @@ export function kcalPerMin(kind: ExerciseKind, weightKg: number): number {
   return ((exerciseDef(kind).met - 1) * weightKg) / 60;
 }
 
-/* ---------- 把今天超支的，摊到明天开始补 ---------- */
-
-export interface DebtItem {
-  kind: ExerciseKind;
-  minutes: number;
-  kcal: number;
-}
-
-export interface DebtDay {
-  date: string;
-  items: DebtItem[];
-  kcal: number;
-}
-
-export interface DebtPlan {
-  /** 要补回去的大卡（今天超支的数） */
-  total: number;
-  /** 排进计划的每一天 */
-  days: DebtDay[];
-  /** 这几天的估算消耗合计 */
-  covered: number;
-  /** 排不下、补不完的部分 */
-  leftover: number;
-  /** 每天最多动多久 */
-  dayCap: number;
-  /** 一天就补完了 */
-  oneDay: boolean;
-}
+/* ---------- 补账：他自己填量，系统只负责换算 ---------- */
 
 /**
- * 一项运动"一次做多久算合理"。
+ * 补账时一项运动的默认量。
  *
- * 这不是能力上限，是"今天真会做"的上限：跳绳给 30 分钟，他看一眼就不做了。
- * 取默认时长的 2 倍，卡在 15–90 分钟之间。
+ * 上一版是每项固定 10 分钟起步，用户拿截图来问"为啥默认全是 10 分钟"。
+ * 那 10 分钟不是算出来的，是算法为了让"每项都占一份"硬凑的，
+ * 跟这笔账没关系：超 13 大卡也能排出 277 大卡的组合。
  *
- * 为什么是 2 倍而不是 1.5 倍：1.5 倍之下，游泳只到 45 分钟、快走到 60 分钟，
- * 444 大卡的账一项都补不完，任何组合都被迫摊成两天 ——
- * 而"摊成两天"正是用户明确不想要的。游泳一小时、快走一小时二十分，
- * 都是正常人做得完的量。
+ * 现在默认值照这笔账平摊：这笔账分给几项，每项就只给够它那一份的量；
+ * 不低于这一项的最小单位，也不超过"他真会做"的默认时长。
+ * 往上加是他自己在加，不是系统替他加。
  */
-export function sessionCap(kind: ExerciseKind): number {
-  const def = exerciseDef(kind);
-  const raw = Math.round((def.defaultMin * 2) / 5) * 5;
-  return Math.min(90, Math.max(15, raw));
-}
-
-/**
- * 在一天之内，把 needKcal 分给这几项运动。
- *
- * 分配规则，三句话：
- * 1. 每项先给 15 分钟 —— 他既然勾了这项，就是想做，不是来陪跑的。
- * 2. 剩下的缺口交给"每分钟最划算"的那项往上加，加到它的单次上限为止，再换下一项。
- *    想让 500 大卡在一天里补完，只能靠强度，靠堆时长会堆出三小时。
- * 3. 加到当天总时长上限就停，装不下的留给下一天。
- */
-function fillOneDay(
-  needKcal: number,
-  kinds: ExerciseKind[],
+export function makeupDefaultAmount(
+  kind: ExerciseKind,
   weightKg: number,
-  dayCap: number,
-): DebtItem[] {
-  const uniq = [...new Set(kinds)];
-  const defs = uniq
-    .map((k) => ({ kind: k, perMin: kcalPerMin(k, weightKg), cap: sessionCap(k) }))
-    .filter((d) => d.perMin > 0)
-    .sort((a, b) => b.perMin - a.perMin);
-  if (!defs.length || needKcal <= 0) return [];
-
-  // 一、每项 10 分钟起步。为什么不是 15：选了三四项时，15 分钟起步
-  // 就把当天大半额度占掉了，剩下那点只能给第一项，其余几项变成陪跑。
-  // 10 分钟是"做了"的最小单位，剩下的按效率分 —— 谁划算谁多担。
-  const mins = defs.map(() => 10);
-  let used = 10 * mins.length;
-  if (used > dayCap) {
-    const k = dayCap / used;
-    for (let i = 0; i < mins.length; i++) {
-      mins[i] = Math.max(5, Math.round((mins[i] * k) / 5) * 5);
-    }
-    used = mins.reduce((s2, m) => s2 + m, 0);
-  }
-
-  let kcal = mins.reduce((s2, m, i) => s2 + m * defs[i].perMin, 0);
-
-  // 二、缺口按效率从高到低补
-  for (let i = 0; i < defs.length; i++) {
-    if (kcal >= needKcal || used >= dayCap) break;
-    const d = defs[i];
-    const room = Math.min(d.cap - mins[i], dayCap - used);
-    if (room <= 0) continue;
-    // 向上取到 5 分钟：算出来 37 分钟，没人照着做
-    const want = Math.ceil((needKcal - kcal) / d.perMin / 5) * 5;
-    const add = Math.min(room, want);
-    if (add <= 0) continue;
-    mins[i] += add;
-    used += add;
-    kcal += add * d.perMin;
-  }
-
-  /*
-    差一点点就补完的，别为它另开一天。
-    444 卡补到 421，剩下 23 卡就是快走五分钟 ——
-    让人为这五分钟明天再来一趟，他会觉得这软件在耍他。
-    允许突破当天上限 5 分钟收尾，把账在一次里结清。
-  */
-  const gap = needKcal - kcal;
-  if (gap > 0 && gap <= defs[0].perMin * 5) {
-    mins[0] += 5;
-    kcal += defs[0].perMin * 5;
-  }
-
-  return defs
-    .map((d, i) => ({
-      kind: d.kind,
-      minutes: mins[i],
-      kcal: Math.round(mins[i] * d.perMin),
-    }))
-    .filter((x) => x.minutes > 0 && x.kcal > 0);
+  shareKcal: number,
+): number {
+  const m = metricOf(kind);
+  const perMin = kcalPerMin(kind, weightKg);
+  // 一份账要多少分钟。算不出来（体重没填）就退回这一项的默认时长
+  const raw = perMin > 0 ? shareKcal / perMin : exerciseDef(kind).defaultMin;
+  const mins = Math.min(
+    exerciseDef(kind).defaultMin,
+    Math.max(5, Math.ceil(raw / 5) * 5),
+  );
+  if (m.unit === "min") return mins;
+  return amountFromMinutes(kind, mins);
 }
 
 /**
- * 今天超了 500，明天要动多久、动什么。
- *
- * 这一版的规则是用户定的，原话：**"很多用户都很心急，除非今天过于超标，
- * 不然都尽量让他在明天一天之内把额度补回来"**。所以：
- *
- * 1. **一天优先**。默认单日上限 75 分钟，只要装得下就全排明天。
- *    前一天 45 分钟的封顶太小气 —— 444 大卡用快走要 104 分钟，永远摊成三天，
- *    而三天是最容易断的：第一天没做完，后面两天就不作了。
- * 2. **装不下才往后摊**，最多 3 天，摊不完就说摊不完。
- * 3. **可以选几种一起做**。组合不是花活：一项做 75 分钟他坐不住，
- *    两三项各做三四十分钟，同样的卡路里，完成的概率高得多。
- * 4. **只往前摊，不往回抵**。今天超的 500，不会让今天的环变大 ——
- *    补的这几天，动掉的是"已经吃进肚子的"，不是"再换一顿"。
- *
- * 这个"一天优先"和 ADR-004「运动不换饭」不冲突：改的只是"还账排几天"，
- * 没有把运动折成今天能多吃的额度。见 ADR-018。
+ * 他填的那个量值多少卡。公里、个数、分钟都走这一个口 ——
+ * 面板上实时跳的那个数必须和记账时算出来的同一个，否则填完就变。
  */
-export function spreadDebt(
-  overKcal: number,
-  kinds: ExerciseKind[],
+export function burnOfAmount(
+  kind: ExerciseKind,
   weightKg: number,
-  startDate: string,
-  dayCap = 75,
-  maxDays = 3,
-): DebtPlan {
-  const total = Math.max(0, Math.round(overKcal));
-  const empty: DebtPlan = {
-    total,
-    days: [],
-    covered: 0,
-    leftover: total,
-    dayCap,
-    oneDay: false,
-  };
-  if (total <= 0 || !kinds.length || weightKg <= 0) return empty;
-
-  const days: DebtDay[] = [];
-  let remaining = total;
-
-  for (let i = 0; i < maxDays && remaining > 0; i++) {
-    const items = fillOneDay(remaining, kinds, weightKg, dayCap);
-    if (!items.length) break;
-    const kcal = items.reduce((s2, x) => s2 + x.kcal, 0);
-    if (kcal <= 0) break;
-    days.push({ date: shiftDate(startDate, i), items, kcal });
-    remaining -= kcal;
-  }
-
-  const covered = days.reduce((s2, d) => s2 + d.kcal, 0);
-  return {
-    total,
-    days,
-    covered,
-    leftover: Math.max(0, total - covered),
-    dayCap,
-    oneDay: days.length === 1,
-  };
+  amount: number,
+): number {
+  return burnKcal(kind, weightKg, minutesOfAmount(kind, amount));
 }
 
 /* ---------- 明天练什么 ---------- */

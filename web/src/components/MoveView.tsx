@@ -11,15 +11,17 @@ import {
   adviceOf,
   adviseTomorrow,
   amountFromMinutes,
+  amountText,
   burnKcal,
+  burnOfAmount,
   burnOfLog,
   exerciseDef,
+  makeupDefaultAmount,
   metricOf,
   minutesOfAmount,
   nameOf,
   riskOf,
   shiftDate,
-  spreadDebt,
   suggestMinutes,
 } from "@/lib/exercise";
 import { round } from "@/lib/nutrition";
@@ -31,9 +33,6 @@ import type {
   PlannedExercise,
   Profile,
 } from "@/lib/types";
-
-/** 补账最多摊三天 */
-const DAY_WORD = ["明天", "后天", "大后天"];
 
 /** 计划项的身份证：同一种运动算同一项，"其他"按名字区分 */
 function keyOf(x: { kind: ExerciseKind; label?: string }) {
@@ -113,9 +112,17 @@ export default function MoveView({
   /* 明天的排期入口同样收起来 —— 它是铺垫，不该占着一整套输入控件 */
   const [planOpen, setPlanOpen] = useState(false);
 
-  /** 补账：选了哪几项、每天最多动多久、定了没有 */
+  /**
+   * 补账：选了哪几项、每项做多少、定了没有。
+   *
+   * 量由他自己填（公里 / 个 / 分钟，按项目走），卡路里跟着算。
+   * 上一版是系统按"每项 10 分钟"自动排出来的，超 13 大卡也能排到 277 大卡 ——
+   * 用户问"为啥默认全是 10 分钟"，问的是同一件事：那不是他的计划，是算法的。
+   */
   const [debtKinds, setDebtKinds] = useState<ExerciseKind[]>([]);
-  const [dayCap, setDayCap] = useState(75);
+  const [debtAmounts, setDebtAmounts] = useState<
+    Partial<Record<ExerciseKind, number>>
+  >({});
   const [debtDone, setDebtDone] = useState(false);
 
   const burn = useMemo(
@@ -180,30 +187,55 @@ export default function MoveView({
 
   function toggleDebtKind(kind: ExerciseKind) {
     setDebtDone(false);
+    const on = debtKinds.includes(kind);
+    // 平摊的份数按勾完之后算：只剩一项时，这一项就得独自扛下整笔账
+    const share = over / Math.max(1, on ? debtKinds.length - 1 : debtKinds.length + 1);
     setDebtKinds((prev) =>
-      prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind],
+      on ? prev.filter((k) => k !== kind) : [...prev, kind],
     );
+    // 减掉的项把数一起扔掉，免得下次再勾上时还留着上次那个值
+    setDebtAmounts((prev) => {
+      if (on) {
+        const next = { ...prev };
+        delete next[kind];
+        return next;
+      }
+      return { ...prev, [kind]: makeupDefaultAmount(kind, weightKg, share) };
+    });
   }
 
-  const debt = useMemo(
+  const debtItems = useMemo(
     () =>
-      debtKinds.length
-        ? spreadDebt(over, debtKinds, weightKg, tomorrow, dayCap)
-        : null,
-    [debtKinds, over, weightKg, tomorrow, dayCap],
+      debtKinds.map((kind) => {
+        const amount =
+          debtAmounts[kind] ??
+          makeupDefaultAmount(kind, weightKg, over / Math.max(1, debtKinds.length));
+        return {
+          kind,
+          amount,
+          minutes: minutesOfAmount(kind, amount),
+          kcal: burnOfAmount(kind, weightKg, amount),
+        };
+      }),
+    [debtKinds, debtAmounts, weightKg, over],
   );
+  const debtKcal = debtItems.reduce((s, x) => s + x.kcal, 0);
 
   /**
-   * 定上这几天。
-   * 必须一次交上去，不能循环里逐天调 onPlanItems —— 每次回调拿的都是同一份
-   * 旧 state，后一次会把前一次覆盖掉，结果只落下最后一天（K43）。
+   * 定上明天。
+   *
+   * 一次交上去，不能循环里逐天调 onPlanItems —— 每次回调拿的都是同一份
+   * 旧 state，后一次会把前一次覆盖掉（K43）。
+   * 按分钟量的项目不写 amount：它和 minutes 是同一个数，存两遍迟早对不上。
    */
   function commitDebt() {
-    if (!debt || !debt.days.length) return;
-    onPlanMany(
-      debt.days.map((d) => ({
-        date: d.date,
-        items: d.items.map((x) => ({ kind: x.kind, minutes: x.minutes })),
+    if (!debtItems.length) return;
+    onPlanItems(
+      tomorrow,
+      debtItems.map((x) => ({
+        kind: x.kind,
+        minutes: x.minutes,
+        ...(metricOf(x.kind).unit === "min" ? {} : { amount: x.amount }),
       })),
     );
     setDebtDone(true);
@@ -215,6 +247,7 @@ export default function MoveView({
     );
     setDebtDone(false);
     setDebtKinds([]);
+    setDebtAmounts({});
   }
 
   const quick = EXERCISES.slice(0, 5);
@@ -372,7 +405,10 @@ export default function MoveView({
                     <span className="min-w-0 flex-1 truncate text-[15px] text-ink-700">
                       {nameOf(t)}{" "}
                       <span className="text-[13px] text-ink-400">
-                        {t.minutes} 分钟
+                        {/* 定的是"跑 5 公里"就写 5 公里，别给他折成分钟 */}
+                        {t.amount
+                          ? amountText(t.kind, t.amount)
+                          : `${t.minutes} 分钟`}
                       </span>
                     </span>
                     {done ? (
@@ -382,7 +418,15 @@ export default function MoveView({
                       </span>
                     ) : (
                       <button
-                        onClick={() => onAddExercises([{ kind: t.kind, minutes: t.minutes }])}
+                        onClick={() =>
+                          onAddExercises([
+                            {
+                              kind: t.kind,
+                              minutes: t.minutes,
+                              ...(t.amount ? { amount: t.amount } : {}),
+                            },
+                          ])
+                        }
                         className="h-8 shrink-0 rounded-lg bg-brand-500 px-3 text-[13px] font-medium text-white active:scale-95"
                       >
                         确定
@@ -434,53 +478,55 @@ export default function MoveView({
                 onToggle={toggleDebtKind}
               />
 
-              {debt && debt.days.length > 0 && (
+              {debtKinds.length > 0 && (
                 <div className="mt-2.5 rounded-xl border border-brand-500 bg-brand-50 p-3">
                   <div className="space-y-2">
-                    {debt.days.map((d, i) => (
-                      <div key={d.date}>
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-[14px] font-semibold">
-                            {DAY_WORD[i] ?? d.date.slice(5)}
-                          </span>
-                          <span className="shrink-0 text-[12px] tabular-nums text-ink-500">
-                            约 {d.kcal} 卡
-                          </span>
+                    {debtItems.map((it) => {
+                      const m = metricOf(it.kind);
+                      return (
+                        <div key={it.kind} className="flex items-center gap-2">
+                          <Icon
+                            name={exerciseDef(it.kind).icon as IconName}
+                            size={17}
+                            style={{ color: "#176f49" }}
+                            className="shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[14px] font-medium leading-tight">
+                              {nameOf(it)}
+                            </p>
+                            <p className="text-[11px] tabular-nums text-ink-400">
+                              {it.minutes} 分钟，约 {it.kcal} 卡
+                            </p>
+                          </div>
+                          <Stepper
+                            compact
+                            value={it.amount}
+                            onChange={(v) => {
+                              setDebtDone(false);
+                              setDebtAmounts((prev) => ({ ...prev, [it.kind]: v }));
+                            }}
+                            min={m.min}
+                            max={m.max}
+                            step={m.step}
+                            unit={m.suffix}
+                            decimal={m.decimal}
+                            ariaLabel={`${nameOf(it)}的${m.suffix}数`}
+                          />
                         </div>
-                        <p className="mt-0.5 text-[13px] leading-snug text-ink-700">
-                          {d.items
-                            .map((x) => nameOf(x) + " " + x.minutes + " 分钟")
-                            .join(" + ")}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
-                  <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-brand-500/20 pt-2.5">
-                    <span className="text-[13px] text-ink-500">每天最多动</span>
-                    <Stepper
-                      value={dayCap}
-                      onChange={(v) => {
-                        setDayCap(v);
-                        setDebtDone(false);
-                      }}
-                      min={30}
-                      max={120}
-                    />
-                  </div>
-
-                  <p className="mt-2 text-[12px] leading-relaxed">
-                    {debt.leftover > 0 ? (
-                      <span className="text-[#b23c2c]">
-                        三天还差 {debt.leftover} 卡 —— 换一项强度大的，或者每天多动一会儿。
-                      </span>
-                    ) : debt.oneDay ? (
+                  <p className="mt-2.5 border-t border-brand-500/20 pt-2.5 text-[12px] leading-relaxed">
+                    {debtKcal >= over ? (
                       <span className="text-brand-600">
-                        明天一天补完，约 {debt.covered} 卡。
+                        这些动完约 {debtKcal} 卡，抵掉今天多的 {over} 卡。
                       </span>
                     ) : (
-                      <span className="text-brand-600">
-                        {debt.days.length} 天补完，共约 {debt.covered} 卡。
+                      <span className="text-[#b23c2c]">
+                        这些动完约 {debtKcal} 卡，还差 {over - debtKcal} 卡 ——
+                        加一点量，或者再挑一项。
                       </span>
                     )}
                   </p>
@@ -559,7 +605,11 @@ export default function MoveView({
                         <div className="min-w-0 flex-1">
                           <p className="text-[15px] font-medium leading-snug">
                             {nameOf(item)}{" "}
-                            <span className="text-ink-500">{a.minutes} 分钟</span>
+                            <span className="text-ink-500">
+                              {item.amount
+                                ? amountText(item.kind, item.amount)
+                                : `${a.minutes} 分钟`}
+                            </span>
                             <span className="ml-1 text-[13px] font-normal text-ink-300 tabular-nums">
                               约 {a.kcal} 卡
                             </span>
