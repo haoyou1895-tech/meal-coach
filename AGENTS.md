@@ -97,11 +97,12 @@ npm run build             # build 会自动跑 sync；出 dist/ 后用微信开�
 
 ## 4. 现在最该知道的三件事
 
-1. **小程序整块还没搬**。网页版已经从两页拆成三页（吃 / 动 / 账），
-   `DaySummary` 也被拆成 `DaySheet`（吃 + 收工）和 `MoveView`（运动）。
-   `mini/dist` 还停在 `afc35b7`，按 H17 等确认后再同步。
-2. **`exercise.ts`、`exerciseParse.ts`、`stepper`/`explain` 还没进同步清单**。搬小程序时
-   要把前两个加进 `tools/sync-shared.mjs` 的 `SHARED`；后两个是组件，得照着小程序重写。
+1. **小程序三页搬了一半**。底部已经拆成吃 / 动 / 账，运动页（`pages/move`）
+   整页照 `MoveView.tsx` 搬完（`00dc07c`，含补账、按项定量、近 7 天）。
+   **还差**：账页的「实际消耗」卡（`expenditure.ts` 未进同步清单）、
+   吃页的收工面板（`DaySheet`）。
+2. **`exercise.ts`、`exerciseParse.ts` 已进同步清单**；`Stepper` / `Explain` 在两端各写一份
+   （小程序那边叫 `ExStepper.tsx`、`Explain.tsx`，前者是行内小号版，后者用模块级开关代替 Context）。
 3. **`01-PRD-v0.1.md` 有若干条已被现实推翻**（比如"零打字""不做运动记录"）。别照着 PRD
    删功能，见 `docs/05-决策记录.md` 的 ADR-014 / 015。
 4. **「超支怎么办」改过两次口径**。先是"绝不提补回来"，再是"摊到明后天、单日封顶"，
