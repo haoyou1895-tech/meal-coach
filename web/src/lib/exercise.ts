@@ -522,9 +522,6 @@ export function burnOfAmount(
   return burnKcal(kind, weightKg, minutesOfAmount(kind, amount));
 }
 
-/* ---------- 明天练什么 ---------- */
-
-
 export interface ExerciseAdvice {
   def: ExerciseDef;
   /** 建议做多少分钟 */
@@ -533,36 +530,6 @@ export interface ExerciseAdvice {
   kcal: number;
   /** 为什么给这个建议 */
   why: string;
-}
-
-/**
- * 明天的运动建议。
- *
- * 三条规则，顺序不能换：
- *
- * (1) 安全先于效果。有高血压的人，先剔掉不要命的项目，再谈消耗。
- * (2) 效果服从于能坚持。给一个 46 岁、78 公斤、天天跑业务的人排
- *     一小时高强度，他做两天就停了。停掉的计划消耗是 0。
- * (3) 不惩罚昨天。今天吃多了，明天不是"加练把账还上" ——
- *     这个逻辑一旦成立，他会开始用运动赎罪，而赎罪是会崩的。
- */
-export function adviseTomorrow(
-  profile: Profile,
-  weightKg: number,
-  today: { kcal: number; budget: number; protein: number; proteinTarget: number },
-): ExerciseAdvice[] {
-  const { minutes } = suggestMinutes(today);
-
-  // 候选池：按他的身体状况筛，不是把所有项目倒给他
-  const pool = EXERCISES.filter((e) => !riskOf(e.kind, profile, weightKg));
-
-  // 排序：先看关节友好（能长期做），再看 MET 是否配得上今天的时长
-  const ranked = [...pool].sort((a, b) => {
-    if (a.jointSafe !== b.jointSafe) return a.jointSafe ? -1 : 1;
-    return b.met - a.met;
-  });
-
-  return ranked.slice(0, 3).map((def) => adviceOf(def.kind, minutes, weightKg, profile));
 }
 
 /**

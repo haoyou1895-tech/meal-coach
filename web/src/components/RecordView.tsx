@@ -530,7 +530,13 @@ export default function RecordView({
             </button>
           </div>
 
-          <div className="mt-4 flex gap-3 border-t border-black/[0.05] pt-4">
+          {/* 称的条件写在这儿，不藏在弹窗里：不然他晚上随手一称，第二天看到数变了，
+              会以为是自己胖了，其实是同一副身子在一天里正常的浮动 */}
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-300">
+            早起、上完厕所、空腹称，穿得跟昨天一样才比得出来
+          </p>
+
+          <div className="mt-3 flex gap-3 border-t border-black/[0.05] pt-4">
             <div className="flex-1">
               <p className="text-[13px] text-ink-300">目标</p>
               <p className="text-[18px] font-semibold tabular-nums">
@@ -823,8 +829,13 @@ export default function RecordView({
         onClose={() => setWeightOpen(false)}
         title="记体重"
       >
-        <p className="mb-6 text-center text-[15px] leading-relaxed text-ink-500">
-          早上空腹称最准，一天记一次就够
+        <p className="mb-1 text-center text-[15px] font-medium">
+          早起、上完厕所、空腹称
+        </p>
+        <p className="mb-6 px-2 text-center text-[13px] leading-relaxed text-ink-500">
+          穿得跟昨天差不多，前后两天才比得出来。
+          <br />
+          一天只存一条：晚上再称会覆盖早上那次。
         </p>
         <Stepper
           value={draft}

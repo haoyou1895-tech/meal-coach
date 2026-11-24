@@ -266,6 +266,93 @@ check(
 );
 await page2.screenshot({ path: path.join(OUT, "mk-04-small.png") });
 
+/* 明天那块的运动选项要和今天一样：先五个常用的，点「更多」出全套 */
+const planCard = () =>
+  page2.evaluateHandle(() => {
+    const s = [...document.querySelectorAll("span")].find(
+      (x) => x.innerText.trim() === "明天",
+    );
+    return s.closest('div[class*="card"]');
+  });
+
+await page2.evaluate(() => {
+  const s = [...document.querySelectorAll("span")].find(
+    (x) => x.innerText.trim() === "明天",
+  );
+  const card = s.closest('div[class*="card"]');
+  [...card.querySelectorAll("button")]
+    .find((b) => b.innerText.trim().startsWith("添加"))
+    ?.click();
+});
+await sleep(500);
+
+const chipText = () =>
+  page2.evaluate(() => {
+    const s = [...document.querySelectorAll("span")].find(
+      (x) => x.innerText.trim() === "明天",
+    );
+    const card = s.closest('div[class*="card"]');
+    return [...card.querySelectorAll("button")]
+      .map((b) => b.innerText.trim())
+      .filter((t) => t.length > 0 && t.length <= 6);
+  });
+
+const chips1 = await chipText();
+check(
+  "明天的候选和今天一样：五个常用的 + 更多",
+  ["快走", "散步", "慢跑", "骑车", "游泳", "更多"].every((x) => chips1.includes(x)),
+  chips1.join("/"),
+);
+check("没点「更多」之前不塞满屏", !chips1.includes("跳绳"));
+
+await page2.evaluate(() => {
+  const s = [...document.querySelectorAll("span")].find(
+    (x) => x.innerText.trim() === "明天",
+  );
+  const card = s.closest('div[class*="card"]');
+  [...card.querySelectorAll("button")]
+    .find((b) => b.innerText.trim() === "更多")
+    ?.click();
+});
+await sleep(400);
+const chips2 = await chipText();
+check(
+  "点「更多」出全套",
+  ["太极", "跳绳", "八段锦", "爬山", "力量训练"].every((x) => chips2.includes(x)),
+  chips2.join("/"),
+);
+
+/* 挑一项 → 按该项的单位填 → 落进计划 */
+await page2.evaluate(() => {
+  const s = [...document.querySelectorAll("span")].find(
+    (x) => x.innerText.trim() === "明天",
+  );
+  const card = s.closest('div[class*="card"]');
+  [...card.querySelectorAll("button")]
+    .find((b) => b.innerText.trim() === "骑车")
+    ?.click();
+});
+await sleep(300);
+const planInput = await page2.evaluate(() => {
+  const el = [...document.querySelectorAll("input")].find(
+    (i) => i.getAttribute("aria-label") === "骑车的公里数",
+  );
+  return el ? el.value : null;
+});
+check("明天的输入框也是按公里", !!planInput, `默认 ${planInput} 公里`);
+
+await page2.evaluate(() => {
+  document.querySelector('[aria-label="确定骑车"]')?.click();
+});
+await sleep(600);
+const planned = await page2.evaluate(() => {
+  const s = JSON.parse(localStorage.getItem("mealcoach.v1") || "{}");
+  return (s.exercisePlans || []).flatMap((p) => p.items || []);
+});
+const bike = planned.find((i) => i.kind === "bike");
+check("明天计划里也存着他填的量", !!bike && typeof bike.amount === "number", JSON.stringify(planned));
+await page2.screenshot({ path: path.join(OUT, "mk-05-plan.png") });
+
 await browser.close();
 console.log(fails ? `\n${fails} 项没过` : "\n全过");
 process.exit(fails ? 1 : 0);

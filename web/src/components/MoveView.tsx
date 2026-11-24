@@ -10,7 +10,6 @@ import {
   EXERCISES,
   MIN_DEBT_KCAL,
   adviceOf,
-  adviseTomorrow,
   amountFromMinutes,
   amountText,
   burnKcal,
@@ -114,6 +113,17 @@ export default function MoveView({
   const [planOpen, setPlanOpen] = useState(false);
 
   /**
+   * 明天那一排「更多」。
+   *
+   * 原来是系统按身体情况挑三项摆出来 —— 用户拿两张截图来对比：
+   * 「计划明天的运动，你也要像今天的运动一样，提供相同的选项，
+   * 让他一下子想不到的时候，可以在这些选项里面选」。
+   * 三项不是候选，是结论；他想不到的是自己还能做什么。
+   * 所以两边给同一套：先五个常用的，点「更多」出全套。
+   */
+  const [planMore, setPlanMore] = useState(false);
+
+  /**
    * 补账：选了哪几项、每项做多少、定了没有。
    *
    * 量由他自己填（公里 / 个 / 分钟，按项目走），卡路里跟着算。
@@ -137,12 +147,6 @@ export default function MoveView({
     protein: 0,
     proteinTarget: plan.proteinTargetG,
   };
-
-  const advices = useMemo(
-    () => adviseTomorrow(profile, weightKg, today),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [profile, weightKg, over, plan],
-  );
 
   const suggest = useMemo(() => suggestMinutes(today), [
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -670,16 +674,31 @@ export default function MoveView({
                   </div>
 
                   <PickExercise
-                    options={advices
-                      .filter((a) => !planned.some((p) => keyOf(p) === a.def.kind))
-                      .map((a) => ({
-                        kind: a.def.kind,
-                        label: a.def.label,
-                        icon: a.def.icon as IconName,
+                    options={(planMore ? EXERCISES : quick)
+                      .filter((d) => !planned.some((p) => keyOf(p) === d.kind))
+                      .map((d) => ({
+                        kind: d.kind,
+                        label: d.label,
+                        icon: d.icon as IconName,
                       }))}
                     weightKg={weightKg}
-                    defaultMinutes={() => suggest.minutes}
-                    onPlan={(kind, minutes) => togglePlan({ kind, minutes })}
+                    onPlan={(kind, minutes, amount) =>
+                      togglePlan({
+                        kind,
+                        minutes,
+                        ...(amount ? { amount } : {}),
+                      })
+                    }
+                    footer={
+                      !planMore && rest.length > 0 ? (
+                        <button
+                          onClick={() => setPlanMore(true)}
+                          className="h-9 rounded-lg px-2 text-[13px] font-medium text-brand-600"
+                        >
+                          更多
+                        </button>
+                      ) : null
+                    }
                   />
                 </>
               )}
@@ -834,17 +853,14 @@ function PickExercise({
   weightKg,
   onCommit,
   onPlan,
-  defaultMinutes,
   footer,
 }: {
   options: { kind: ExerciseKind; label: string; icon: IconName }[];
   weightKg: number;
   /** 记今天：量要一起交上去 */
   onCommit?: (kind: ExerciseKind, minutes: number, amount?: number) => void;
-  /** 定明天：只要分钟 */
-  onPlan?: (kind: ExerciseKind, minutes: number) => void;
-  /** 展开时的初始分钟数。不传就用这项运动的默认值 */
-  defaultMinutes?: () => number;
+  /** 定明天：量和分钟一起给，计划里才存得下"跑 5 公里" */
+  onPlan?: (kind: ExerciseKind, minutes: number, amount?: number) => void;
   footer?: React.ReactNode;
 }) {
   const [picked, setPicked] = useState<ExerciseKind | null>(null);
@@ -864,17 +880,16 @@ function PickExercise({
     }
     setPicked(kind);
     const m = metricOf(kind);
-    setAmount(
-      m.unit === "min"
-        ? defaultMinutes?.() ?? exerciseDef(kind).defaultMin
-        : amountFromMinutes(kind, defaultMinutes?.() ?? exerciseDef(kind).defaultMin),
-    );
+    // 两边（记今天 / 定明天）用同一个默认值：这一项自己的常规量
+    const def = exerciseDef(kind).defaultMin;
+    setAmount(m.unit === "min" ? def : amountFromMinutes(kind, def));
   }
 
   function commit() {
     if (!picked) return;
-    if (onCommit) onCommit(picked, minutes, metric!.unit === "min" ? undefined : amount);
-    if (onPlan) onPlan(picked, minutes);
+    const a = metric!.unit === "min" ? undefined : amount;
+    if (onCommit) onCommit(picked, minutes, a);
+    if (onPlan) onPlan(picked, minutes, a);
     setPicked(null);
   }
 
