@@ -35,6 +35,11 @@ const SHARED = [
   /* 运动：定义（MET / 单位 / 默认量）和口语解析，都是纯逻辑，两岸一致 */
   "exercise.ts",
   "exerciseParse.ts",
+  /*
+   * 使用概况：只数天数和条数，纯函数，两端算出来的必须一样。
+   * 小程序那边以后也会用到（同一个用户可能两边都在记）。
+   */
+  "digest.ts",
 ];
 
 mkdirSync(TO, { recursive: true });

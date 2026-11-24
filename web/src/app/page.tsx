@@ -10,6 +10,7 @@ import Onboarding from "@/components/Onboarding";
 import RecordView from "@/components/RecordView";
 import Splash from "@/components/Splash";
 import { Sheet } from "@/components/ui";
+import { buildDigest, digestCode, digestSummary } from "@/lib/digest";
 import { avgBurnEndingOn, nameOf, shiftDate } from "@/lib/exercise";
 import { DISEASE_LABEL, buildPlan, sumMeals, todayStr } from "@/lib/nutrition";
 import {
@@ -65,6 +66,10 @@ export default function Page() {
   /** 搬家面板：导出 / 导入 */
   const [dataPanel, setDataPanel] = useState<null | "export" | "import">(null);
   const [dump, setDump] = useState("");
+  /** 展开的「使用概况」文本，空串 = 没展开 */
+  const [digestText, setDigestText] = useState("");
+  /** 微信内置浏览器：下载不了文件，得提前说清楚 */
+  const [inWeChat, setInWeChat] = useState(false);
   const [notice, setNotice] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
 
@@ -80,9 +85,44 @@ export default function Page() {
     });
   }, []);
 
+  useEffect(() => {
+    // 放 effect 里而不是渲染时算：服务端渲染时没有 navigator，直接读会 hydration 不一致
+    setInWeChat(/MicroMessenger/i.test(navigator.userAgent));
+  }, []);
+
   const update = (next: AppState) => {
     setState(next);
     saveState(next);
+  };
+
+  /**
+   * 复制到剪贴板。
+   *
+   * 微信内置浏览器对 navigator.clipboard 时好时坏（有些版本直接拒绝），
+   * 所以留着 execCommand 这条老路。两处复制都走这一个函数 ——
+   * 各写一份的结果是改了一处、另一处还用着坏的那个（K55）。
+   */
+  const copyText = async (text: string): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.top = "0";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        return ok;
+      } catch {
+        return false;
+      }
+    }
   };
 
   /**
@@ -94,6 +134,16 @@ export default function Page() {
    */
   const exportFile = () => {
     if (!state) return;
+    /*
+     * 微信内置浏览器（X5 / WKWebView）不给 a[download] 落地：
+     * 有的版本点了完全没反应，有的提示"已保存"但文件不存在。
+     * 这里不拦的话，下面那句"存好了"就是在撒谎 ——
+     * 而撒谎的界面比报错的界面难查十倍，因为没人会来告诉你。
+     */
+    if (inWeChat) {
+      setNotice("微信里存不了文件，点右上角 ··· 选「在浏览器打开」");
+      return;
+    }
     const blob = new Blob([JSON.stringify(state)], {
       type: "application/json",
     });
@@ -146,6 +196,14 @@ export default function Page() {
   };
 
   const today = todayStr();
+  /**
+   * 使用概况。算起来是 O(n log n)，1000 条记录也就几毫秒，
+   * 但它挂在每次渲染上没必要 —— 只有设置页打开时才用得到。
+   */
+  const digest = useMemo(
+    () => (state ? buildDigest(state, today) : null),
+    [state, today],
+  );
   const profile = state?.profile ?? null;
 
   /**
@@ -533,7 +591,9 @@ export default function Page() {
               </button>
             </div>
             <p className="text-[13px] leading-relaxed text-ink-300">
-              只带记录和体重，照片带不走。存到微信「文件传输助手」最稳，别往群里发。
+              {inWeChat
+                ? "微信里存不了文件。点右上角 ··· 选「在浏览器打开」，从那里再导出。"
+                : "只带记录和体重，照片带不走。存到微信「文件传输助手」最稳，别往群里发。"}
             </p>
             <button
               className="text-[13px] text-ink-300 underline underline-offset-2"
@@ -544,6 +604,55 @@ export default function Page() {
             >
               传不了文件？改用复制文本
             </button>
+          </div>
+
+          {/*
+            使用概况 —— 不是备份，是"看一眼还在不在用"。
+
+            为什么单独做这一条：备份要几千条、上万字符，微信内置浏览器
+            既下不了文件、也粘不下那么长的文本，那个通道天生走不通。
+            而判断留存只要几个数字：365 天 1095 顿，这行码也只有 134 个字，
+            微信里发一条消息就过去了。
+
+            刻意不含吃了什么、体重多少 —— 它只用来数天。
+            多一个字段就多一个"我以为没发出去但其实发出去了"的口子。
+          */}
+          <div className="card space-y-3 p-4!">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[16px] font-medium">使用概况</span>
+              <span className="text-[13px] text-ink-300">几个数字</span>
+            </div>
+            <p className="text-[13px] leading-relaxed text-ink-300">
+              只含记了几天、几顿，不含你吃了什么，也不含体重多少。
+            </p>
+            <button
+              className="h-11 w-full rounded-xl bg-black/[0.05] text-[15px] font-medium text-brand-600 active:scale-[0.98]"
+              onClick={() => {
+                if (!digest) {
+                  setNotice("还没有记录，先记一顿");
+                  return;
+                }
+                const code = digestCode(digest);
+                setDigestText(code);
+                void copyText(code).then((ok) =>
+                  setNotice(
+                    ok ? "复制好了，发出去就行" : "复制不了，长按下面的字全选",
+                  ),
+                );
+              }}
+            >
+              复制
+            </button>
+            {digestText && digest && (
+              <>
+                <p className="text-[13px] leading-relaxed text-ink-700">
+                  {digestSummary(digest)}
+                </p>
+                <p className="select-all break-all rounded-xl bg-black/[0.04] px-3 py-2.5 text-[13px] leading-relaxed text-ink-500">
+                  {digestText}
+                </p>
+              </>
+            )}
           </div>
 
           {dataPanel && (
@@ -594,9 +703,10 @@ export default function Page() {
                   className="h-11 flex-1 rounded-xl bg-brand-500 text-[15px] font-medium text-white active:scale-[0.98]"
                   onClick={() => {
                     if (dataPanel === "export") {
-                      navigator.clipboard.writeText(dump).then(
-                        () => setNotice("复制好了"),
-                        () => setNotice("复制不了，长按上面的文字全选"),
+                      void copyText(dump).then((ok) =>
+                        setNotice(
+                          ok ? "复制好了" : "复制不了，长按上面的文字全选",
+                        ),
                       );
                     } else {
                       applyImport(dump);
