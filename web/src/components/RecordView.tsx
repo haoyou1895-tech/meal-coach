@@ -14,7 +14,6 @@ import {
   dayBudget,
   mealTypeLabel,
   round,
-  snackLabel,
   sumMeals,
   todayStr,
 } from "@/lib/nutrition";
@@ -763,7 +762,7 @@ export default function RecordView({
 
                         <div className="min-w-0 flex-1">
                           <p className="text-[12px] font-medium text-brand-600">
-                            {snackLabel(m)}
+                            {mealTypeLabel(m.mealType)}
                             <span className="ml-1.5 font-normal tabular-nums text-ink-500">
                               {mealTime(m)}
                             </span>

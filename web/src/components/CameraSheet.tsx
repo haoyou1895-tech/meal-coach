@@ -39,24 +39,6 @@ const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 const MAX_SHOTS = 4;
 
 /**
- * 加餐的副标题。
- *
- * "加餐"是个分类词，不是人话。同一次加餐，下午三点他说"下午茶"，
- * 晚上十点说"宵夜"，上午十点就是"早点"。
- *
- * 上一版只有"下午茶 / 宵夜"两档，于是上午十一点打开，
- * 按钮底下写着"下午茶" —— 他还没吃午饭。现在早中晚各归各位，
- * 两餐正中间那种说不清的时段就什么都不写，别硬编一个词。
- */
-function snackSub(hour: number | null): string {
-  if (hour === null) return "";
-  if (hour >= 20 || hour < 5) return "宵夜";
-  if (hour >= 13 && hour < 17) return "下午茶";
-  if (hour >= 5 && hour < 12) return "上午";
-  return "";
-}
-
-/**
  * 还没记进账本的那张照片，放在本地仓库的固定位置。
  *
  * 为什么要有这个东西：
@@ -123,8 +105,6 @@ export default function CameraSheet({
   const [zoom, setZoom] = useState(false);
   /** 写照片到本地仓库是异步的，加个锁防止连点记两遍 */
   const [saving, setSaving] = useState(false);
-  /** 打开面板那一刻的钟点，用来判断"加餐"到底是下午茶还是宵夜 */
-  const [hour, setHour] = useState<number | null>(null);
   /** 正在改名字的那一项；null 表示没有在改 */
   const [renameIdx, setRenameIdx] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -157,7 +137,6 @@ export default function CameraSheet({
     if (open && !wasOpen.current) {
       const now = new Date();
       setMealType(guessMealType(now, todayMeals.map((m) => m.mealType)));
-      setHour(now.getHours());
     }
     wasOpen.current = open;
   });
@@ -657,16 +636,6 @@ export default function CameraSheet({
                 >
                   <span className="flex flex-col items-center justify-center leading-tight">
                     <span>{mealTypeLabel(t)}</span>
-                    {/* 上午十一点不该写"下午茶"：副标题只在该时段的窗口里出现 */}
-                    {t === "snack" && snackSub(hour) !== "" && (
-                      <span
-                        className={`text-[10px] font-normal ${
-                          mealType === t ? "text-white/70" : "text-ink-300"
-                        }`}
-                      >
-                        {snackSub(hour)}
-                      </span>
-                    )}
                   </span>
                   {recorded && (
                     <span

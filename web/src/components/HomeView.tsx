@@ -10,7 +10,6 @@ import type {
 import {
   goalOptions,
   mealTypeLabel,
-  snackLabel,
   round,
   streakDays,
   sumMeals,
@@ -1030,7 +1029,7 @@ export default function HomeView({
                       <div className="flex items-center gap-1.5 text-ink-400">
                         <Icon name={SLOT_ICON[m.mealType]} size={15} />
                         <span className="text-[13px] font-medium">
-                          {snackLabel(m)}
+                          {mealTypeLabel(m.mealType)}
                         </span>
                         {time && (
                           <span className="text-[13px] tabular-nums">{time}</span>
