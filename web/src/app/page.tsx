@@ -85,6 +85,66 @@ export default function Page() {
     saveState(next);
   };
 
+  /**
+   * 导出成文件，不是复制一串文本。
+   *
+   * 为什么不给文本：一年的记录有 62 万字符，粘到备忘录里少一截不会报错，
+   * 换手机导入失败的时候老手机已经清了。文件不会截断，也能打开看一眼。
+   * 文本方式留着，给"没法传文件"的情况兜底，格式一个字没改。
+   */
+  const exportFile = () => {
+    if (!state) return;
+    const blob = new Blob([JSON.stringify(state)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const d = new Date();
+    const z = (n: number) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `餐谋备份-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setNotice(`存好了：餐谋备份-${stamp}.json`);
+  };
+
+  /**
+   * 文件和文本走同一条导入路径 —— 归一化只写一次。
+   * 同一个字段在两个地方各归一化一次，必然有一天只改了一处（K55）。
+   */
+  const applyImport = (text: string) => {
+    try {
+      const parsed = JSON.parse(text) as AppState;
+      if (!parsed || !Array.isArray(parsed.meals)) throw new Error("bad");
+      resetState();
+      void clearPhotos();
+      // 用 loadState 那套归一化，别在这里手抄字段 ——
+      // 每加一个新字段就要改一次，漏了就是静默丢数据
+      update({
+        ...parsed,
+        profile: parsed.profile ?? null,
+        meals: parsed.meals,
+        weights: Array.isArray(parsed.weights) ? parsed.weights : [],
+        activities: Array.isArray(parsed.activities) ? parsed.activities : [],
+        exercises: Array.isArray(parsed.exercises) ? parsed.exercises : [],
+        closedDays: Array.isArray(parsed.closedDays) ? parsed.closedDays : [],
+        exercisePlans: Array.isArray(parsed.exercisePlans)
+          ? parsed.exercisePlans
+              .map(normalizePlan)
+              .filter((p): p is ExercisePlan => !!p)
+          : [],
+        onboarded: !!parsed.onboarded,
+      });
+      setDataPanel(null);
+      setNotice("恢复好了");
+    } catch {
+      setNotice("这个备份打不开 —— 可能没存全，或者不是餐谋的");
+    }
+  };
+
   const today = todayStr();
   const profile = state?.profile ?? null;
 
@@ -445,6 +505,10 @@ export default function Page() {
             换手机、清缓存、换浏览器 —— 本地数据会全没，而且用户不知道为什么。
             照片在 IndexedDB 里搬不走，文字和数字能搬，这点必须说清楚，
             不能让人以为"备份过了照片就还在"。
+
+            主路径是文件不是文本：一年记录 62 万字符，粘到备忘录里少一截不报错，
+            等换手机导入失败时老手机已经清了 —— 它失败的方式是静默的。
+            文本入口收成一行小字，只给"传不了文件"的情况兜底。
           */}
           <div className="card space-y-3 p-4!">
             <div className="flex items-baseline justify-between">
@@ -453,13 +517,10 @@ export default function Page() {
             </div>
             <div className="flex gap-2">
               <button
-                className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-brand-600 active:scale-[0.98]"
-                onClick={() => {
-                  setDump(JSON.stringify(state));
-                  setDataPanel("export");
-                }}
+                className="h-11 flex-1 rounded-xl bg-brand-500 text-[15px] font-medium text-white active:scale-[0.98]"
+                onClick={exportFile}
               >
-                备份
+                导出文件
               </button>
               <button
                 className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-brand-600 active:scale-[0.98]"
@@ -472,85 +533,78 @@ export default function Page() {
               </button>
             </div>
             <p className="text-[13px] leading-relaxed text-ink-300">
-              只带记录和体重，照片带不走。换手机后照片会没有，数字都在。
+              只带记录和体重，照片带不走。文件可以发微信「文件传输助手」存着。
             </p>
+            <button
+              className="text-[13px] text-ink-300 underline underline-offset-2"
+              onClick={() => {
+                setDump(JSON.stringify(state));
+                setDataPanel("export");
+              }}
+            >
+              传不了文件？改用复制文本
+            </button>
           </div>
 
           {dataPanel && (
             <div className="card space-y-3 p-4!">
-              <p className="text-[15px] font-medium">
-                {dataPanel === "export"
-                  ? "全选复制，存到微信收藏或备忘录里"
-                  : "把之前存下的那串码粘进下面"}
-              </p>
+              {dataPanel === "export" ? (
+                <>
+                  <p className="text-[15px] font-medium">
+                    全选复制，存到备忘录里
+                  </p>
+                  <p className="text-[13px] text-ink-300">
+                    一共 {dump.length.toLocaleString()} 字 —— 粘完对一下长度，短了就是没选全。
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[15px] font-medium">导入备份</p>
+                  <p className="text-[13px] text-ink-300">
+                    有文件就选文件；没有的话，把之前存的码粘在下面。
+                  </p>
+                  <label className="flex h-11 cursor-pointer items-center justify-center rounded-xl bg-black/[0.05] text-[15px] font-medium text-brand-600">
+                    选文件
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!f) return;
+                        applyImport(await f.text());
+                      }}
+                    />
+                  </label>
+                </>
+              )}
               <textarea
                 value={dump}
                 onChange={(e) => setDump(e.target.value)}
                 readOnly={dataPanel === "export"}
                 rows={5}
+                placeholder={
+                  dataPanel === "import" ? "把备份码粘在这里" : undefined
+                }
                 className="w-full resize-none rounded-xl bg-black/[0.04] px-3 py-2.5 text-[13px] leading-relaxed text-ink-700 focus:outline-none"
               />
               <div className="flex gap-2">
-                {dataPanel === "export" ? (
-                  <button
-                    className="h-11 flex-1 rounded-xl bg-brand-500 text-[15px] font-medium text-white active:scale-[0.98]"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(dump);
-                        setNotice("复制好了");
-                      } catch {
-                        setNotice("复制不了，长按上面的文字全选");
-                      }
-                    }}
-                  >
-                    复制
-                  </button>
-                ) : (
-                  <button
-                    className="h-11 flex-1 rounded-xl bg-brand-500 text-[15px] font-medium text-white active:scale-[0.98]"
-                    onClick={() => {
-                      try {
-                        const parsed = JSON.parse(dump) as AppState;
-                        if (!parsed || !Array.isArray(parsed.meals)) {
-                          throw new Error("bad");
-                        }
-                        resetState();
-                        void clearPhotos();
-                        // 用 loadState 那套归一化，别在这里手抄字段 ——
-                        // 每加一个新字段就要改一次，漏了就是静默丢数据
-                        update({
-                          ...parsed,
-                          profile: parsed.profile ?? null,
-                          meals: parsed.meals,
-                          weights: Array.isArray(parsed.weights)
-                            ? parsed.weights
-                            : [],
-                          activities: Array.isArray(parsed.activities)
-                            ? parsed.activities
-                            : [],
-                          exercises: Array.isArray(parsed.exercises)
-                            ? parsed.exercises
-                            : [],
-                          closedDays: Array.isArray(parsed.closedDays)
-                            ? parsed.closedDays
-                            : [],
-                          exercisePlans: Array.isArray(parsed.exercisePlans)
-                            ? parsed.exercisePlans
-                                .map(normalizePlan)
-                                .filter((p): p is ExercisePlan => !!p)
-                            : [],
-                          onboarded: !!parsed.onboarded,
-                        });
-                        setDataPanel(null);
-                        setNotice("恢复好了");
-                      } catch {
-                        setNotice("这串码不对，检查一下有没有复制全");
-                      }
-                    }}
-                  >
-                    恢复
-                  </button>
-                )}
+                <button
+                  className="h-11 flex-1 rounded-xl bg-brand-500 text-[15px] font-medium text-white active:scale-[0.98]"
+                  onClick={() => {
+                    if (dataPanel === "export") {
+                      navigator.clipboard.writeText(dump).then(
+                        () => setNotice("复制好了"),
+                        () => setNotice("复制不了，长按上面的文字全选"),
+                      );
+                    } else {
+                      applyImport(dump);
+                    }
+                  }}
+                >
+                  {dataPanel === "export" ? "复制" : "恢复"}
+                </button>
                 <button
                   className="h-11 flex-1 rounded-xl bg-black/[0.05] text-[15px] font-medium text-ink-500 active:scale-[0.98]"
                   onClick={() => setDataPanel(null)}
