@@ -88,6 +88,19 @@ if (errors.length) {
 }
 console.log(`✓ 校验通过：${versions.length} 个版本`);
 
+/* ---------------- 节奏提醒（不拦，只问） ----------------
+ * H23：版本号记的是他验收通过的那一下，一天一个就够。
+ * 同一天挤了好几个号，通常不是"那天做了很多事"，而是修补硬占了号 ——
+ * 但也不能一概拦下，所以只提醒，退出码仍是 0。
+ */
+const perDay = versions.reduce((m, v) => ((m[v.date] = (m[v.date] || 0) + 1), m), {});
+const crowded = Object.entries(perDay).filter(([, n]) => n > 1);
+if (crowded.length) {
+  console.log("\n  节奏提醒：这些天记了不止一个版本");
+  for (const [d, n] of crowded) console.log(`    · ${d}　${n} 个`);
+  console.log("  一句话讲得出来才占号；修补可以并进当天那条（H23）");
+}
+
 if (CHECK_ONLY) process.exit(0);
 
 /* ---------------- 统计 ---------------- */
