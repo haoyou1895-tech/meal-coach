@@ -533,7 +533,7 @@ export default function Page() {
               </button>
             </div>
             <p className="text-[13px] leading-relaxed text-ink-300">
-              只带记录和体重，照片带不走。文件可以发微信「文件传输助手」存着。
+              只带记录和体重，照片带不走。存到微信「文件传输助手」最稳，别往群里发。
             </p>
             <button
               className="text-[13px] text-ink-300 underline underline-offset-2"
