@@ -258,6 +258,28 @@ export default function MoveView({
   const quick = EXERCISES.slice(0, 5);
   const rest = EXERCISES.slice(5);
 
+  /**
+   * 补账那张网格展开到哪一步。
+   *
+   * 十六项一次铺开是四行半，把下面的输入框和合计全推下去了 ——
+   * 他真正要动的是"填多少"，不是看完整张清单。所以先给五个常用的，
+   * 点「更多」再出全套。
+   *
+   * 但收起时**已经勾上的项必须留着**：勾了跳绳再点收起，那一格要是跟着消失，
+   * 他会以为系统把他选的取消了。
+   */
+  const [debtMore, setDebtMore] = useState(false);
+  const quickKinds = new Set(quick.map((d) => d.kind));
+  const debtRest = rest.filter((d) => !riskOf(d.kind, profile, weightKg));
+  const debtOptions = (
+    debtMore
+      ? EXERCISES
+      : [
+          ...quick,
+          ...rest.filter((d) => debtKinds.includes(d.kind) && !quickKinds.has(d.kind)),
+        ]
+  ).filter((d) => !riskOf(d.kind, profile, weightKg));
+
   /* ---------- 近 7 天 ---------- */
   const week = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, i) => shiftDate(tomorrow, i - 7));
@@ -473,15 +495,30 @@ export default function MoveView({
               </Explain>
 
               <MultiPick
-                options={EXERCISES.filter(
-                  (d) => !riskOf(d.kind, profile, weightKg),
-                ).map((d) => ({
+                options={debtOptions.map((d) => ({
                   kind: d.kind,
                   label: d.label,
                   icon: d.icon as IconName,
                 }))}
                 selected={debtKinds}
                 onToggle={toggleDebtKind}
+                footer={
+                  debtRest.length === 0 ? null : debtMore ? (
+                    <button
+                      onClick={() => setDebtMore(false)}
+                      className="h-9 rounded-lg px-2 text-[13px] font-medium text-ink-500"
+                    >
+                      收起
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setDebtMore(true)}
+                      className="h-9 rounded-lg px-2 text-[13px] font-medium text-brand-600"
+                    >
+                      更多
+                    </button>
+                  )
+                }
               />
 
               {debtKinds.length > 0 && (
@@ -966,10 +1003,13 @@ function MultiPick({
   options,
   selected,
   onToggle,
+  footer,
 }: {
   options: { kind: ExerciseKind; label: string; icon: IconName }[];
   selected: ExerciseKind[];
   onToggle: (kind: ExerciseKind) => void;
+  /** 「更多 / 收起」这类跟在格子末尾的按钮 */
+  footer?: React.ReactNode;
 }) {
   return (
     <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -996,6 +1036,7 @@ function MultiPick({
           </button>
         );
       })}
+      {footer}
     </div>
   );
 }

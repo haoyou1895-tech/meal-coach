@@ -130,6 +130,9 @@ const inCard = (label) =>  page.evaluate((label) => {
 
 await inCard("快走");
 await sleep(200);
+// 太极在「更多」里，先展开
+await inCard("更多");
+await sleep(300);
 await inCard("太极");
 await sleep(400);
 
@@ -154,6 +157,26 @@ check("快走的默认值不是 10 分钟硬凑出来的整数", walk && Number(
 const before = state.text.match(/这些动完约 (\d+) 卡/);
 check("合计行在", !!before, before ? `合计 ${before[1]} 卡` : "没找到合计");
 check("「每天最多动」已经去掉", !state.text.includes("每天最多动"));
+
+/* 收起：网格收回五个常用的，但已经勾上的太极必须留着 */
+const collapsed = await page.evaluate(() => {
+  const p = [...document.querySelectorAll("p")].find((x) =>
+    x.innerText.includes("补回来动什么"),
+  );
+  const card = p.closest('div[class*="card"]');
+  [...card.querySelectorAll("button")].find((b) => b.innerText.trim() === "收起")?.click();
+  return new Promise((r) =>
+    setTimeout(() => {
+      r({
+        chips: [...card.querySelectorAll("button")].map((b) => b.innerText.trim()),
+        inputs: [...card.querySelectorAll("input")].map((i) => i.getAttribute("aria-label")),
+      });
+    }, 400),
+  );
+});
+check("展开后有「收起」，收起后回到「更多」", collapsed.chips.includes("更多"), collapsed.chips.join("/"));
+check("收起后已勾的跳绳/太极不跟着消失", collapsed.chips.includes("太极"), collapsed.chips.join("/"));
+check("收起后输入框还在", collapsed.inputs.includes("太极的分钟数"));
 
 await page.screenshot({ path: path.join(OUT, "mk-01-default.png") });
 
