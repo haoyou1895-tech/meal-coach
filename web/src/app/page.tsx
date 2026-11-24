@@ -193,6 +193,7 @@ export default function Page() {
             })
           }
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenCamera={() => setCameraOpen(true)}
         />
       ) : tab === "move" ? (
         <MoveView

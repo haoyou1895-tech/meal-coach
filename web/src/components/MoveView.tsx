@@ -97,6 +97,21 @@ export default function MoveView({
   onPlanMany: (days: { date: string; items: PlannedExercise[] }[]) => void;
 }) {
   const [more, setMore] = useState(false);
+  /*
+   * 录入区默认收起。
+   *
+   * 一屏里原来同时摆着：两条已记的运动（带 ± 和垃圾桶）、
+   * 一个"说一句"输入框加确定、一个麦克风、以及八个运动按钮 ——
+   * 光能点的东西就有二十来个，而他打开这一页通常只想看一眼今天动了多少。
+   *
+   * 现在只在需要加的时候展开。今天一条都没有的人仍然直接看到它，
+   * 否则他会在一个空页面上找入口。
+   */
+  const [adding, setAdding] = useState(false);
+  const showAdd = adding || exercises.length === 0;
+
+  /* 明天的排期入口同样收起来 —— 它是铺垫，不该占着一整套输入控件 */
+  const [planOpen, setPlanOpen] = useState(false);
 
   /** 补账：选了哪几项、每天最多动多久、定了没有 */
   const [debtKinds, setDebtKinds] = useState<ExerciseKind[]>([]);
@@ -255,56 +270,81 @@ export default function MoveView({
             </div>
           )}
 
-          {/* 说一句：口语也能记，时长没说的按默认给 */}
+          {/* 说一句：口语也能记，时长没说的按默认给。收起时只留一行入口 */}
           <div className="mt-3 border-t border-black/[0.05] pt-2.5">
-            <ExerciseSay
-              actionLabel="确定"
-              ariaLabel="用语音说今天做了什么运动"
-              placeholder="快走 40 分钟、跳绳 1000 个"
-              onSubmit={(items) =>
-                onAddExercises(
-                  items.map((p) => ({
-                    kind: p.kind,
-                    minutes: p.minutes,
-                    ...(p.kind === "other" && p.label ? { label: p.label } : {}),
-                  })),
-                )
-              }
-            />
+            <button
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+              aria-expanded={showAdd}
+              className="flex w-full items-center justify-between"
+            >
+              <span className="flex items-center gap-1.5 text-[15px] font-medium text-brand-600">
+                <Icon name={showAdd ? "close" : "plus"} size={14} />
+                {showAdd ? "收起" : "加一项"}
+              </span>
+              {!showAdd && (
+                <span className="text-[12px] text-ink-300">
+                  说一句也行
+                </span>
+              )}
+            </button>
+
+            {showAdd && (
+              <>
+                <div className="mt-2.5">
+                  <ExerciseSay
+                    actionLabel="确定"
+                    ariaLabel="用语音说今天做了什么运动"
+                    placeholder="快走 40 分钟、跳绳 1000 个"
+                    onSubmit={(items) =>
+                      onAddExercises(
+                        items.map((p) => ({
+                          kind: p.kind,
+                          minutes: p.minutes,
+                          ...(p.kind === "other" && p.label
+                            ? { label: p.label }
+                            : {}),
+                        })),
+                      )
+                    }
+                  />
+                </div>
+
+                {/* 挑一项：按这一项自己的量填（公里 / 个 / 分钟） */}
+                <PickExercise
+                  options={(more ? EXERCISES : quick).map((d) => ({
+                    kind: d.kind,
+                    label: d.label,
+                    icon: d.icon as IconName,
+                  }))}
+                  weightKg={weightKg}
+                  onCommit={(kind, minutes, amount) =>
+                    onAddExercises([
+                      {
+                        kind,
+                        minutes,
+                        ...(amount ? { amount } : {}),
+                      },
+                    ])
+                  }
+                  footer={
+                    !more && rest.length > 0 ? (
+                      <button
+                        onClick={() => setMore(true)}
+                        className="h-9 rounded-lg px-2 text-[13px] font-medium text-brand-600"
+                      >
+                        更多
+                      </button>
+                    ) : null
+                  }
+                />
+
+                <Explain>
+                  按体重 {round(weightKg, 1)} 公斤算，已经扣掉了这段时间本来就该消耗的那部分。
+                </Explain>
+              </>
+            )}
           </div>
-
-          {/* 挑一项：按这一项自己的量填（公里 / 个 / 分钟） */}
-          <PickExercise
-            options={(more ? EXERCISES : quick).map((d) => ({
-              kind: d.kind,
-              label: d.label,
-              icon: d.icon as IconName,
-            }))}
-            weightKg={weightKg}
-            onCommit={(kind, minutes, amount) =>
-              onAddExercises([
-                {
-                  kind,
-                  minutes,
-                  ...(amount ? { amount } : {}),
-                },
-              ])
-            }
-            footer={
-              !more && rest.length > 0 ? (
-                <button
-                  onClick={() => setMore(true)}
-                  className="h-9 rounded-lg px-2 text-[13px] font-medium text-brand-600"
-                >
-                  更多
-                </button>
-              ) : null
-            }
-          />
-
-          <Explain>
-            按体重 {round(weightKg, 1)} 公斤算，已经扣掉了这段时间本来就该消耗的那部分。
-          </Explain>
         </div>
       </section>
 
@@ -497,20 +537,15 @@ export default function MoveView({
             </>
           ) : (
             <>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
-                {planned.length > 0 ? "明天这几项，打开就在这一页上。" : "明天做点什么"}
-              </p>
+              {planned.length > 0 && (
+                <p className="mt-1.5 text-[13px] leading-relaxed text-ink-300">
+                  明天这几项，打开就在这一页上。
+                </p>
+              )}
 
               <Explain>
                 建议 {suggest.minutes} 分钟 —— {suggest.why}
               </Explain>
-
-              <ExerciseSay
-                actionLabel="确定"
-                ariaLabel="用语音说明天想做什么运动"
-                placeholder="快走和游泳各半小时"
-                onSubmit={planFromInput}
-              />
 
               {planned.length > 0 && (
                 <div className="mt-3 space-y-2">
@@ -549,27 +584,68 @@ export default function MoveView({
                 </div>
               )}
 
-              <PickExercise
-                options={advices
-                  .filter((a) => !planned.some((p) => keyOf(p) === a.def.kind))
-                  .map((a) => ({
-                    kind: a.def.kind,
-                    label: a.def.label,
-                    icon: a.def.icon as IconName,
-                  }))}
-                weightKg={weightKg}
-                defaultMinutes={() => suggest.minutes}
-                onPlan={(kind, minutes) => togglePlan({ kind, minutes })}
-              />
+              {/*
+                排明天的入口收起来。
+                这一页的主线是"今天动了多少"，明天只是铺垫 ——
+                可它原本摊着一整套输入框、麦克风和三四个按钮，
+                跟上面"加一项"长得一模一样，看着像同一个功能做了两遍。
+                已经排好的项目仍然常显，那是状态，不是操作。
+              */}
+              <button
+                type="button"
+                onClick={() => setPlanOpen((v) => !v)}
+                aria-expanded={planOpen}
+                className="mt-2.5 flex w-full items-center justify-between border-t border-black/[0.05] pt-2.5"
+              >
+                <span className="flex items-center gap-1.5 text-[15px] font-medium text-brand-600">
+                  <Icon name={planOpen ? "close" : "plus"} size={14} />
+                  {planOpen
+                    ? "收起"
+                    : planned.length > 0
+                      ? "再排一项"
+                      : "明天做点什么"}
+                </span>
+                {!planOpen && (
+                  <span className="text-[12px] text-ink-300">说一句也行</span>
+                )}
+              </button>
+
+              {planOpen && (
+                <>
+                  <div className="mt-2">
+                    <ExerciseSay
+                      actionLabel="确定"
+                      ariaLabel="用语音说明天想做什么运动"
+                      placeholder="快走和游泳各半小时"
+                      onSubmit={planFromInput}
+                    />
+                  </div>
+
+                  <PickExercise
+                    options={advices
+                      .filter((a) => !planned.some((p) => keyOf(p) === a.def.kind))
+                      .map((a) => ({
+                        kind: a.def.kind,
+                        label: a.def.label,
+                        icon: a.def.icon as IconName,
+                      }))}
+                    weightKg={weightKg}
+                    defaultMinutes={() => suggest.minutes}
+                    onPlan={(kind, minutes) => togglePlan({ kind, minutes })}
+                  />
+                </>
+              )}
 
               {planned.length > 1 && (
                 <button
                   onClick={() => onPlanItems(tomorrow, [])}
-                  className="mt-2 text-[12px] font-medium text-ink-300"
+                  className="mt-2 flex items-center gap-1 text-[12px] font-medium text-ink-300"
                 >
-                  清空，重新挑
+                  <Icon name="trash" size={12} />
+                  清空
                 </button>
               )}
+
             </>
           )}
 

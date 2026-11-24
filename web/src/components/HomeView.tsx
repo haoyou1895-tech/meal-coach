@@ -180,6 +180,7 @@ export default function HomeView({
   planTomorrowLabel,
   onOpenSummary,
   onOpenSettings,
+  onOpenCamera,
   onGoalWeeks,
   currentWeightKg,
 }: {
@@ -193,6 +194,8 @@ export default function HomeView({
   planTomorrowLabel: string | null;
   onOpenSummary: () => void;
   onOpenSettings: () => void;
+  /** 打开展拍照面板。空状态那块也要能点 —— 它长得像个入口，就该是个入口 */
+  onOpenCamera: () => void;
   /**
    * 最近一次称的体重。跟 profile.weightKg 不是一回事：
    * profile 里存的是注册那天填的数，之后掉的那几公斤在 weights 里。
@@ -219,6 +222,13 @@ export default function HomeView({
   // "预算怎么算的"默认折叠：九成日子他不需要看那三个数字，
   // 但想质疑的时候必须点得到 —— 藏在设置页里就等于没有
   const [showHow, setShowHow] = useState(false);
+  /*
+   * 展开"定计划"里还要再折一层。
+   * 三档卡是给人选的，三段解释是给人查的 —— 这两件事不该同时出现：
+   * 一屏里同时有"选哪个"和"为什么这么算"，他就不知道自己在哪一步。
+   * 默认只给卡，想追问再点开。
+   */
+  const [showMath, setShowMath] = useState(false);
 
   /*
    * 三个速度档。每次渲染算一遍，不缓存 —— 它们依赖 profile 和当天活动量，
@@ -579,7 +589,11 @@ export default function HomeView({
             提醒只在出问题时出现，出问题前他看不到任何结构 ——
             一个只有警告、没有刻度的仪表盘，是没法用来调方向的。
             现在把它收进同一张白卡、环的正下方，跟热量是同一笔账。
+
+            没记录的时候不显示：四条全是 0/89g，占着 60 像素，
+            信息量为零，还让第一屏看起来"已经有很多东西了"。
           */}
+          {todayMeals.length > 0 && (
           <div className="mt-3 flex gap-3 border-t border-black/[0.06] pt-3">
             <MacroBar
               icon="protein"
@@ -623,6 +637,7 @@ export default function HomeView({
               digits={1}
             />
           </div>
+          )}
         </div>
       </section>
 
@@ -770,67 +785,102 @@ export default function HomeView({
                   );
                 })}
               </div>
-              <p className="mt-2 text-[12px] leading-relaxed text-ink-400">
-                最快就是 {plan.fastestWeeks || 1} 周。
-                再往前压，掉的就不再是脂肪 —— 是肌肉和水，
-                而且一恢复正常吃饭就会回来。
-              </p>
+              {/*
+                没有"快一点"这一档时，"最快就是 N 周"和上面那张卡说的是同一个数。
+                同一句话在一屏里出现两遍，他就开始找区别 —— 没有区别。
+              */}
+              {speeds.some((o) => o.key === "fast") && (
+                <p className="mt-2 text-[12px] leading-relaxed text-ink-400">
+                  最快就是 {plan.fastestWeeks || 1} 周。
+                  再往前压，掉的就不再是脂肪 —— 是肌肉和水，
+                  而且一恢复正常吃饭就会回来。
+                </p>
+              )}
             </div>
             {/*
               以前这里写的是「按『走动』算，约 2143 大卡」。
               那个 1.3 是把一整天糊成一个倍数，用户没法验证。
               现在拆成三段，每段都能对上他的生活：
               躺着多少、日常多少、他上周真动了多少。
+
+              但这三段是"查账"用的，不是"选档"用的。
+              跟三张卡放在一起，等于让人一边选一边读论文 ——
+              收进第二层，默认只给卡。
             */}
-            <p>
-              躺着不动，一天要花{" "}
-              <b className="tabular-nums text-ink-700">{plan.bmr}</b> 大卡；
-              起床走路说话，再加{" "}
-              <b className="tabular-nums text-ink-700">
-                {plan.neatKcal - plan.bmr}
-              </b>
-              ；最近一周你的运动平均每天{" "}
-              <b className="tabular-nums text-ink-700">{plan.exerciseKcal}</b>{" "}
-              大卡。三样加起来是{" "}
-              <b className="tabular-nums text-ink-700">{plan.tdee}</b> 大卡。
-            </p>
-            {plan.exerciseKcal === 0 && (
-              <p className="text-ink-300!">
-                运动那项现在是 0 —— 不是算错了，是还没记过。
-                在「今天的账」里记一次，明天开始预算就会跟着你的实际情况走。
-              </p>
-            )}
-            <p>
-              {atGoal ? (
-                <>
-                  已经到目标了，环里那个数是维持体重用的 —— 吃到{" "}
+            <button
+              type="button"
+              onClick={() => setShowMath((v) => !v)}
+              className="mt-2.5 flex w-full items-center justify-between border-t border-black/[0.06] pt-2.5 text-[12px] text-ink-400"
+            >
+              <span>{showMath ? "收起" : "这些数怎么来的"}</span>
+              <Icon name={showMath ? "close" : "plus"} size={12} />
+            </button>
+
+            {showMath && (
+              <>
+                <p>
+                  躺着不动，一天要花{" "}
+                  <b className="tabular-nums text-ink-700">{plan.bmr}</b> 大卡；
+                  起床走路说话，再加{" "}
                   <b className="tabular-nums text-ink-700">
-                    {plan.dailyBudgetKcal}
-                  </b>{" "}
-                  大卡上下，体重就不动。
-                </>
-              ) : (
-                <>
-                  想瘦就得留缺口：每天少吃{" "}
-                  <b className="tabular-nums text-ink-700">{plan.deficit}</b>{" "}
-                  大卡，剩下的{" "}
+                    {plan.neatKcal - plan.bmr}
+                  </b>
+                  ；最近一周你的运动平均每天{" "}
                   <b className="tabular-nums text-ink-700">
-                    {plan.dailyBudgetKcal}
+                    {plan.exerciseKcal}
                   </b>{" "}
-                  就是环里那个数。
-                </>
-              )}
-            </p>
-            {!atGoal && (
-            <p>
-              {currentWeightKg} 到 {profile.targetWeightKg} 公斤差{" "}
-              <b className="tabular-nums text-ink-700">
-                {Math.max(0, Math.round((currentWeightKg - profile.targetWeightKg) * 10) / 10)}
-              </b>{" "}
-              公斤，按一周掉{" "}
-              <b className="tabular-nums text-ink-700">{plan.perWeekKg}</b> 公斤算，
-              所以是 {plan.weeksToGoal} 周。
-            </p>
+                  大卡。三样加起来是{" "}
+                  <b className="tabular-nums text-ink-700">{plan.tdee}</b>{" "}
+                  大卡。
+                </p>
+                {plan.exerciseKcal === 0 && (
+                  <p className="text-ink-300!">
+                    运动那项现在是 0 —— 不是算错了，是还没记过。
+                    在「今天的账」里记一次，明天开始预算就会跟着你的实际情况走。
+                  </p>
+                )}
+                <p>
+                  {atGoal ? (
+                    <>
+                      已经到目标了，环里那个数是维持体重用的 —— 吃到{" "}
+                      <b className="tabular-nums text-ink-700">
+                        {plan.dailyBudgetKcal}
+                      </b>{" "}
+                      大卡上下，体重就不动。
+                    </>
+                  ) : (
+                    <>
+                      想瘦就得留缺口：每天少吃{" "}
+                      <b className="tabular-nums text-ink-700">
+                        {plan.deficit}
+                      </b>{" "}
+                      大卡，剩下的{" "}
+                      <b className="tabular-nums text-ink-700">
+                        {plan.dailyBudgetKcal}
+                      </b>{" "}
+                      就是环里那个数。
+                    </>
+                  )}
+                </p>
+                {!atGoal && (
+                  <p>
+                    {currentWeightKg} 到 {profile.targetWeightKg} 公斤差{" "}
+                    <b className="tabular-nums text-ink-700">
+                      {Math.max(
+                        0,
+                        Math.round(
+                          (currentWeightKg - profile.targetWeightKg) * 10,
+                        ) / 10,
+                      )}
+                    </b>{" "}
+                    公斤，按一周掉{" "}
+                    <b className="tabular-nums text-ink-700">
+                      {plan.perWeekKg}
+                    </b>{" "}
+                    公斤算，所以是 {plan.weeksToGoal} 周。
+                  </p>
+                )}
+              </>
             )}
 
           </div>
@@ -853,7 +903,12 @@ export default function HomeView({
           默认留在按顿 —— 人一天里想知道"我吃了什么"的次数，
           比想知道"哪一口最贵"的多。
         */}
-        {sorted.length > 0 && (
+        {/*
+          两条记录以内不给切换。
+          一顿饭的时候"按顿看"和"按热量排"出来的东西一模一样，
+          多两个按钮只会让他先想"这俩有什么区别"。
+        */}
+        {sorted.length > 2 && (
           <div className="mb-2.5 flex gap-1 rounded-xl bg-black/[0.05] p-1">
             {(
               [
@@ -877,11 +932,23 @@ export default function HomeView({
           </div>
         )}
 
+        {/*
+          空状态原来只是一块虚线 + "拍一张就行"：它长得像入口，
+          点下去却什么都不发生 —— 这是最容易让人以为 App 坏了的地方。
+          整块变成按钮，里面再给一个看得见的胶囊，两个层级都指同一件事。
+        */}
         {sorted.length === 0 ? (
-          <div className="flex flex-col items-center rounded-2xl border border-dashed border-ink-300/50 py-6">
+          <button
+            type="button"
+            onClick={onOpenCamera}
+            className="flex w-full flex-col items-center rounded-2xl border border-dashed border-ink-300/50 py-5 transition active:scale-[0.99]"
+          >
             <Icon name="camera" size={26} className="text-ink-300" />
-            <p className="mt-2 text-[15px] text-ink-300">拍一张就行</p>
-          </div>
+            <span className="mt-2 text-[15px] text-ink-300">拍一张就行</span>
+            <span className="mt-3 inline-flex h-9 items-center rounded-full border border-brand-500/35 bg-brand-50 px-4 text-[14px] font-medium text-brand-700">
+              拍照
+            </span>
+          </button>
         ) : view === "food" ? (
           /*
             榜单。一行一样东西，条长按最大的那样算 ——
