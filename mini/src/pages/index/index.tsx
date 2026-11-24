@@ -5,6 +5,7 @@ import BottomNav from "../../components/BottomNav";
 import Icon, { type IconName } from "../../components/Icon";
 import Splash from "../../components/Splash";
 import { habitTimes, macroWarnings, mealReminder, nextMealAdvice } from "../../lib/advice";
+import { avgBurnEndingOn } from "../../lib/exercise";
 import { dayStatusText, ruleVerdict, type Verdict } from "../../lib/comment";
 import {
   alcoholVerdict,
@@ -18,13 +19,13 @@ import {
   buildPlan,
   goalOptions,
   mealTypeLabel,
-  snackLabel,
   streakDays,
   sumMeals,
   todayStr,
 } from "../../lib/nutrition";
 import { foodRanking, rankSummary, type RankedFood } from "../../lib/ranking";
 import {
+  dateList,
   latestWeightKg,
   loadState,
   saveState,
@@ -144,12 +145,15 @@ export default function HomePage() {
     // 预算按最近一次称的体重算：人瘦了消耗降，还按老体重给额度就是越吃越超
     const currentWeightKg = latestWeightKg(state.weights, profile.weightKg);
     /*
-     * 运动消耗暂时按 0：网页版已经换成"按实际运动记 MET"，
-     * 小程序这端的「今日收工」面板还没搬过来，所以没有数据可算。
-     * 0 的意思是"只有日常活动"，不是"没动"—— 基础代谢里那 1.2 倍还在。
-     * 等面板搬过来，这里换成 avgBurnEndingOn(state.exercises, 昨天, 体重)。
+     * 跟网页版同一条口径：今天的预算吃的是「截至昨天」的 7 天运动均值。
+     * 今晚动的，今晚的额度不该立刻涨 —— 一涨就变成"运动换饭吃"（H5）。
+     * 运动记录在「动」那一页，数据本来就是同一份 state。
      */
-    const extraBurn = 0;
+    const extraBurn = avgBurnEndingOn(
+      state.exercises,
+      dateList(2)[1],
+      currentWeightKg,
+    );
     const plan = buildPlan({ ...profile, weightKg: currentWeightKg }, extraBurn);
     const todayMeals = state.meals.filter((m) => m.date === today);
     const totals = sumMeals(todayMeals);
@@ -626,7 +630,7 @@ export default function HomePage() {
                     <View className="meal-left">
                       <View className="meal-meta">
                         <Icon name={SLOT_ICON[m.mealType]} size={15} color={INK_400} />
-                        <Text className="meal-meta-text">{snackLabel(m)}</Text>
+                        <Text className="meal-meta-text">{mealTypeLabel(m.mealType)}</Text>
                         {!!time && <Text className="meal-time tabular">{time}</Text>}
                       </View>
                       <Text className="meal-items ellipsis">
@@ -676,7 +680,7 @@ export default function HomePage() {
       <View className="bottom-space" />
 
       <BottomNav
-        active="home"
+        active="eat"
         showCapture
         onCapture={() => Taro.navigateTo({ url: "/pages/capture/index" })}
       />

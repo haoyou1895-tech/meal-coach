@@ -1,0 +1,687 @@
+/**
+ * 运动页样式。数值全部来自网页版 MoveView.tsx 的 Tailwind 类，用 tw() 换算
+ * （1 单位 = 4.25px，即 17px 根字号下的 0.25rem）。
+ *
+ * 类名前缀统一 mv-，跟首页的 .hd / .sec 区分开 —— 两个页面共用 app.scss 的骨架，
+ * 各自的东西加前缀，将来改一处不会打到另一页。
+ */
+
+/* ---------- 顶部 ---------- */
+
+/* 网页版：flex items-end justify-between px-5 pb-3 pt-3，但 .safe-top 把
+   padding-top 覆盖成 env(safe-area-inset-top)（浏览器里是 0），照实测来 */
+.mv-hd {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 tw(5) tw(3);
+}
+
+/* text-[27px] font-bold tracking-tight */
+.mv-h1 {
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  color: $ink-900;
+}
+
+/* pb-1 text-[13px] tabular-nums */
+.mv-hd-sub {
+  padding-bottom: tw(1);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: $ink-500;
+}
+
+/* text-[16px] font-semibold text-brand-600 */
+.mv-hd-num {
+  font-size: 16px;
+  font-weight: 600;
+  color: $brand-600;
+}
+
+/* 网页版卡片是 p-5，运动页四张卡都写成 p-4!（17px） */
+.card-tight {
+  padding: tw(4);
+}
+
+/* ---------- 一、今天动了多少 ---------- */
+
+/* flex items-baseline justify-between */
+.mv-rowline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* text-[16px] font-medium */
+.mv-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+/* text-[13px] tabular-nums text-ink-300 */
+.mv-title-sub {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: $ink-300;
+}
+
+/* mt-1.5 text-[13px] text-ink-300 */
+.mv-empty {
+  display: block;
+  margin-top: tw(1.5);
+  font-size: 13px;
+  color: $ink-300;
+}
+
+/* mt-2.5 space-y-2 */
+.mv-logs {
+  margin-top: tw(2.5);
+}
+
+.mv-logs + .mv-logs {
+  margin-top: tw(2);
+}
+
+/* flex items-center gap-2 rounded-xl bg-black/[0.03] px-2.5 py-2 */
+.mv-log {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.03);
+  padding: tw(2) tw(2.5);
+}
+
+.mv-log + .mv-log {
+  margin-top: tw(2);
+}
+
+.mv-log-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+/* truncate text-[15px] font-medium leading-tight */
+.mv-log-name {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: $ink-900;
+}
+
+/* mt-0.5 truncate text-[11px] leading-tight tabular-nums */
+.mv-log-sub {
+  display: block;
+  margin-top: tw(0.5);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: $ink-500;
+}
+
+/* h-7 w-7 rounded-full bg-black/[0.04] */
+.mv-log-del {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: tw(7);
+  height: tw(7);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ---------- 添加 / 收起 那一行 ---------- */
+
+/* mt-3 border-t border-black/[0.05] pt-2.5 */
+.mv-divider {
+  margin-top: tw(3);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding-top: tw(2.5);
+}
+
+.mv-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mv-toggle-plan {
+  margin-top: tw(2.5);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding-top: tw(2.5);
+}
+
+.mv-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+}
+
+/* text-[15px] font-medium text-brand-600 */
+.mv-toggle-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: $brand-600;
+}
+
+/* text-[12px] text-ink-300 */
+.mv-toggle-hint {
+  font-size: 12px;
+  color: $ink-300;
+}
+
+/* 网页版给 ExerciseSay 包了一层 mt-2.5 / mt-2 */
+.mv-say {
+  margin-top: tw(2.5);
+}
+
+/* ---------- 选项格子（记今天 / 排明天 / 补账共用） ---------- */
+
+/* mt-2.5 flex flex-wrap gap-1.5 */
+.mv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: tw(1.5);
+  margin-top: tw(2.5);
+}
+
+/* h-9 rounded-lg bg-black/[0.04] px-2.5 gap-1.5 */
+.mv-chip {
+  display: flex;
+  align-items: center;
+  gap: tw(1.5);
+  height: tw(9);
+  border-radius: tw(2);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0 tw(2.5);
+}
+
+.mv-chip.is-on {
+  background: $brand-500;
+}
+
+/* text-[13px] font-medium */
+.mv-chip-text {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: $ink-700;
+}
+
+.mv-chip-text.is-on {
+  color: #ffffff;
+}
+
+/* h-9 rounded-lg px-2 text-[13px] font-medium（更多 / 收起） */
+.mv-morebtn {
+  display: flex;
+  align-items: center;
+  height: tw(9);
+  border-radius: tw(2);
+  padding: 0 tw(2);
+}
+
+.mv-morebtn-text {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: $brand-600;
+}
+
+.mv-morebtn-text.is-quiet {
+  color: $ink-500;
+}
+
+/* ---------- 点开一项后的输入条 ---------- */
+
+/* mt-2 rounded-xl border border-brand-500 bg-brand-50 px-2.5 py-2 */
+.mv-pick {
+  margin-top: tw(2);
+  border-radius: tw(3);
+  border: 1px solid $brand-500;
+  background: $brand-50;
+  padding: tw(2) tw(2.5);
+}
+
+.mv-pick-row {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+}
+
+/* min-w-0 flex-1 truncate text-[14px] font-medium */
+.mv-pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+/* mt-1.5 flex items-center justify-between gap-2 */
+.mv-pick-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: tw(2);
+  margin-top: tw(1.5);
+}
+
+/* text-[12px] tabular-nums text-ink-500 */
+.mv-pick-kcal {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: $ink-500;
+}
+
+/* h-8 rounded-lg bg-brand-500 px-3 text-[13px] font-medium */
+.mv-ok {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: tw(8);
+  border-radius: tw(2);
+  background: $brand-500;
+  padding: 0 tw(3);
+}
+
+.mv-ok-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1;
+}
+
+/* ---------- 二、今天要做的 ---------- */
+
+/* rounded-2xl bg-brand-50 px-3.5 py-3 */
+.mv-todo {
+  border-radius: tw(4);
+  background: $brand-50;
+  padding: tw(3) tw(3.5);
+}
+
+/* text-[15px] font-semibold text-brand-700 */
+.mv-todo-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: $brand-700;
+}
+
+/* text-[12px] text-brand-600/70 */
+.mv-todo-from {
+  font-size: 12px;
+  color: rgba(23, 111, 73, 0.7);
+}
+
+/* mt-2 space-y-1.5 */
+.mv-todo-list {
+  margin-top: tw(2);
+}
+
+.mv-todo-row {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+}
+
+.mv-todo-row + .mv-todo-row {
+  margin-top: tw(1.5);
+}
+
+/* min-w-0 flex-1 text-[15px] text-ink-700 */
+.mv-todo-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  color: $ink-700;
+}
+
+/* text-[13px] text-ink-400（网页版用了未定义的 400，这里跟小程序其他处一致取 500） */
+.mv-todo-unit {
+  font-size: 13px;
+  color: $ink-500;
+}
+
+/* flex shrink-0 items-center gap-1 text-[13px] font-medium text-brand-600 */
+.mv-done {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: tw(1);
+}
+
+.mv-done-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: $brand-600;
+}
+
+/* ---------- 三、明天：超支补账 ---------- */
+
+/* mt-2 flex items-baseline gap-2 */
+.mv-over {
+  display: flex;
+  align-items: baseline;
+  gap: tw(2);
+  margin-top: tw(2);
+}
+
+/* text-[30px] font-bold leading-none tabular-nums #b23c2c */
+.mv-over-num {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #b23c2c;
+}
+
+/* pb-0.5 text-[13px] text-ink-500 */
+.mv-over-text {
+  padding-bottom: tw(0.5);
+  font-size: 13px;
+  color: $ink-500;
+}
+
+/* mt-3 text-[14px] font-medium */
+.mv-debt-title {
+  display: block;
+  margin-top: tw(3);
+  font-size: 14px;
+  font-weight: 500;
+  color: $ink-900;
+}
+
+.mv-debt-explain {
+  margin-top: tw(0.5) !important;
+}
+
+.mv-debt-note {
+  margin-top: tw(1.5) !important;
+  color: $ink-500 !important;
+}
+
+/* mt-2.5 rounded-xl border border-brand-500 bg-brand-50 p-3 */
+.mv-debt {
+  margin-top: tw(2.5);
+  border-radius: tw(3);
+  border: 1px solid $brand-500;
+  background: $brand-50;
+  padding: tw(3);
+}
+
+.mv-debt-row {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+}
+
+.mv-debt-row + .mv-debt-row {
+  margin-top: tw(2);
+}
+
+.mv-debt-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+/* truncate text-[14px] font-medium leading-tight */
+.mv-debt-name {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: $ink-900;
+}
+
+/* text-[11px] tabular-nums */
+.mv-debt-sub {
+  display: block;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: $ink-500;
+}
+
+/* mt-2.5 border-t border-brand-500/20 pt-2.5 text-[12px] leading-relaxed */
+.mv-debt-sum {
+  display: block;
+  margin-top: tw(2.5);
+  border-top: 1px solid rgba(31, 138, 91, 0.2);
+  padding-top: tw(2.5);
+  font-size: 12px;
+  line-height: 1.625;
+}
+
+.is-good {
+  color: $brand-600;
+}
+
+.is-over {
+  color: #b23c2c;
+}
+
+/* mt-2.5 flex gap-2 */
+.mv-debt-actions {
+  display: flex;
+  gap: tw(2);
+  margin-top: tw(2.5);
+}
+
+/* h-10 flex-1 rounded-xl bg-brand-500 text-[14px] font-medium */
+.mv-commit {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: tw(10);
+  border-radius: tw(3);
+  background: $brand-500;
+}
+
+.mv-commit-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1;
+}
+
+/* h-10 w-11 rounded-xl bg-white/70 */
+.mv-clear {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: tw(11);
+  height: tw(10);
+  border-radius: tw(3);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* mt-2 text-[12px] leading-relaxed text-brand-600 */
+.mv-debt-done {
+  display: block;
+  margin-top: tw(2);
+  font-size: 12px;
+  line-height: 1.625;
+  color: $brand-600;
+}
+
+/* mt-3 border-t border-black/[0.05] pt-2 */
+.mv-say-debt {
+  margin-top: tw(3);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding-top: tw(2);
+}
+
+/* text-[12px] text-ink-300 */
+.mv-say-debt-hint {
+  display: block;
+  font-size: 12px;
+  color: $ink-300;
+}
+
+/* ---------- 三、明天：没超支 ---------- */
+
+/* mt-1.5 text-[13px] leading-relaxed text-ink-500 */
+.mv-small-debt {
+  display: block;
+  margin-top: tw(1.5);
+  font-size: 13px;
+  line-height: 1.625;
+  color: $ink-500;
+}
+
+/* mt-3 space-y-2 */
+.mv-planned {
+  margin-top: tw(3);
+}
+
+/* flex items-start gap-2.5 rounded-xl border border-brand-500 bg-brand-50 px-3 py-2 */
+.mv-plan-card {
+  display: flex;
+  align-items: flex-start;
+  gap: tw(2.5);
+  border-radius: tw(3);
+  border: 1px solid $brand-500;
+  background: $brand-50;
+  padding: tw(2) tw(3);
+}
+
+.mv-plan-card + .mv-plan-card {
+  margin-top: tw(2);
+}
+
+.mv-plan-mid {
+  flex: 1;
+  min-width: 0;
+}
+
+/* text-[15px] font-medium leading-snug */
+.mv-plan-name {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.375;
+  color: $ink-900;
+}
+
+/* text-ink-500 */
+.mv-plan-amount {
+  color: $ink-500;
+}
+
+/* ml-1 text-[13px] font-normal text-ink-300 tabular-nums */
+.mv-plan-kcal {
+  margin-left: tw(1);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: $ink-300;
+}
+
+/* h-6 w-6 rounded-full bg-white/70 */
+.mv-plan-del {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: tw(6);
+  height: tw(6);
+  margin-top: tw(0.5);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* mt-2 flex items-center gap-1 text-[12px] font-medium text-ink-300 */
+.mv-plan-clear {
+  display: flex;
+  align-items: center;
+  gap: tw(1);
+  margin-top: tw(2);
+}
+
+.mv-plan-clear-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: $ink-300;
+}
+
+/* ---------- 四、近 7 天 ---------- */
+
+/* mt-3 flex h-24 items-end gap-1.5 */
+.mv-week {
+  display: flex;
+  align-items: flex-end;
+  gap: tw(1.5);
+  height: tw(24);
+  margin-top: tw(3);
+}
+
+/* flex flex-1 flex-col items-center justify-end gap-1 */
+.mv-week-col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: tw(1);
+}
+
+/* text-[11px] leading-none tabular-nums */
+.mv-week-num {
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: $ink-300;
+}
+
+/* w-full rounded-md */
+.mv-week-bar {
+  width: 100%;
+  border-radius: tw(1.5);
+}
+
+.mv-week-day {
+  font-size: 11px;
+  line-height: 1;
+  color: $ink-300;
+}
+
+/* ---------- 页脚 ---------- */
+
+/* mt-6 px-8 text-center text-[12px] leading-relaxed */
+.mv-foot {
+  margin-top: tw(6);
+  padding: 0 tw(8);
+}
+
+.mv-foot-text {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.625;
+  color: $ink-300;
+  white-space: pre-line;
+}

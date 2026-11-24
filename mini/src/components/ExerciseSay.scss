@@ -1,0 +1,59 @@
+/* 一句话记运动。数值对着网页版 ExerciseSay.tsx 的类名换算（tw 单位 = 4.25px） */
+
+/* 网页版 mt-2 flex items-center gap-2 */
+.say-row {
+  display: flex;
+  align-items: center;
+  gap: tw(2);
+  margin-top: tw(2);
+}
+
+/* h-11 rounded-xl bg-black/[0.04] px-3 text-[15px] */
+.say-input {
+  flex: 1;
+  min-width: 0;
+  height: tw(11); /* 46.75 */
+  border-radius: tw(3); /* 12.75 */
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0 tw(3);
+  font-size: 15px;
+  color: $ink-900;
+}
+
+/* 网页版占位字是 13px 的 ink-300 —— 比正文小一档，一眼看得出是提示不是内容 */
+.say-ph {
+  font-size: 13px;
+  color: $ink-300;
+}
+
+/* h-11 shrink-0 rounded-xl bg-black/[0.05] px-3.5 text-[15px] font-medium text-brand-600 */
+.say-btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: tw(11);
+  border-radius: tw(3);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0 tw(3.5);
+}
+
+.say-btn.is-disabled {
+  opacity: 0.4;
+}
+
+.say-btn-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: $brand-600;
+  line-height: 1;
+}
+
+/* mt-1.5 text-[12px] leading-relaxed text-warn-600 */
+.say-err {
+  display: block;
+  margin-top: tw(1.5);
+  font-size: 12px;
+  line-height: 1.625;
+  color: $warn-600;
+}

@@ -32,6 +32,9 @@ const SHARED = [
   "ranking.ts",
   "mock.ts",
   "store.ts",
+  /* 运动：定义（MET / 单位 / 默认量）和口语解析，都是纯逻辑，两岸一致 */
+  "exercise.ts",
+  "exerciseParse.ts",
 ];
 
 mkdirSync(TO, { recursive: true });

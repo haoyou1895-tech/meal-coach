@@ -1,6 +1,7 @@
 export default defineAppConfig({
   pages: [
     "pages/index/index",
+    "pages/move/index",
     "pages/record/index",
     "pages/setup/index",
     "pages/capture/index",

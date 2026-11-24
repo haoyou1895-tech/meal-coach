@@ -279,6 +279,33 @@ export function setExerciseMinutes(
   };
 }
 
+/**
+ * 改"做了多少"。按公里/个数量的项目要走这条：
+ * 量是他填的那个数，分钟是折算出来的，两个必须一起写进去 ——
+ * 只改分钟不含量，下次打开又按公里反算一遍，数字会来回跳。
+ * amount 传 null 表示这一项按分钟量（时间类），顺手把旧字段清掉。
+ */
+export function setExerciseAmount(
+  s: AppState,
+  id: string,
+  amount: number | null,
+  minutes: number,
+): AppState {
+  return {
+    ...s,
+    exercises: s.exercises.map((e) => {
+      if (e.id !== id) return e;
+      const next: ExerciseLog = {
+        ...e,
+        minutes: Math.max(5, Math.min(300, minutes)),
+      };
+      if (amount && amount > 0) next.amount = amount;
+      else delete next.amount;
+      return next;
+    }),
+  };
+}
+
 /* ---------- 明天练什么 ---------- */
 
 export function planOfDate(s: AppState, date: string): ExercisePlan | null {

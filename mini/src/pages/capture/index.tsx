@@ -61,26 +61,11 @@ const MAX_SHOTS = 4;
  */
 const DRAFT_ID = "draft-photo";
 
-/**
- * 加餐的副标题。
- *
- * "加餐"是个分类词，不是人话。下午三点他说"下午茶"，十点说"宵夜"，
- * 上午十点就是"上午"。上一版只有下午茶/宵夜两档，于是上午十一点
- * 打开也写着"下午茶"，跟还没吃的午饭撞在一起。
- */
-function snackSub(hour: number): string {
-  if (hour >= 20 || hour < 5) return "宵夜";
-  if (hour >= 13 && hour < 17) return "下午茶";
-  if (hour >= 5 && hour < 12) return "上午";
-  return "";
-}
-
 export default function CapturePage() {
   const [phase, setPhase] = useState<Phase>("idle");
   /** 压缩后的本地路径，多张时第一张当预览 */
   const [shots, setShots] = useState<string[]>([]);
   const [mealType, setMealType] = useState<MealType>("breakfast");
-  const [hour, setHour] = useState<number>(new Date().getHours());
   const [items, setItems] = useState<FoodItem[]>([]);
   const [base, setBase] = useState<Nutrition | null>(null);
   const [factors, setFactors] = useState<number[]>([]);
@@ -126,7 +111,6 @@ export default function CapturePage() {
   useEffect(() => {
     const now = new Date();
     setMealType(guessMealType(now, todayMeals.map((m) => m.mealType)));
-    setHour(now.getHours());
     // 只在进页面那一刻猜一次；放依赖里会把他手动改的又改回去
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -910,10 +894,6 @@ export default function CapturePage() {
               >
                 <View className="mealtype-inner">
                   <Text className="mealtype-text">{mealTypeLabel(t)}</Text>
-                  {/* 上午十一点不该写"下午茶"：副标题只在该时段出现 */}
-                  {t === "snack" && !!snackSub(hour) && (
-                    <Text className={`mealtype-sub ${on ? "is-on" : ""}`}>{snackSub(hour)}</Text>
-                  )}
                 </View>
                 {recorded && <Text className={`mealtype-rec ${on ? "is-on" : ""}`}>已记</Text>}
               </View>

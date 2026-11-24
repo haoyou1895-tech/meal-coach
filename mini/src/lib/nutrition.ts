@@ -84,11 +84,20 @@ export function buildPlan(p: Profile, extraBurnKcal = 0): NutritionPlan {
     goalWeeks && gapKg > 0 ? (gapKg * 7700) / (goalWeeks * 7) : 0;
   const tooFast = wanted > maxDeficit + 1;
 
-  const deficit = goalWeeks
-    ? Math.min(wanted, maxDeficit)
-    : gapKg > 0
-      ? DAILY_DEFICIT
-      : 0;
+  /*
+   * 默认那档也要过安全线 —— 早先只有用户自己定周数时才卡上限，
+   * 默认的 400 是直接用的。于是出现过一个很荒谬的界面：
+   *
+   * 他 74 公斤、总消耗 1834，安全上限只有 334（因为预算的地板是 1500），
+   * weeksToGoal 却按 400 算出 17 周；而"快一点"那档老老实实按 334 算，
+   * 算出 20 周。结果"20 周"标着快一点、"17 周"标着照这个 ——
+   * 顺序反了，而且 17 周那个数是假的：照它吃，实际只会掉到 20 周。
+   *
+   * 缺口只有一个真值：min(想要的, 上限)。默认档也不例外。
+   */
+  const deficit = gapKg > 0
+    ? Math.min(goalWeeks ? wanted : DAILY_DEFICIT, maxDeficit)
+    : 0;
 
   const raw = tdee - deficit;
   const dailyBudgetKcal = Math.max(Math.round(raw), floor);
@@ -153,14 +162,18 @@ export interface GoalOption {
  */
 export function goalOptions(p: Profile, extraBurnKcal = 0): GoalOption[] {
   const steady = buildPlan({ ...p, goalWeeks: undefined }, extraBurnKcal);
-  const fast = buildPlan(
-    { ...p, goalWeeks: steady.fastestWeeks || 1 },
-    extraBurnKcal,
+  const fastestWeeks = steady.fastestWeeks || steady.weeksToGoal || 1;
+  const fast = buildPlan({ ...p, goalWeeks: fastestWeeks }, extraBurnKcal);
+  /*
+   * 慢那档至少比"照这个"多一周。
+   * 原来写的是 steady.weeksToGoal * 1.4，周数小的时候（比如 3 周 → 4 周）
+   * 四舍五入会撞回同一档，界面上就出现两张一样的卡。
+   */
+  const slowWeeks = Math.max(
+    steady.weeksToGoal + 1,
+    Math.ceil(steady.weeksToGoal * 1.4),
   );
-  const slow = buildPlan(
-    { ...p, goalWeeks: Math.ceil(steady.weeksToGoal * 1.4) },
-    extraBurnKcal,
-  );
+  const slow = buildPlan({ ...p, goalWeeks: slowWeeks }, extraBurnKcal);
 
   const shape = (
     key: GoalSpeed,
@@ -176,16 +189,22 @@ export function goalOptions(p: Profile, extraBurnKcal = 0): GoalOption[] {
     goalWeeks,
   });
 
-  return [
-    shape("fast", "快一点", fast, steady.fastestWeeks || undefined),
-    shape("steady", "照这个", steady, undefined),
-    shape(
-      "slow",
-      "慢一点",
-      slow,
-      Math.ceil(steady.weeksToGoal * 1.4),
-    ),
-  ];
+  const all: GoalOption[] = [];
+  /*
+   * 只有"最快"真的比"照这个"快，才给"快一点"这一档。
+   *
+   * 默认缺口撞到安全上限时（400 > 334 这种），最快就等于照这个。
+   * 再摆一张数字几乎一样的卡，他会以为系统算错 ——
+   * 少的不是一档，是"还有更快的"这个选项本来就不存在。
+   */
+  if (fast.weeksToGoal < steady.weeksToGoal) {
+    all.push(shape("fast", "快一点", fast, fastestWeeks));
+  }
+  all.push(shape("steady", "照这个", steady, undefined));
+  if (slow.weeksToGoal > steady.weeksToGoal) {
+    all.push(shape("slow", "慢一点", slow, slowWeeks));
+  }
+  return all;
 }
 
 export const EMPTY_NUTRITION: Nutrition = {
@@ -246,27 +265,6 @@ export function todayStr(d = new Date()) {
 
 export function mealTypeLabel(t: Meal["mealType"]) {
   return { breakfast: "早餐", lunch: "午餐", dinner: "晚餐", snack: "加餐" }[t];
-}
-
-/**
- * 加餐到底算下午茶还是宵夜。
- *
- * "加餐"是个分类词，不是人话。下午三点吃碗绿豆汤，他自己会说"下午茶"；
- * 十一点吃碗馄饨，那是"宵夜"。同一个 snack，两个完全不同的场景，
- * 写清楚比归对类有用。
- */
-export function snackLabel(m: Pick<Meal, "mealType" | "eatenAt" | "createdAt">) {
-  if (m.mealType !== "snack") return mealTypeLabel(m.mealType);
-  const raw = m.eatenAt ?? m.createdAt;
-  const d = raw ? new Date(raw) : new Date();
-  const h = Number.isNaN(d.getTime()) ? new Date().getHours() : d.getHours();
-  if (h >= 20 || h < 5) return "宵夜";
-  // 只有真正的下午才叫下午茶。以前 13 点以后一律算下午茶，
-  // 于是上午十一点的加餐也被写成"下午茶"，跟还没吃的午饭撞在一起。
-  if (h >= 13 && h < 17) return "下午茶";
-  if (h >= 5 && h < 12) return "上午";
-  // 两餐正中间说不清是哪一顿，就别硬编一个词
-  return "加餐";
 }
 
 /**

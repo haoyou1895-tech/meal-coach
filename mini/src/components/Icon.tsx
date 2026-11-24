@@ -55,7 +55,29 @@ export type IconName =
   | "home"
   | "calendar"
   | "chevron"
-  | "back";
+  | "back"
+  /* 底部三个 tab 的图标：网页版 page.tsx 里直接内联的那三条路径，原样搬 */
+  | "tabEat"
+  | "tabMove"
+  /* 十八个运动图标：从网页版 Icon.tsx 原样搬过来（Tabler v3.24.0，H11） */
+  | "exWalk"
+  | "exShoe"
+  | "exRun"
+  | "exBike"
+  | "exSwim"
+  | "exStairs"
+  | "exKarate"
+  | "exMusic"
+  | "exBadminton"
+  | "exBarbell"
+  | "exBrush"
+  | "exYoga"
+  | "exStretch"
+  | "exPingpong"
+  | "exMountain"
+  | "exRope"
+  | "exHeartbeat"
+  | "exFlame";
 
 /** 与 web/src/components/Icon.tsx 的 P 逐条对应 */
 const P: Record<IconName, string> = {
@@ -116,6 +138,29 @@ const P: Record<IconName, string> = {
   chevron: '<path d="M6 9.5l6 6 6-6" stroke-width="2"/>',
   /* 网页版引导页的返回箭头是 18px、描边 2.2，换到 24 的坐标系要乘 24/18 */
   back: '<path d="M15.5 4.5l-7.5 7.5 7.5 7.5" stroke-width="2.9"/>',
+  tabEat:
+    '<path d="M3.5 11h17a8.5 8.5 0 01-8.5 8.5A8.5 8.5 0 013.5 11zM8.5 7.5c0-1 1-1.6 1-2.5M12.5 7.5c0-1 1-1.6 1-2.5"/>',
+  tabMove:
+    '<path d="M13.6 5.4a1.7 1.7 0 100-3.4 1.7 1.7 0 000 3.4zM7 21l3-6 3 2v4M10 15l-2-5 4-2 3 3h4"/>',
+  /* ── 运动图标（Tabler v3.24.0 原路径，一个坐标都没改）── */
+  exWalk: '<path d="M13 4m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M7 21l3 -4" /> <path d="M16 21l-2 -4l-3 -3l1 -6" /> <path d="M6 12l2 -3l4 -1l3 3l3 1" />',
+  exShoe: '<path d="M4 6h5.426a1 1 0 0 1 .863 .496l1.064 1.823a3 3 0 0 0 1.896 1.407l4.677 1.114a4 4 0 0 1 3.074 3.89v2.27a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10a1 1 0 0 1 1 -1z" /> <path d="M14 13l1 -2" /> <path d="M8 18v-1a4 4 0 0 0 -4 -4h-1" /> <path d="M10 12l1.5 -3" />',
+  exRun: '<path d="M13 4m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M4 17l5 1l.75 -1.5" /> <path d="M15 21l0 -4l-4 -3l1 -6" /> <path d="M7 12l0 -3l5 -1l3 3l3 1" />',
+  exBike: '<path d="M5 18m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /> <path d="M19 18m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /> <path d="M12 19l0 -4l-3 -3l5 -4l2 3l3 0" /> <path d="M17 5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />',
+  exSwim: '<path d="M16 9m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M6 11l4 -2l3.5 3l-1.5 2" /> <path d="M3 16.75a2.4 2.4 0 0 0 1 .25a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 1 -.25" />',
+  exStairs: '<path d="M22 5h-5v5h-5v5h-5v5h-5" />',
+  exKarate: '<path d="M18 4m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M3 9l4.5 1l3 2.5" /> <path d="M13 21v-8l3 -5.5" /> <path d="M8 4.5l4 2l4 1l4 3.5l-2 3.5" />',
+  exMusic: '<path d="M3 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /> <path d="M13 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /> <path d="M9 17v-13h10v13" /> <path d="M9 8h10" />',
+  exBadminton: '<circle cx="12" cy="17.2" r="2.9" /> <path d="M9.9 15.1 6.3 5.6" /> <path d="M14.1 15.1 17.7 5.6" /> <path d="M6.3 5.6c3.6-1.7 7.8-1.7 11.4 0" /> <path d="M12 14.3V4.4" />',
+  exBarbell: '<path d="M2 12h1" /> <path d="M6 8h-2a1 1 0 0 0 -1 1v6a1 1 0 0 0 1 1h2" /> <path d="M6 7v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1z" /> <path d="M9 12h6" /> <path d="M15 7v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1z" /> <path d="M18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-2" /> <path d="M22 12h-1" />',
+  exBrush: '<path d="M3 21v-4a4 4 0 1 1 4 4h-4" /> <path d="M21 3a16 16 0 0 0 -12.8 10.2" /> <path d="M21 3a16 16 0 0 1 -10.2 12.8" /> <path d="M10.6 9a9 9 0 0 1 4.4 4.4" />',
+  exYoga: '<path d="M12 4m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M4 20h4l1.5 -3" /> <path d="M17 20l-1 -5h-5l1 -7" /> <path d="M4 10l4 -1l4 -1l4 1.5l4 1.5" />',
+  exStretch: '<path d="M16 5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /> <path d="M5 20l5 -.5l1 -2" /> <path d="M18 20v-5h-5.5l2.5 -6.5l-5.5 1l1.5 2" />',
+  exPingpong: '<path d="M12.718 20.713a7.64 7.64 0 0 1 -7.48 -12.755l.72 -.72a7.643 7.643 0 0 1 9.105 -1.283l2.387 -2.345a2.08 2.08 0 0 1 3.057 2.815l-.116 .126l-2.346 2.387a7.644 7.644 0 0 1 -1.052 8.864" /> <path d="M14 18m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /> <path d="M9.3 5.3l9.4 9.4" />',
+  exMountain: '<path d="M3 20h18l-6.921 -14.612a2.3 2.3 0 0 0 -4.158 0l-6.921 14.612z" /> <path d="M7.5 11l2 2.5l2.5 -2.5l2 3l2.5 -2" />',
+  exRope: '<path d="M6 14v-6a3 3 0 1 1 6 0v8a3 3 0 0 0 6 0v-6" /> <path d="M16 3m0 2a2 2 0 0 1 2 -2h0a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h0a2 2 0 0 1 -2 -2z" /> <path d="M4 14m0 2a2 2 0 0 1 2 -2h0a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h0a2 2 0 0 1 -2 -2z" />',
+  exHeartbeat: '<path d="M3 12h4.5l1.5 -6l4 12l2 -9l1.5 3h4.5" />',
+  exFlame: '<path d="M12 10.941c2.333 -3.308 .167 -7.823 -1 -8.941c0 3.395 -2.235 5.299 -3.667 6.706c-1.43 1.408 -2.333 3.621 -2.333 5.588c0 3.704 3.134 6.706 7 6.706s7 -3.002 7 -6.706c0 -1.712 -1.232 -4.403 -2.333 -5.588c-2.084 3.353 -3.257 3.353 -4.667 2.235" />',
 };
 
 export default function Icon({

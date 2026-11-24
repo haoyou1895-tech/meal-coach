@@ -232,3 +232,15 @@ button::after {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* ---------- 说明文字（components/Explain.tsx） ---------- */
+
+/* 网页版默认值：mt-1.5 text-[12px] leading-relaxed text-ink-300。
+   Text 全局是 block，这里要显式撑开行高，否则 12px 的字挤成一行 */
+.explain {
+  display: block;
+  margin-top: tw(1.5);
+  font-size: 12px;
+  line-height: 1.625;
+  color: $ink-300;
+}

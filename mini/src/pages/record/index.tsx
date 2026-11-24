@@ -13,7 +13,6 @@ import {
   dayBudget,
   mealTypeLabel,
   round,
-  snackLabel,
   sumMeals,
   todayStr,
 } from "../../lib/nutrition";
@@ -598,7 +597,7 @@ export default function RecordPage() {
 
                         <View className="rec-mid">
                           <Text className="rec-meta">
-                            {snackLabel(m)}
+                            {mealTypeLabel(m.mealType)}
                             <Text className="rec-time tabular"> {mealTime(m)}</Text>
                             {m.updatedAt ? <Text className="rec-edited"> 已改过</Text> : null}
                           </Text>
@@ -877,7 +876,7 @@ export default function RecordPage() {
         </View>
       )}
 
-      <BottomNav active="record" showCapture={false} onCapture={() => {}} />
+      <BottomNav active="ledger" showCapture={false} onCapture={() => {}} />
     </View>
   );
 }
