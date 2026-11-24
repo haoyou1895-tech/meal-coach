@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>餐谋 · 版本记录</title>
+<style>
+  :root{
+    --bg:#f5f7f4; --card:#fff; --ink:#1c2320; --ink-2:#4c554f; --ink-3:#8a938d;
+    --line:#e2e7e2; --brand:#3f9d74; --brand-deep:#176f49; --brand-soft:#eaf4ee;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:840px;margin:0 auto;padding:56px 22px 96px}
+
+  header.hero{margin-bottom:40px}
+  .eyebrow{color:var(--brand-deep);font-size:13px;font-weight:600;letter-spacing:.08em}
+  h1{font-size:34px;line-height:1.25;margin:10px 0 12px;letter-spacing:-.02em}
+  .lede{color:var(--ink-2);font-size:15px;max-width:52ch;margin:0}
+  .stats{display:flex;gap:44px;margin-top:26px;padding:18px 24px;background:var(--card);
+    border:1px solid var(--line);border-radius:16px}
+  .stat b{display:block;font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums}
+  .stat span{font-size:12px;color:var(--ink-3)}
+
+  .filter{display:flex;gap:8px;margin:28px 0 8px;flex-wrap:wrap}
+  .filter button{
+    border:1px solid var(--line);background:var(--card);color:var(--ink-2);
+    padding:6px 14px;border-radius:999px;font:inherit;font-size:13px;cursor:pointer;
+  }
+  .filter button[aria-pressed="true"]{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff}
+
+  .timeline{margin-top:22px}
+  .day{display:grid;grid-template-columns:104px 1fr;gap:20px;position:relative}
+  .day + .day{margin-top:6px}
+  .day::before{content:"";position:absolute;left:99px;top:0;bottom:0;width:1px;background:var(--line)}
+  .day:last-child::before{bottom:calc(100% - 34px)}
+  .day-label{position:relative;padding-top:12px;text-align:right;padding-right:22px}
+  .day-label::after{content:"";position:absolute;right:-4px;top:17px;width:9px;height:9px;
+    border-radius:50%;background:var(--brand);box-shadow:0 0 0 3px var(--bg)}
+  .day-md{display:block;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+  .day-wd{display:block;font-size:11px;color:var(--ink-3)}
+  .day-y{display:block;font-size:10px;color:var(--ink-3);opacity:.7}
+
+  .day-cards{padding-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .card + .card{margin-top:10px}
+  .card.is-milestone{border-color:#cfe4d8;box-shadow:inset 3px 0 0 var(--brand)}
+  .card-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .ver{font-weight:700;font-size:13px;color:var(--brand-deep);font-variant-numeric:tabular-nums}
+  .kind{font-size:11px;padding:1px 7px;border-radius:5px;color:var(--kc);
+    background:color-mix(in srgb,var(--kc) 12%,#fff)}
+  .star{font-size:11px;padding:1px 7px;border-radius:5px;color:#fff;background:var(--brand)}
+  .hash{margin-left:auto;font-size:11px;color:var(--ink-3);font-family:ui-monospace,Consolas,monospace}
+  .card h3{margin:0 0 4px;font-size:16px;line-height:1.45;letter-spacing:-.01em}
+  .card p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.7}
+
+  .hidden{display:none}
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--ink-3);line-height:1.9}
+  code{font-family:ui-monospace,Consolas,monospace;background:var(--brand-soft);
+    padding:1px 5px;border-radius:4px;font-size:12px;color:var(--brand-deep)}
+
+  @media (max-width:640px){
+    .wrap{padding:36px 16px 72px}
+    h1{font-size:26px}
+    .stats{gap:26px 34px;padding:16px;flex-wrap:wrap}
+    .stat b{font-size:21px}
+    .day{grid-template-columns:1fr;gap:8px}
+    .day::before{display:none}
+    .day-label{text-align:left;padding:0;display:flex;align-items:baseline;gap:8px}
+    .day-label::after{display:none}
+    .day-md,.day-wd,.day-y{display:inline}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">餐谋 · CHANGELOG</div>
+    <h1>14 次上线，9 天</h1>
+    <p class="lede">每一行都能在 <code>git log</code> 里对上。一个版本 = 一次推到线上、他自己能看见变化的改动；改了没发的不算，纯内部改动不占号。</p>
+    <div class="stats">
+      <div class="stat"><b>14</b><span>个版本</span></div>
+      <div class="stat"><b>51</b><span>次提交</span></div>
+      <div class="stat"><b>9</b><span>天</span></div>
+      <div class="stat"><b>v0.14</b><span>当前线上</span></div>
+    </div>
+  </header>
+
+  <div class="filter">
+    <button aria-pressed="true" data-f="all">全部</button>
+    <button aria-pressed="false" data-f="milestone">只看节点</button>
+    <button aria-pressed="false" data-f="fix">只看修正</button>
+    <button aria-pressed="false" data-f="feat">只看新增</button>
+  </div>
+
+  <div class="timeline">
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 16 日</span>
+          <span class="day-wd">周一</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card is-milestone" data-kind="feat" data-milestone="1">
+          <div class="card-head">
+            <span class="ver">v0.1</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            <span class="star">节点</span>
+            <span class="hash">03f392e</span>
+          </div>
+          <h3>能拍照记一餐</h3>
+          <p>拍照识别菜品，出热量、蛋白、碳水、脂肪、钠，吃完给一句话点评。目标只有一个：让他不用自己去查食物热量。</p>
+        </article></div>
+      </section>
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 17 日</span>
+          <span class="day-wd">周二</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.2</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">b5416f9</span>
+          </div>
+          <h3>点评分餐次，照片存本地</h3>
+          <p>早/午/晚分开说，不再笼统评一整天；照片进 IndexedDB，不上传服务器；加了开屏。</p>
+        </article></div>
+      </section>
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 18 日</span>
+          <span class="day-wd">周三</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.3</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">76be8aa</span>
+          </div>
+          <h3>能说话了</h3>
+          <p>语音输入代替打字（他打字慢）；酒单独记账；盐分开标「照片估的」和「标签写的」；首页重排。</p>
+        </article></div>
+      </section>
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 19 日</span>
+          <span class="day-wd">周四</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.4</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">7cd5f37</span>
+          </div>
+          <h3>小程序骨架</h3>
+          <p>Taro 版跑起来，和网页版共用同一套 lib 逻辑 —— 不写第二份，避免两边算出两个数。</p>
+        </article>
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.5</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">abedfc4</span>
+          </div>
+          <h3>小程序一比一复刻</h3>
+          <p>照网页版逐屏搬，尺寸和文案对齐，不另做一套设计。</p>
+        </article></div>
+      </section>
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 20 日</span>
+          <span class="day-wd">周五</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.6</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">4deae30</span>
+          </div>
+          <h3>小程序出体验版</h3>
+          <p>补齐开屏、设置、语音、改记录。第一次能装进手机，给别人看。</p>
+        </article></div>
+      </section>
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 22 日</span>
+          <span class="day-wd">周日</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.7</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">afc35b7</span>
+          </div>
+          <h3>两端对齐</h3>
+          <p>网页版积压的五条改动搬进小程序，两边看到的是同一本账。</p>
+        </article>
+        <article class="card is-milestone" data-kind="feat" data-milestone="1">
+          <div class="card-head">
+            <span class="ver">v0.8</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            <span class="star">节点</span>
+            <span class="hash">eb92ed6</span>
+          </div>
+          <h3>今日收工</h3>
+          <p>一天结束算一笔账：今天吃了多少、超没超、明天怎么安排。运动第一次能按 MET 折成卡路里。</p>
+        </article>
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.9</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">edad0ba</span>
+          </div>
+          <h3>运动也能说了</h3>
+          <p>运动支持输入框 + 语音（「快走四十分钟」）；明天可以先挑几项排上。</p>
+        </article></div>
+      </section>
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 23 日</span>
+          <span class="day-wd">周一</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.10</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">cd0c241</span>
+          </div>
+          <h3>一天一根柱</h3>
+          <p>近 7 天从四色分层改成一天一根柱 —— 那是全天总量，不该按早午晚分色。运动图标换 Tabler，一项一个。超支优先在一天内补完。</p>
+        </article>
+        <article class="card is-milestone" data-kind="feat" data-milestone="1">
+          <div class="card-head">
+            <span class="ver">v0.11</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            <span class="star">节点</span>
+            <span class="hash">a5975e5</span>
+          </div>
+          <h3>拆成吃 / 动 / 账三页</h3>
+          <p>运动不再挂在首页底部。每项运动填自己的量：距离类填公里、跳绳填个数、其余填分钟。交互词表第一次统一。</p>
+        </article></div>
+      </section>
+      <section class="day">
+        <div class="day-label">
+          <span class="day-md">11 月 24 日</span>
+          <span class="day-wd">周二</span>
+          <span class="day-y">2026</span>
+        </div>
+        <div class="day-cards">
+        <article class="card" data-kind="feat" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.12</span>
+            <span class="kind" style="--kc:#3f9d74">新增</span>
+            
+            <span class="hash">a51c7dc</span>
+          </div>
+          <h3>反推真实消耗</h3>
+          <p>账页多一张卡：用两周的「摄入 + 体重趋势」反推他真实消耗多少，比公式准。第一版只显示，不改额度。</p>
+        </article>
+        <article class="card" data-kind="fix" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.13</span>
+            <span class="kind" style="--kc:#c4694a">修正</span>
+            
+            <span class="hash">47a9684</span>
+          </div>
+          <h3>修好「20 周却叫快一点」</h3>
+          <p>根因不是标签写错，是两个数各算各的：周数按 400 卡算、预算按 331 卡算。顺手让空状态能点了，吃页和运动页各收起一半交互。</p>
+        </article>
+        <article class="card" data-kind="refactor" data-milestone="0">
+          <div class="card-head">
+            <span class="ver">v0.14</span>
+            <span class="kind" style="--kc:#5b7fa6">重构</span>
+            
+            <span class="hash">fd7e9d2</span>
+          </div>
+          <h3>一个动作只剩一个词</h3>
+          <p>添加 / 确定 / 收起 / 关闭，四个词各管一件事；「加一项」和「再排一项」合并成「添加」。同时建立这份版本记录。</p>
+        </article></div>
+      </section></div>
+
+  <footer>
+    数据源 <code>docs/versions.json</code>；这个页面和 <code>docs/08</code> 的表格都是
+    <code>node tools/changelog.mjs</code> 生成的，别手改。<br>
+    生成时间 2026-11-24 14:52
+  </footer>
+</div>
+
+<script>
+  const btns = [...document.querySelectorAll(".filter button")];
+  const cards = [...document.querySelectorAll(".card")];
+  const days = [...document.querySelectorAll(".day")];
+  btns.forEach((b) => b.addEventListener("click", () => {
+    btns.forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    const f = b.dataset.f;
+    cards.forEach((c) => {
+      const ok = f === "all" ? true
+        : f === "milestone" ? c.dataset.milestone === "1"
+        : c.dataset.kind === f;
+      c.classList.toggle("hidden", !ok);
+    });
+    days.forEach((d) => {
+      const any = [...d.querySelectorAll(".card")].some((c) => !c.classList.contains("hidden"));
+      d.classList.toggle("hidden", !any);
+    });
+  }));
+</script>
+</body>
+</html>
