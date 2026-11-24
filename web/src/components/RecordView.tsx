@@ -19,6 +19,7 @@ import {
   todayStr,
 } from "@/lib/nutrition";
 import { avgBurnEndingOn, burnOfLog, shiftDate } from "@/lib/exercise";
+import { estimateExpenditure, statusText } from "@/lib/expenditure";
 import { dateList, latestWeightKg } from "@/lib/store";
 import { drinkKcal, drinksLabel } from "@/lib/drinks";
 import { deletePhoto, getPhoto, photoIdsOf, putPhoto } from "@/lib/photos";
@@ -443,6 +444,28 @@ export default function RecordView({
 
   const lost = round(profile.weightKg - latest, 1);
 
+  /**
+   * 他真实的消耗 —— 从「吃了多少 + 体重怎么变的」反推。
+   *
+   * 只显示，不改额度（ADR-023）：这个数得先被他自己验证过，才允许它去影响账。
+   * 输入刻意不含运动：运动的效果已经落在体重上了，再算一次就是重复计账。
+   */
+  const est = useMemo(() => {
+    const byDay = new Map<string, { kcal: number; n: number }>();
+    for (const m of meals) {
+      const cur = byDay.get(m.date) ?? { kcal: 0, n: 0 };
+      cur.kcal += m.nutrition.kcal + drinkKcal(m.drinks);
+      cur.n += 1;
+      byDay.set(m.date, cur);
+    }
+    const days = Array.from(byDay, ([date, v]) => ({
+      date,
+      kcal: v.kcal,
+      mealCount: v.n,
+    }));
+    return estimateExpenditure(days, weights, todayStr(), plan.tdee);
+  }, [meals, weights, plan.tdee]);
+
   return (
     <div className="pb-52">
       <header className="safe-top px-5 pb-3 pt-5">
@@ -548,6 +571,42 @@ export default function RecordView({
         targetWeightKg={profile.targetWeightKg}
         onPickDate={jumpToDay}
       />
+
+      {/* 实际消耗：从体重趋势反推，只显示不生效 */}
+      <section className="mt-4 px-5">
+        <div className="card p-4!">
+          <div className="flex items-baseline justify-between">
+            <p className="text-[15px] font-medium text-ink-500">实际消耗</p>
+            <span className="text-[11px] tabular-nums text-ink-300">
+              {est.foodDays} 天三餐 · {est.weightCount} 次体重
+            </span>
+          </div>
+
+          {est.kcal !== null ? (
+            <p className="mt-1.5 flex items-baseline gap-1.5">
+              <span className="text-[34px] font-bold leading-none tabular-nums text-brand-600">
+                {est.kcal}
+              </span>
+              <span className="text-[13px] text-ink-500">大卡 / 天</span>
+            </p>
+          ) : (
+            <p className="mt-1.5 text-[34px] font-bold leading-none text-ink-300">
+              —
+            </p>
+          )}
+
+          <p className="mt-2 text-[12px] text-ink-400">{statusText(est)}</p>
+
+          <div className="mt-2 flex items-baseline justify-between border-t border-black/[0.05] pt-2">
+            <span className="text-[11px] text-ink-300">
+              {est.kcal !== null ? "先给你看，还没用来算额度" : "数据还不够"}
+            </span>
+            <span className="text-[11px] tabular-nums text-ink-300">
+              公式 {est.formulaTdee}
+            </span>
+          </div>
+        </div>
+      </section>
 
       {/* 近 7 天热量 */}
       <section className="mt-6 px-5">
