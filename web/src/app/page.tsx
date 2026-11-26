@@ -5,6 +5,7 @@ import CameraSheet from "@/components/CameraSheet";
 import DaySheet, { DaySummaryBar } from "@/components/DaySummary";
 import { ExplainProvider } from "@/components/Explain";
 import HomeView from "@/components/HomeView";
+import ManualSheet from "@/components/ManualSheet";
 import MoveView from "@/components/MoveView";
 import Onboarding from "@/components/Onboarding";
 import RecordView from "@/components/RecordView";
@@ -60,6 +61,8 @@ export default function Page() {
   /** 「记一餐」里点「改」时，把要改的那条传过去 */
   const [pendingEditId, setPendingEditId] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  /** 忘了拍照时的另一条路：只凭嘴说 */
+  const [manualOpen, setManualOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [redoSetup, setRedoSetup] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
@@ -496,6 +499,26 @@ export default function Page() {
           setPendingEditId(id);
           setTab("ledger");
         }}
+        onManual={() => {
+          setCameraOpen(false);
+          setManualOpen(true);
+        }}
+      />
+
+      {/*
+        忘了拍照的那一顿。跟拍照共用同一套保存出口 ——
+        openDay 那一下两边都要跑，谁漏了都会出现"记了但今天还显示没记"。
+      */}
+      <ManualSheet
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        profile={profile}
+        plan={plan!}
+        dayKcalBefore={dayKcal}
+        todayMeals={todayMeals}
+        onSave={(m: Meal) =>
+          update(openDay(upsertMeal(state, m), m.date))
+        }
       />
 
       <Sheet

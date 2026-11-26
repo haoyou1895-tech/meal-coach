@@ -61,6 +61,7 @@ export default function CameraSheet({
   todayMeals,
   onSave,
   onEditMeal,
+  onManual,
 }: {
   open: boolean;
   onClose: () => void;
@@ -72,6 +73,8 @@ export default function CameraSheet({
   onSave: (m: Meal) => void;
   /** 这顿已经记过时，给一个直接去改的入口 */
   onEditMeal?: (id: string) => void;
+  /** 忘了拍照：转到「没拍照片，直接说」那条路 */
+  onManual?: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   /** 相册入口：不能强制调摄像头，补记昨天的饭、别人发来的照片都得能选 */
@@ -742,6 +745,24 @@ export default function CameraSheet({
               </span>
             )}
           </button>
+
+          {/*
+            漏记的出口。放在这里而不是另开一个按钮，是因为他忘拍照时
+            第一反应还是点「记一餐」—— 进来才发现没图可拍。
+            这一行就是他在那个瞬间要的东西。
+          */}
+          {onManual && (
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                onManual();
+              }}
+              className="mt-3 w-full text-center text-[15px] text-ink-500 underline underline-offset-4"
+            >
+              没拍照？直接说
+            </button>
+          )}
 
         </div>
       )}
