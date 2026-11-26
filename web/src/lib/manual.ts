@@ -82,7 +82,7 @@ const RULES: Array<FoodClass & { keys: string[] }> = [
     prompt: "吃了多少，按斤两算",
     keys: [
       "火锅", "涮", "肥牛", "肥羊", "毛肚", "黄喉", "鸭肠", "牛肉", "羊肉",
-      "五花", "里脊", "排骨", "鸡腿", "鸡胸", "鸡翅", "肘子", "牛排", "烤肉",
+      "五花", "里脊", "排骨", "鸡腿", "鸡胸", "鸡翅", "肘子", "烤肉",
       "烤肉片", "叉烧", "卤肉", "猪蹄",
     ],
     presets: [
@@ -90,6 +90,21 @@ const RULES: Array<FoodClass & { keys: string[] }> = [
       { label: "半斤", amount: 250, unit: "克" },
       { label: "一斤", amount: 500, unit: "克" },
       { label: "两斤", amount: 1000, unit: "克" },
+    ],
+  },
+  {
+    /*
+     * 牛排不跟 meat 类问斤两。
+     * 他是拿刀叉吃一块 200 克的，不是"买了半斤" ——
+     * 按斤两问，他只能选"几片"（50 克），热量差四倍。
+     */
+    id: "steak",
+    prompt: "吃了几块",
+    keys: ["牛排", "西冷", "菲力", "眼肉", "肋眼"],
+    presets: [
+      { label: "一小块", amount: 120, unit: "克" },
+      { label: "一块", amount: 200, unit: "克" },
+      { label: "一大块", amount: 300, unit: "克" },
     ],
   },
   {
