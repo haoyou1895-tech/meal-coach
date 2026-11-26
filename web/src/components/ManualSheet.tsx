@@ -4,8 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useExplain } from "@/components/Explain";
 import { Sheet } from "@/components/ui";
 import { ruleComment } from "@/lib/comment";
-import { amountInText, classify, presetToPortion, stripAmount } from "@/lib/manual";
-import type { Preset } from "@/lib/manual";
+import {
+  DEFAULT_CLASS,
+  amountInText,
+  classify,
+  presetToPortion,
+  stripAmount,
+} from "@/lib/manual";
+import type { FoodClass, Preset } from "@/lib/manual";
+import { getCached, putCached } from "@/lib/portionCache";
 import { guessMealType, todayStr } from "@/lib/nutrition";
 import type { Meal, Nutrition, NutritionPlan, Profile } from "@/lib/types";
 
@@ -63,10 +70,85 @@ export default function ManualSheet({
     setTip("");
   }, [name]);
 
-  /** 该问什么单位 */
-  const cls = useMemo(() => classify(name), [name]);
+  /** 本地规则表的判定 */
+  const localCls = useMemo(() => classify(name), [name]);
   /** 他自己说了量（"一斤牛肉"）就不用再问 —— 问了是在侮辱人 */
   const written = useMemo(() => amountInText(name), [name]);
+
+  /** AI 想出来的档位（只在这个词本地查不到时才有） */
+  const [aiCls, setAiCls] = useState<FoodClass | null>(null);
+  const [aiState, setAiState] = useState<"idle" | "wait" | "fail">("idle");
+
+  /*
+   * 本地查不到才问 AI。
+   *
+   * 为什么不把这一步做成"点一下再问"：他已经输了名字，
+   * 再让他点一次"帮我算"就是多一步，而这一步没有任何选择价值。
+   *
+   * 为什么 500ms 才发：他会一个字一个字打（玉 → 玉米 → 玉米粒），
+   * 每敲一下就请求一次，三次里两次是废的。
+   *
+   * 为什么第 0 秒就显示"想一下"：如果等 500ms 后再切状态，
+   * 这半秒里屏幕上显示的是兜底类的「一小份 / 一份 / 大份」——
+   * 他手快就点下去了，点完 AI 的档位才到。所以从输入那刻起就是等待态。
+   */
+  useEffect(() => {
+    setAiCls(null);
+    const key = name.trim();
+    if (!key || localCls.id !== "other" || written) {
+      setAiState("idle");
+      return;
+    }
+
+    const hit = getCached(key);
+    if (hit) {
+      setAiCls(hit);
+      setAiState("idle");
+      return;
+    }
+
+    setAiState("wait");
+    // 名字又变了就别管这次的结果 —— 否则"玉米"的档位会盖到"小龙虾"上
+    let dead = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/portion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: key }),
+        });
+        if (!res.ok) throw new Error("no");
+        const data = (await res.json()) as {
+          prompt?: string;
+          presets?: Preset[];
+        };
+        if (!data?.prompt || !Array.isArray(data.presets) || data.presets.length < 2) {
+          throw new Error("bad");
+        }
+        const got: FoodClass = { id: "ai", prompt: data.prompt, presets: data.presets };
+        putCached(key, got);
+        if (!dead) {
+          setAiCls(got);
+          setAiState("idle");
+        }
+      } catch {
+        // 想不出来就落回兜底档位：问粗一点，好过卡在这
+        if (!dead) setAiState("fail");
+      }
+    }, 500);
+
+    return () => {
+      dead = true;
+      clearTimeout(timer);
+    };
+  }, [name, localCls, written]);
+
+  /**
+   * 最终用哪套档位：本地命中就用本地的（瞬出、永远一样），
+   * 没命中才用 AI 的；AI 也没成，落兜底。
+   */
+  const cls: FoodClass =
+    localCls.id !== "other" ? localCls : (aiCls ?? DEFAULT_CLASS);
 
   const reset = () => {
     setName("");
@@ -259,6 +341,18 @@ export default function ManualSheet({
                   <span className="text-ink-300">
                     （约 {written.amount} {written.unit}）
                   </span>
+                </span>
+              </div>
+            ) : aiState === "wait" ? (
+              /*
+               * 等待态不摆按钮。
+               * 摆了的话他可能先点下去，而那是兜底类的「一份」——
+               * 点完上面才换成「一根 / 两根」，得再选一次，等于白点。
+               */
+              <div className="flex items-center gap-2 rounded-xl bg-white px-3.5 py-3">
+                <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-brand-500" />
+                <span className="animate-pulse text-[15px] text-ink-300">
+                  想想怎么量…
                 </span>
               </div>
             ) : (
